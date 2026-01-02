@@ -24,7 +24,8 @@ class ActivityPolicy(Policy):
         if not self.enabled:
             return {}
 
-        process_name = context.get("process", "")
+        window_info = context.get("window", {})
+        process_name = window_info.get("process", "")
         # Simple exact match for now, could be regex later
         tag = self.rules.get(process_name)
         

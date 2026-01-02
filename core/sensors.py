@@ -1,11 +1,25 @@
 import win32gui
 import win32process
 import psutil
-from typing import Dict
+from typing import Dict, Any
+from abc import ABC, abstractmethod
 
-class WindowSensor:
+class Sensor(ABC):
+    @abstractmethod
+    def collect(self) -> Any:
+        """Collects data from the sensor."""
+        pass
+
+class WindowSensor(Sensor):
+    def collect(self) -> Dict[str, str]:
+        """
+        Returns a dictionary containing the active window's title and process name.
+        """
+        return self.get_active_window_info()
+
     def get_active_window_info(self) -> Dict[str, str]:
         """
+        Legacy method, kept for internal logic.
         Returns a dictionary containing the active window's title and process name.
         """
         try:

@@ -11,6 +11,7 @@ from utils.config_loader import ConfigLoader
 from core.executor import WEExecutor
 from core.sensors import WindowSensor
 from core.policies import ActivityPolicy, Policy
+from core.context import ContextManager
 
 def main() -> None:
     print("Context Aware WE Scheduler starting...")
@@ -46,10 +47,12 @@ def main() -> None:
         print(f"Failed to initialize executor: {e}")
         return
 
-    # 3. Initialize Sensors
+    # 3. Initialize Context Manager & Sensors
+    context_manager = ContextManager()
     try:
         window_sensor = WindowSensor()
-        print("WindowSensor initialized.")
+        context_manager.register_sensor("window", window_sensor)
+        print("ContextManager initialized with WindowSensor.")
     except Exception as e:
         print(f"Failed to initialize sensors: {e}")
         return
@@ -72,12 +75,10 @@ def main() -> None:
     try:
         while True:
             # Main Loop
-            # 1. Sense
-            window_info = window_sensor.get_active_window_info()
+            # 1. Sense & Aggregate Context
+            context = context_manager.refresh()
             
             # 2. Think (Policy -> Arbiter -> Matcher)
-            context = window_info # Context is just the raw sensor data for now
-            
             aggregated_tags: Dict[str, float] = {}
             for policy in policies:
                 tags = policy.get_tags(context)
@@ -87,7 +88,8 @@ def main() -> None:
             # 3. Act (Executor)
             
             # Placeholder for testing: print sensor data and tags
-            print(f"\r[Sensor] {window_info.get('process', 'N/A')} -> [Tags] {aggregated_tags}          ", end="", flush=True)
+            process_name = context.get("window", {}).get("process", "N/A")
+            print(f"\r[Sensor] {process_name} -> [Tags] {aggregated_tags}          ", end="", flush=True)
             
             time.sleep(1)
     except KeyboardInterrupt:
