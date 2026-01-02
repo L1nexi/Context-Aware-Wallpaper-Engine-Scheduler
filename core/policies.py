@@ -51,6 +51,12 @@ class ActivityPolicy(Policy):
         return {}
 
 class TimePolicy(Policy):
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        # Default: Night starts at 22:00, Day starts at 6:00
+        self.night_start = config.get("night_start", 22)
+        self.day_start = config.get("day_start", 6)
+
     def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         if not self.enabled:
             return {}
@@ -63,11 +69,12 @@ class TimePolicy(Policy):
         hour = current_time.tm_hour
         tags = {}
 
-        # Simple logic: Night is 22:00 - 06:00
-        if hour >= 22 or hour < 6:
+        # Logic: If it's >= night_start OR < day_start, it's night.
+        # Example: >= 22 OR < 6
+        if hour >= self.night_start or hour < self.day_start:
             tags["#night"] = 1.0 * self.weight_scale
-        
-        # Can add more: #morning, #afternoon, etc.
+        else:
+            tags["#day"] = 1.0 * self.weight_scale
         
         return tags
 
