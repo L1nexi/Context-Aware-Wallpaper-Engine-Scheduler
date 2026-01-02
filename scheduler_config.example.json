@@ -1,9 +1,9 @@
 {
-  "we_path": "E:\\SteamLibrary\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe",
+  "we_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe",
   "playlists": [
     { "name": "WORK", "tags": ["#work"] },
     { "name": "GAME", "tags": ["#game"] },
-    { "name": "列表4", "tags": ["#chill"] },
+    { "name": "CHILL", "tags": ["#chill"] },
     { "name": "WORK_NIGHT", "tags": ["#work", "#night"] }
   ],
   "policies": {
@@ -13,15 +13,11 @@
       "rules": {
         "Code.exe": "#work",
         "steam.exe": "#game",
-        "dota2.exe": "#game",
         "chrome.exe": "#chill"
       },
       "title_rules": {
         "GitHub": "#work",
-        "Stack Overflow": "#work",
-        "Docs": "#work",
-        "Jupyter": "#work",
-        ".pdf": "#work"
+        "Stack Overflow": "#work"
       }
     },
     "season": { "enabled": true, "weight_scale": 0.5 },
@@ -29,16 +25,16 @@
     "weather": {
       "enabled": false,
       "weight_scale": 0.8,
-      "api_key": "acfd78a722d277d6fb2a106a4e81a799",
-      "lat": "31.2645",
-      "lon": "121.5051",
+      "api_key": "YOUR_OPENWEATHERMAP_API_KEY_HERE",
+      "lat": "31.2304",
+      "lon": "121.4737",
       "interval": 600
-    },
-    "mood": { "enabled": true, "weight_scale": 2.0 }  },
-  "disturbance": {
-    "idle_threshold": 5,
-    "min_interval": 10,
-    "force_interval": 60
+    }
   },
-  "smoothing_window": 2
+  "disturbance": {
+    "idle_threshold": 60,
+    "min_interval": 1800,
+    "force_interval": 14400
+  },
+  "smoothing_window": 60
 }

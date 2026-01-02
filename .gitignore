@@ -12,3 +12,4 @@ venv/
 # Project specific
 temp_playlist.json
 logs/
+scheduler_config.json
