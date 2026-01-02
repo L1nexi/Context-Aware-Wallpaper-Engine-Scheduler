@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+venv/
+.env
+.vscode/
+
+# Project specific
+temp_playlist.json

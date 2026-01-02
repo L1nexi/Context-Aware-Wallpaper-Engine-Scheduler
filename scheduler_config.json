@@ -1,0 +1,14 @@
+{
+  "playlists": [
+    { "name": "WORK", "tags": ["#work"] },
+    { "name": "GAME", "tags": ["#game"] },
+    { "name": "列表4", "tags": ["#chill"] },
+    { "name": "WORK_NIGHT", "tags": ["#work", "#night"] }
+  ],
+  "policies": {
+    "activity": { "enabled": true, "weight_scale": 1.0 },
+    "season": { "enabled": true, "weight_scale": 0.5 },
+    "time": { "enabled": true, "weight_scale": 0.5 },
+    "mood": { "enabled": true, "weight_scale": 2.0 }
+  }
+}
