@@ -77,9 +77,11 @@ def main() -> None:
         return
 
     # 5. Initialize Arbiter & Matcher
-    arbiter = Arbiter(policies)
+    smoothing_window = config_loader.get_smoothing_window()
+    arbiter = Arbiter(policies, smoothing_window=smoothing_window)
     matcher = Matcher(config_loader.get_playlists())
-    print("Arbiter and Matcher initialized.")
+    print(f"Arbiter initialized with smoothing_window: {smoothing_window}m")
+    print("Matcher initialized.")
     
     # 6. Initialize Disturbance Controller
     disturbance_config = config_loader.get_disturbance_config()

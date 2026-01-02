@@ -23,5 +23,7 @@
   "disturbance": {
     "idle_threshold": 5,
     "min_interval": 10,
-    "force_interval": 60  }
+    "force_interval": 60
+  },
+  "smoothing_window": 2
 }

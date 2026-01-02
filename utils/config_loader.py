@@ -24,6 +24,9 @@ class ConfigLoader:
     def get_we_path(self) -> str:
         return self.config.get("we_path", "")
 
+    def get_smoothing_window(self) -> int:
+        return self.config.get("smoothing_window", 60)
+
     def get_disturbance_config(self) -> Dict[str, int]:
         return self.config.get("disturbance", {
             "idle_threshold": 30,
