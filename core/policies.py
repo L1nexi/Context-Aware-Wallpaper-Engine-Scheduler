@@ -19,6 +19,7 @@ class ActivityPolicy(Policy):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.rules = config.get("rules", {})
+        self.title_rules = config.get("title_rules", {})
 
     def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         if not self.enabled:
@@ -26,6 +27,16 @@ class ActivityPolicy(Policy):
 
         window_info = context.get("window", {})
         process_name = window_info.get("process", "")
+        window_title = window_info.get("title", "")
+        
+        # 1. Check Title Rules (Higher Priority)
+        # Iterate through all title keywords. If a keyword is found in the title, use that tag.
+        # This allows overriding the process-based rule.
+        for keyword, tag in self.title_rules.items():
+            if keyword.lower() in window_title.lower():
+                return {tag: 1.0 * self.weight_scale}
+
+        # 2. Check Process Rules (Fallback)
         # Simple exact match for now, could be regex later
         tag = self.rules.get(process_name)
         

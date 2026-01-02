@@ -15,6 +15,13 @@
         "steam.exe": "#game",
         "dota2.exe": "#game",
         "chrome.exe": "#chill"
+      },
+      "title_rules": {
+        "GitHub": "#work",
+        "Stack Overflow": "#work",
+        "Docs": "#work",
+        "Jupyter": "#work",
+        ".pdf": "#work"
       }
     },
     "season": { "enabled": true, "weight_scale": 0.5 },
