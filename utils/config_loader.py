@@ -1,12 +1,13 @@
 import json
 import os
+from typing import Dict, List, Any
 
 class ConfigLoader:
-    def __init__(self, config_path):
+    def __init__(self, config_path: str):
         self.config_path = config_path
-        self.config = {}
+        self.config: Dict[str, Any] = {}
 
-    def load(self):
+    def load(self) -> Dict[str, Any]:
         if not os.path.exists(self.config_path):
             raise FileNotFoundError(f"Config file not found at: {self.config_path}")
         
@@ -14,8 +15,11 @@ class ConfigLoader:
             self.config = json.load(f)
         return self.config
 
-    def get_playlists(self):
+    def get_playlists(self) -> List[Dict[str, Any]]:
         return self.config.get("playlists", [])
 
-    def get_policies(self):
+    def get_policies(self) -> Dict[str, Any]:
         return self.config.get("policies", {})
+
+    def get_we_path(self) -> str:
+        return self.config.get("we_path", "")

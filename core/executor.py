@@ -1,13 +1,14 @@
 import subprocess
 import os
+from typing import List
 
 class WEExecutor:
-    def __init__(self, we_path):
+    def __init__(self, we_path: str):
         self.we_path = we_path
         if not os.path.exists(self.we_path):
             raise FileNotFoundError(f"Wallpaper Engine executable not found at: {self.we_path}")
 
-    def _run_command(self, args):
+    def _run_command(self, args: List[str]) -> None:
         """Runs a command silently."""
         cmd = [self.we_path, "-control"] + args
         try:
@@ -22,8 +23,8 @@ class WEExecutor:
         except subprocess.CalledProcessError as e:
             print(f"Error executing command: {e}")
 
-    def open_playlist(self, playlist_name):
+    def open_playlist(self, playlist_name: str) -> None:
         self._run_command(["openPlaylist", "-playlist", playlist_name])
 
-    def next_wallpaper(self):
+    def next_wallpaper(self) -> None:
         self._run_command(["nextWallpaper"])
