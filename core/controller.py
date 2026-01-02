@@ -1,5 +1,8 @@
 import time
+import logging
 from typing import Dict, Any
+
+logger = logging.getLogger("WEScheduler.Controller")
 
 class DisturbanceController:
     def __init__(self, config: Dict[str, Any]):

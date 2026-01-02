@@ -1,5 +1,8 @@
 import numpy as np
+import logging
 from typing import List, Dict, Any, Optional
+
+logger = logging.getLogger("WEScheduler.Matcher")
 
 class Matcher:
     def __init__(self, playlists: List[Dict[str, Any]]):

@@ -1,5 +1,8 @@
+import logging
 from typing import List, Dict, Any
 from core.policies import Policy
+
+logger = logging.getLogger("WEScheduler.Arbiter")
 
 class Arbiter:
     def __init__(self, policies: List[Policy], smoothing_window: int = 60):
@@ -27,7 +30,7 @@ class Arbiter:
                 for tag, weight in tags.items():
                     instant_tags[tag] = instant_tags.get(tag, 0.0) + weight
             except Exception as e:
-                print(f"Error in policy {type(policy).__name__}: {e}")
+                logger.error(f"Error in policy {type(policy).__name__}: {e}")
         
         # 2. Apply EMA Smoothing
         self.smoothed_tags = self._apply_ema(instant_tags)

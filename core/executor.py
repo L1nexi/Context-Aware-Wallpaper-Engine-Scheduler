@@ -1,6 +1,9 @@
 import subprocess
 import os
+import logging
 from typing import List
+
+logger = logging.getLogger("WEScheduler.Executor")
 
 class WEExecutor:
     def __init__(self, we_path: str):
@@ -19,9 +22,9 @@ class WEExecutor:
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             
             subprocess.run(cmd, check=True, startupinfo=startupinfo, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"Executed: {' '.join(cmd)}")
+            logger.debug(f"Executed: {' '.join(cmd)}")
         except subprocess.CalledProcessError as e:
-            print(f"Error executing command: {e}")
+            logger.error(f"Error executing command: {e}")
 
     def open_playlist(self, playlist_name: str) -> None:
         self._run_command(["openPlaylist", "-playlist", playlist_name])

@@ -26,6 +26,14 @@
     },
     "season": { "enabled": true, "weight_scale": 0.5 },
     "time": { "enabled": true, "weight_scale": 0.5 },
+    "weather": {
+      "enabled": false,
+      "weight_scale": 0.8,
+      "api_key": "acfd78a722d277d6fb2a106a4e81a799",
+      "lat": "31.2645",
+      "lon": "121.5051",
+      "interval": 600
+    },
     "mood": { "enabled": true, "weight_scale": 2.0 }  },
   "disturbance": {
     "idle_threshold": 5,
