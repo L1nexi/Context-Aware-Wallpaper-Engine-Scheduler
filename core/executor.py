@@ -58,7 +58,11 @@ class WEExecutor:
             subprocess.run(cmd, check=True, startupinfo=startupinfo, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             logger.debug(f"Executed: {' '.join(cmd)}")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Error executing command: {e}")
+            if e.returncode == 5:
+                logger.error(f"Wallpaper Engine Error: Resource not found (Status 5). "
+                             f"Please check if the playlist/profile name exists in WE: {args}")
+            else:
+                logger.error(f"Error executing command: {e}")
 
     def open_playlist(self, playlist_name: str) -> None:
         self._run_command(["openPlaylist", "-playlist", playlist_name])
