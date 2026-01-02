@@ -19,6 +19,9 @@
     },
     "season": { "enabled": true, "weight_scale": 0.5 },
     "time": { "enabled": true, "weight_scale": 0.5 },
-    "mood": { "enabled": true, "weight_scale": 2.0 }
-  }
+    "mood": { "enabled": true, "weight_scale": 2.0 }  },
+  "disturbance": {
+    "idle_threshold": 5,
+    "min_interval": 10,
+    "force_interval": 60  }
 }

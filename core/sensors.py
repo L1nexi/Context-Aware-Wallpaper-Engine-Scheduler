@@ -1,5 +1,6 @@
 import win32gui
 import win32process
+import win32api
 import psutil
 from typing import Dict, Any
 from abc import ABC, abstractmethod
@@ -43,6 +44,25 @@ class WindowSensor(Sensor):
         except Exception as e:
             # In case of any unexpected win32 API failure
             return {"title": "", "process": "", "error": str(e)}
+
+class IdleSensor(Sensor):
+    def collect(self) -> float:
+        """
+        Returns the number of seconds the user has been idle.
+        """
+        return self.get_idle_duration()
+
+    def get_idle_duration(self) -> float:
+        """
+        Calculates idle time based on GetLastInputInfo.
+        """
+        try:
+            last_input_info = win32api.GetLastInputInfo()
+            tick_count = win32api.GetTickCount()
+            idle_milliseconds = tick_count - last_input_info
+            return idle_milliseconds / 1000.0
+        except Exception:
+            return 0.0
 
 if __name__ == "__main__":
     import time

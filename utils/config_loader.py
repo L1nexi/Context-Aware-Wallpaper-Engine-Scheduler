@@ -23,3 +23,10 @@ class ConfigLoader:
 
     def get_we_path(self) -> str:
         return self.config.get("we_path", "")
+
+    def get_disturbance_config(self) -> Dict[str, int]:
+        return self.config.get("disturbance", {
+            "idle_threshold": 30,
+            "min_interval": 60,
+            "force_interval": 300
+        })

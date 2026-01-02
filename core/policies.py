@@ -33,3 +33,24 @@ class ActivityPolicy(Policy):
             return {tag: 1.0 * self.weight_scale}
         
         return {}
+
+class TimePolicy(Policy):
+    def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
+        if not self.enabled:
+            return {}
+
+        # context["time"] is a struct_time
+        current_time = context.get("time")
+        if not current_time:
+            return {}
+
+        hour = current_time.tm_hour
+        tags = {}
+
+        # Simple logic: Night is 22:00 - 06:00
+        if hour >= 22 or hour < 6:
+            tags["#night"] = 1.0 * self.weight_scale
+        
+        # Can add more: #morning, #afternoon, etc.
+        
+        return tags
