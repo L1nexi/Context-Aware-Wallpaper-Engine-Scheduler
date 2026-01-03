@@ -16,3 +16,4 @@ scheduler_config.json
 
 # test
 tests/
+.github/
