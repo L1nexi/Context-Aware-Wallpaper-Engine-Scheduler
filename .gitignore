@@ -13,3 +13,6 @@ venv/
 temp_playlist.json
 logs/
 scheduler_config.json
+
+# test
+tests/
