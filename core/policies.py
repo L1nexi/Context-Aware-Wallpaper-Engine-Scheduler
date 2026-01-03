@@ -1,6 +1,7 @@
 import time
 import requests
 import logging
+import math
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
@@ -19,64 +20,151 @@ class Policy(ABC):
         Example: {"#work": 0.8, "#night": 0.5}
         """
         pass
+    
+    def _normalize_and_scale(self, tags: Dict[str, float]) -> Dict[str, float]:
+        """
+        Normalizes the tag vector to unit length, then scales by weight_scale.
+        """
+        if not tags:
+            return {}
+            
+        # Calculate L2 norm
+        norm = math.sqrt(sum(w * w for w in tags.values()))
+        
+        if norm < 1e-6:
+            return {}
+            
+        # Normalize and scale
+        return {tag: (w / norm) * self.weight_scale for tag, w in tags.items()}
 
 class ActivityPolicy(Policy):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.rules = config.get("rules", {})
         self.title_rules = config.get("title_rules", {})
+        
+        # EMA Configuration
+        smoothing_window = config.get("smoothing_window", 60)
+        # Calculate alpha for EMA: alpha = 2 / (N + 1)
+        if smoothing_window <= 1:
+            self.alpha = 1.0
+        else:
+            self.alpha = 2.0 / (smoothing_window + 1.0)
+            
+        self.smoothed_tags: Dict[str, float] = {}
 
     def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         if not self.enabled:
             return {}
 
+        instant_tags = self._get_instant_tags(context)
+        
+        # Apply EMA
+        self.smoothed_tags = self._apply_ema(instant_tags)
+        
+        # Normalize and scale (Activity is usually single-tag, but good practice)
+        return self._normalize_and_scale(self.smoothed_tags)
+
+    def _get_instant_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         window_info = context.get("window", {})
         process_name = window_info.get("process", "")
         window_title = window_info.get("title", "")
         
         # 1. Check Title Rules (Higher Priority)
-        # Iterate through all title keywords. If a keyword is found in the title, use that tag.
-        # This allows overriding the process-based rule.
         for keyword, tag in self.title_rules.items():
             if keyword.lower() in window_title.lower():
-                return {tag: 1.0 * self.weight_scale}
+                return {tag: 1.0}
 
         # 2. Check Process Rules (Fallback)
-        # Simple exact match for now, could be regex later
         tag = self.rules.get(process_name)
-        
         if tag:
-            return {tag: 1.0 * self.weight_scale}
+            return {tag: 1.0}
         
         return {}
+
+    def _apply_ema(self, instant_tags: Dict[str, float]) -> Dict[str, float]:
+        if not self.smoothed_tags:
+            return instant_tags.copy()
+
+        all_tags = set(self.smoothed_tags.keys()) | set(instant_tags.keys())
+        new_smoothed_tags = {}
+        
+        for tag in all_tags:
+            current_weight = instant_tags.get(tag, 0.0)
+            previous_weight = self.smoothed_tags.get(tag, 0.0)
+            
+            new_weight = self.alpha * current_weight + (1.0 - self.alpha) * previous_weight
+            
+            if new_weight >= 0.001:
+                new_smoothed_tags[tag] = new_weight
+        
+        return new_smoothed_tags
 
 class TimePolicy(Policy):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        # Default: Night starts at 22:00, Day starts at 6:00
-        self.night_start = config.get("night_start", 22)
-        self.day_start = config.get("day_start", 6)
+        self.night_start = config.get("night_start", 20)
+        self.day_start = config.get("day_start", 8)
 
     def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         if not self.enabled:
             return {}
 
-        # context["time"] is a struct_time
         current_time = context.get("time")
         if not current_time:
             return {}
 
-        hour = current_time.tm_hour
+        hour = current_time.tm_hour + current_time.tm_min / 60.0
         tags = {}
 
-        # Logic: If it's >= night_start OR < day_start, it's night.
-        # Example: >= 22 OR < 6
-        if hour >= self.night_start or hour < self.day_start:
-            tags["#night"] = 1.0 * self.weight_scale
-        else:
-            tags["#day"] = 1.0 * self.weight_scale
+        # Define anchors (peaks)
+        # Day peak: Noon (12:00) or midpoint of day
+        # Night peak: Midnight (0:00) or midpoint of night
+        # We use a simple distance-based interpolation
         
-        return tags
+        # Calculate distance to "Day Center" (approx (day_start + night_start) / 2)
+        day_center = (self.day_start + self.night_start) / 2
+        
+        # Calculate distance to "Night Center" (approx (night_start + 24 + day_start) / 2 % 24)
+        # Simplified: Just use linear interpolation between day_start and night_start
+        
+        # Transition periods (e.g., 1 hour duration)
+        transition_duration = 2.0 
+        
+        # Calculate weights
+        day_weight = 0.0
+        night_weight = 0.0
+        sunset_weight = 0.0
+        dawn_weight = 0.0
+        
+        # Dawn: around day_start
+        if abs(hour - self.day_start) < transition_duration:
+            dawn_weight = 1.0 - abs(hour - self.day_start) / transition_duration
+            
+        # Sunset: around night_start
+        if abs(hour - self.night_start) < transition_duration:
+            sunset_weight = 1.0 - abs(hour - self.night_start) / transition_duration
+            
+        # Day: between day_start and night_start
+        if self.day_start <= hour < self.night_start:
+            # Peak at center, fade at edges
+            dist_to_edge = min(hour - self.day_start, self.night_start - hour)
+            day_weight = min(1.0, dist_to_edge / transition_duration)
+            
+        # Night: before day_start or after night_start
+        else:
+            if hour < self.day_start:
+                dist_to_edge = self.day_start - hour
+            else:
+                dist_to_edge = hour - self.night_start
+            night_weight = min(1.0, dist_to_edge / transition_duration)
+
+        if day_weight > 0: tags["#day"] = day_weight
+        if night_weight > 0: tags["#night"] = night_weight
+        if dawn_weight > 0: tags["#dawn"] = dawn_weight
+        if sunset_weight > 0: tags["#sunset"] = sunset_weight
+        
+        return self._normalize_and_scale(tags)
 
 class SeasonPolicy(Policy):
     def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
@@ -99,7 +187,7 @@ class SeasonPolicy(Policy):
         else:
             tag = "#autumn"
             
-        return {tag: 1.0 * self.weight_scale}
+        return self._normalize_and_scale({tag: 1.0})
 
 class WeatherPolicy(Policy):
     def __init__(self, config: Dict[str, Any]):
@@ -123,7 +211,7 @@ class WeatherPolicy(Policy):
             self._fetch_weather()
             self.last_fetch_time = current_timestamp
             
-        return self.cached_tags
+        return self._normalize_and_scale(self.cached_tags)
 
     def _fetch_weather(self):
         try:
@@ -136,13 +224,13 @@ class WeatherPolicy(Policy):
                 # Map weather to tags
                 tags = {}
                 if weather_main in ["thunderstorm", "drizzle", "rain"]:
-                    tags["#rain"] = 1.0 * self.weight_scale
+                    tags["#rain"] = 1.0
                 elif weather_main == "snow":
-                    tags["#snow"] = 1.0 * self.weight_scale
+                    tags["#snow"] = 1.0
                 elif weather_main == "clear":
-                    tags["#clear"] = 1.0 * self.weight_scale
+                    tags["#clear"] = 1.0
                 elif weather_main == "clouds":
-                    tags["#cloudy"] = 1.0 * self.weight_scale
+                    tags["#cloudy"] = 1.0
                 
                 self.cached_tags = tags
                 logger.info(f"Weather updated: {weather_main} -> {tags}")

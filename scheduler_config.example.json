@@ -35,6 +35,5 @@
     "idle_threshold": 60,
     "min_interval": 1800,
     "force_interval": 14400
-  },
-  "smoothing_window": 60
+  }
 }
