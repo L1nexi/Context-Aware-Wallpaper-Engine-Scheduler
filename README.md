@@ -40,6 +40,28 @@
    python main.py
    ```
 
+## 后台运行
+
+```bat
+run_bg.bat
+```
+
+监控日志：
+
+```bash
+Get-Content -Path "logs/scheduler.log" -Wait -Tail 20
+```
+
+杀死进程：
+
+```pwsh
+taskkill /F /IM pythonw.exe
+```
+
 ## 详细文档
 
 更多设计细节和开发说明请参考 [docs/README_DEV.md](docs/README_DEV.md)。
+
+```
+
+```
