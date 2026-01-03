@@ -2,7 +2,7 @@
 
 您可以使用命令行参数来控制 Wallpaper Engine。 这使您可以通过快捷方式、宏绑定或您选择的任何一种自行编写的脚本或代码，来访问该应用程序的大多数功能。 例如，您可以暂停或停止所有壁纸，更改壁纸，甚至更改正在运行的壁纸的设置。
 
-请确保 Wallpaper Engine 已在运行，然后使用本指南中列出的任何命令参数，通过运行程序的主要进程 *wallpaper32.exe*（如果使用该应用程序的 64 位版本，则为 *wallpaper64.exe*）向 Wallpaper Engine 发送命令。 您可在 `wallpaper_engine` 安装目录中找到可执行文件。
+请确保 Wallpaper Engine 已在运行，然后使用本指南中列出的任何命令参数，通过运行程序的主要进程 _wallpaper32.exe_（如果使用该应用程序的 64 位版本，则为 _wallpaper64.exe_）向 Wallpaper Engine 发送命令。 您可在 `wallpaper_engine` 安装目录中找到可执行文件。
 
 所有命令均作为 `-control` 参数的值发出。 例如，暂停命令可按照如下方式执行：
 
@@ -16,7 +16,7 @@ wallpaper32.exe -control pause
 wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\myWallpaper\project.json"
 ```
 
-### 快捷方式示例：在窗口中打开壁纸
+## 快捷方式示例：在窗口中打开壁纸
 
 以下示例可让您通过 Windows 快捷方式在窗口中打开任意数量的壁纸。 您可以重复此过程以在单独的窗口中打开任意数量的壁纸，这对于想要将 Wallpaper Engine 用于任何类型的空闲屏幕或动画的直播主非常有用。
 
@@ -32,11 +32,11 @@ wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\w
 
 配置此命令时需注意以下事项：
 
-*   确保您的 wallpaper32.exe/wallpaper64.exe 路径正确。 上面的示例使用了默认 Steam 目录。
-*   确保使用正确的壁纸路径。 上面的示例使用了创意工坊 ID 示例 **123456789**，您必须更改此设置才能让壁纸正常工作。 您也可以指向计算机上任何受支持的文件。
-    *   通过在 Wallpaper Engine 中右键单击任何壁纸，并选择**在资源管理器中打开**，即可找到壁纸的完整路径。 对于场景类型的壁纸，通常要指向 *project.json* 文件，对于视频壁纸，可能是 *.mp4* 文件，而对于 Web 壁纸，则要找到名为 *index.html* 的文件。
-*   为窗口设置唯一名称。 上面的示例使用 **Wallpaper #1** 作为名称。 **如果要打开多个窗口，只需为每个窗口分配一个唯一名称。**
-*   您可能还需要调整分辨率，上面的示例使用 1920x1080（全高清）。 相应地更改`width`和`height`参数。
+- 确保您的 wallpaper32.exe/wallpaper64.exe 路径正确。 上面的示例使用了默认 Steam 目录。
+- 确保使用正确的壁纸路径。 上面的示例使用了创意工坊 ID 示例 **123456789**，您必须更改此设置才能让壁纸正常工作。 您也可以指向计算机上任何受支持的文件。
+  - 通过在 Wallpaper Engine 中右键单击任何壁纸，并选择**在资源管理器中打开**，即可找到壁纸的完整路径。 对于场景类型的壁纸，通常要指向 _project.json_ 文件，对于视频壁纸，可能是 _.mp4_ 文件，而对于 Web 壁纸，则要找到名为 _index.html_ 的文件。
+- 为窗口设置唯一名称。 上面的示例使用 **Wallpaper #1** 作为名称。 **如果要打开多个窗口，只需为每个窗口分配一个唯一名称。**
+- 您可能还需要调整分辨率，上面的示例使用 1920x1080（全高清）。 相应地更改`width`和`height`参数。
 
 ## 命令概览
 
@@ -90,17 +90,17 @@ wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\w
         [-x <number>] [-y <number>] [-preset <string>]
 ```
 
-*   **file：** 要打开的壁纸的 project.json 的路径，或壁纸文件的直接路径 (.mp4 etc)。
-*   **location** *（可选）*： 显示器内部标识符。 它们由您的 PC 生成，可在 config.json 文件中找到。
-*   **monitor** *（可选）*： 要加载壁纸的显示器的索引，以 0 开头。
-*   **preset** *（可选）*： 要加载的本地预设的名称，您必须已经事先创建并保存该本地预设。
-*   **playInWindow** *（可选）*：窗口名称，如果您想在一个窗口中打开/控制多个 wallpapers。 默认窗口名称为“Wallpaper Pop-out”。
-    *   **width** *（可选）*： 窗口宽度。
-    *   **height** *（可选）*： 窗口高度。
-    *   **x** *（可选）*： 窗口的水平位置。
-    *   **y** *（可选）*： 窗口的垂直位置。
-    *   **activate** *（可选）*：将窗口移至前景。
-    *   **borderless** *（可选）*：打开无边框窗口。
+- **file：** 要打开的壁纸的 project.json 的路径，或壁纸文件的直接路径 (.mp4 etc)。
+- **location** _（可选）_： 显示器内部标识符。 它们由您的 PC 生成，可在 config.json 文件中找到。
+- **monitor** _（可选）_： 要加载壁纸的显示器的索引，以 0 开头。
+- **preset** _（可选）_： 要加载的本地预设的名称，您必须已经事先创建并保存该本地预设。
+- **playInWindow** _（可选）_：窗口名称，如果您想在一个窗口中打开/控制多个 wallpapers。 默认窗口名称为“Wallpaper Pop-out”。
+  - **width** _（可选）_： 窗口宽度。
+  - **height** _（可选）_： 窗口高度。
+  - **x** _（可选）_： 窗口的水平位置。
+  - **y** _（可选）_： 窗口的垂直位置。
+  - **activate** _（可选）_：将窗口移至前景。
+  - **borderless** _（可选）_：打开无边框窗口。
 
 ### 下一张壁纸
 
@@ -118,8 +118,8 @@ wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\w
 -control closeWallpaper [-location <string>] [-monitor <number>]
 ```
 
-*   **location** *（可选）*： 显示器内部标识符或您指定的窗口名称。
-*   **monitor** *（可选）*： 要关闭壁纸的显示器的索引，以 0 开头。
+- **location** _（可选）_： 显示器内部标识符或您指定的窗口名称。
+- **monitor** _（可选）_： 要关闭壁纸的显示器的索引，以 0 开头。
 
 ### 打开播放列表
 
@@ -129,9 +129,9 @@ wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\w
 -control openPlaylist -playlist <string> [-location <string>] [-monitor <number>]
 ```
 
-*   **playlist：** 您已创建并保存在 Wallpaper Engine 中的播放列表的名称。
-*   **location** *（可选）*： 显示器内部标识符。 它们由您的 PC 生成，可在 config.json 文件中找到。
-*   **monitor** *（可选）*： 要加载播放列表的显示器的索引，以 0 开头。
+- **playlist：** 您已创建并保存在 Wallpaper Engine 中的播放列表的名称。
+- **location** _（可选）_： 显示器内部标识符。 它们由您的 PC 生成，可在 config.json 文件中找到。
+- **monitor** _（可选）_： 要加载播放列表的显示器的索引，以 0 开头。
 
 ### 打开配置文件
 
@@ -141,7 +141,7 @@ wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\w
 -control openProfile -profile <string>
 ```
 
-*   **profile:** 您在 Wallpaper Engine 中创建的配置文件的名称。
+- **profile:** 您在 Wallpaper Engine 中创建的配置文件的名称。
 
 ### 应用壁纸设置
 
@@ -151,9 +151,9 @@ wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\w
 -control applyProperties -properties <JSON> [-location <string>] [-monitor <number>]
 ```
 
-*   **properties：** 定义为要应用的 **JSON** 字符串的属性。 必须以 `RAW~(` 和 `)~END` 为分隔符对该字符串进行特殊转义，请参阅下方的示例！
-*   **location** *（可选）*： 显示器内部标识符或您指定的窗口名称。
-*   **monitor** *（可选）*： 要更新属性的显示器的索引，以 0 开头。
+- **properties：** 定义为要应用的 **JSON** 字符串的属性。 必须以 `RAW~(` 和 `)~END` 为分隔符对该字符串进行特殊转义，请参阅下方的示例！
+- **location** _（可选）_： 显示器内部标识符或您指定的窗口名称。
+- **monitor** _（可选）_： 要更新属性的显示器的索引，以 0 开头。
 
 将名为 `rate` 的壁纸设置更改为 10 的示例：
 
@@ -161,7 +161,7 @@ wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\w
 -control applyProperties -properties RAW~({"rate":10})~END
 ```
 
-将壁纸方案颜色设置更改为红色的示例（`"1 0 0"`代表 *RGB* 值）：
+将壁纸方案颜色设置更改为红色的示例（`"1 0 0"`代表 _RGB_ 值）：
 
 ```cpp
 -control applyProperties -properties RAW~({"schemecolor":"1 0 0"})~END
@@ -191,6 +191,6 @@ wallpaper64.exe -control openWallpaper -file "E:\SteamLibrary\steamapps\common\w
 -control getWallpaper [-location <string>] [-monitor <number>]
 ```
 
-*   **location** *（可选）*：显示器内部标识符或您指定的窗口名称。
-*   **monitor** *（可选）*：要更新属性的显示器的索引，以 0 开头。
-*   **RETURNS:**活动壁纸的文件路径。
+- **location** _（可选）_：显示器内部标识符或您指定的窗口名称。
+- **monitor** _（可选）_：要更新属性的显示器的索引，以 0 开头。
+- **RETURNS:**活动壁纸的文件路径。
