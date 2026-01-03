@@ -7,70 +7,71 @@ logger = logging.getLogger("WEScheduler.Matcher")
 class Matcher:
     def __init__(self, playlists: List[Dict[str, Any]]):
         self.playlists = playlists
+        # 1. Identify the Universe of Tags from all playlists
+        self.all_tags = set()
+        for pl in self.playlists:
+            tags = pl.get("tags", [])
+            if isinstance(tags, list):
+                self.all_tags.update(tags)
+            elif isinstance(tags, dict):
+                self.all_tags.update(tags.keys())
+        
+        self.all_tags = sorted(list(self.all_tags))
+        self.tag_to_index = {tag: i for i, tag in enumerate(self.all_tags)}
+        self.dim = len(self.all_tags)
+
+        # 2. Pre-calculate Normalized Playlist Vectors
+        self.playlist_vectors = []
+        for pl in self.playlists:
+            v = np.zeros(self.dim)
+            tags = pl.get("tags", [])
+            if isinstance(tags, list):
+                for tag in tags:
+                    if tag in self.tag_to_index:
+                        v[self.tag_to_index[tag]] = 1.0
+            elif isinstance(tags, dict):
+                for tag, weight in tags.items():
+                    if tag in self.tag_to_index:
+                        v[self.tag_to_index[tag]] = weight
+            
+            norm = np.linalg.norm(v)
+            if norm > 1e-6:
+                v = v / norm
+                self.playlist_vectors.append((pl.get("name"), v))
+            else:
+                logger.warning(f"Playlist '{pl.get('name')}' has no valid tags or zero weights.")
 
     def match(self, tags: Dict[str, float]) -> Optional[str]:
         """
         Finds the best matching playlist based on the aggregated tags.
-        Uses Cosine Similarity with NumPy.
-        
-        Returns the name of the best playlist, or None if no suitable match found.
+        Uses Cosine Similarity with pre-calculated vectors.
         """
-        if not tags:
+        if not tags or not self.playlist_vectors:
             return None
 
-        # 1. Identify the Universe of Tags
-        # We need to consider all tags present in the current environment AND in the playlists
-        # to construct proper vectors.
-        env_tags = set(tags.keys())
-        playlist_tags_union = set()
-        for pl in self.playlists:
-            playlist_tags_union.update(pl.get("tags", []))
-        
-        # Sort to ensure consistent indexing
-        all_tags = sorted(list(env_tags | playlist_tags_union))
-        tag_to_index = {tag: i for i, tag in enumerate(all_tags)}
-        dim = len(all_tags)
-
-        # 2. Create Environment Vector
-        v_env = np.zeros(dim)
+        # 3. Create Normalized Environment Vector
+        v_env = np.zeros(self.dim)
         for tag, weight in tags.items():
-            if tag in tag_to_index:
-                v_env[tag_to_index[tag]] = weight
+            if tag in self.tag_to_index:
+                v_env[self.tag_to_index[tag]] = weight
         
-        # Calculate magnitude of env vector
         norm_env = np.linalg.norm(v_env)
         if norm_env < 1e-6:
             return None
+        
+        v_env = v_env / norm_env
 
         best_score = -1.0
         best_playlist = None
 
-        # 3. Compare with each Playlist
-        for playlist in self.playlists:
-            pl_tags_list = playlist.get("tags", [])
-            if not pl_tags_list:
-                continue
+        # 4. Compare with each Playlist Vector
+        for name, v_pl in self.playlist_vectors:
+            # Since both are normalized, dot product is cosine similarity
+            similarity = np.dot(v_env, v_pl)
             
-            # Create Playlist Vector
-            v_pl = np.zeros(dim)
-            for tag in pl_tags_list:
-                if tag in tag_to_index:
-                    v_pl[tag_to_index[tag]] = 1.0 # Binary weight for playlist tags
-            
-            norm_pl = np.linalg.norm(v_pl)
-            if norm_pl < 1e-6:
-                continue
-
-            # Cosine Similarity
-            dot_product = np.dot(v_env, v_pl)
-            similarity = dot_product / (norm_env * norm_pl)
-            
-            # Debug print (can be removed later or moved to logging)
-            # print(f"Playlist: {playlist.get('name')} Sim: {similarity:.4f}")
-
             if similarity > best_score:
                 best_score = similarity
-                best_playlist = playlist.get("name")
+                best_playlist = name
         
         if best_score <= 0.001: 
             return None

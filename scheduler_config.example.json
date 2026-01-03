@@ -1,10 +1,10 @@
 {
   "we_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe",
   "playlists": [
-    { "name": "WORK", "tags": ["#work"] },
-    { "name": "GAME", "tags": ["#game"] },
-    { "name": "CHILL", "tags": ["#chill"] },
-    { "name": "WORK_NIGHT", "tags": ["#work", "#night"] }
+    { "name": "WORK", "tags": { "#work": 1.0 } },
+    { "name": "GAME", "tags": { "#game": 1.0 } },
+    { "name": "CHILL", "tags": { "#chill": 1.0 } },
+    { "name": "WORK_NIGHT", "tags": { "#work": 1.0, "#night": 1.0 } }
   ],
   "policies": {
     "activity": { 
