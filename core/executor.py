@@ -59,8 +59,7 @@ class WEExecutor:
             logger.debug(f"Executed: {' '.join(cmd)}")
         except subprocess.CalledProcessError as e:
             if e.returncode == 5:
-                logger.info(f"Wallpaper Engine Error Code 5. This Error seems to affect nothing though."
-                             f"Please check if the playlist/profile name exists in WE: {args}")
+                logger.warning(f"WE Error 5 (Likely Encoding Issue). Try renaming playlist '{args[-1]}' to English. Command: {args}")
             else:
                 logger.error(f"Error executing command: {e}")
 

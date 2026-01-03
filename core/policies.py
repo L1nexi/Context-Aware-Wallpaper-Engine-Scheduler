@@ -62,8 +62,9 @@ class ActivityPolicy(Policy):
         # Apply EMA
         self.smoothed_tags = self._apply_ema(instant_tags)
         
-        # Normalize and scale (Activity is usually single-tag, but good practice)
-        return self._normalize_and_scale(self.smoothed_tags)
+        # For ActivityPolicy, we do NOT use L2 normalization.
+        # Because we want the vector magnitude to decay when no rule is matched.
+        return {tag: w * self.weight_scale for tag, w in self.smoothed_tags.items()}
 
     def _get_instant_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         window_info = context.get("window", {})

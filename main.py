@@ -132,7 +132,7 @@ def main() -> None:
             process_name = context.get("window", {}).get("process", "N/A")
             idle_time = context.get("idle", 0.0)
             # Use print for the dynamic status line to avoid flooding logs
-            print(f"\r[Sensor] {process_name} (Idle: {idle_time:.1f}s) -> [Tags] {aggregated_tags} -> [Decision] {best_playlist or 'None'}          ", end="", flush=True)
+            print(f"\r[Sensor] {process_name} (Idle: {idle_time:.1f}s) -> [Tags] {aggregated_tags} -> [Decision] {best_playlist or 'None'}          ", flush=True)
             
             time.sleep(1)
     except KeyboardInterrupt:

@@ -61,7 +61,3 @@ taskkill /F /IM pythonw.exe
 ## 详细文档
 
 更多设计细节和开发说明请参考 [docs/README_DEV.md](docs/README_DEV.md)。
-
-```
-
-```
