@@ -215,9 +215,20 @@ class WeatherPolicy(Policy):
         return self._normalize_and_scale(self.cached_tags)
 
     def _fetch_weather(self):
+        if not self.api_key:
+            return
+            
+        url = "https://api.openweathermap.org/data/2.5/weather"
+        params = {
+            "lat": self.lat,
+            "lon": self.lon,
+            "appid": self.api_key,
+            "units": "metric"
+        }
+        
         try:
-            url = f"https://api.openweathermap.org/data/2.5/weather?lat={self.lat}&lon={self.lon}&appid={self.api_key}"
-            response = requests.get(url, timeout=5)
+            response = requests.get(url, params=params, timeout=10, proxies={"http": None, "https": None})
+            
             if response.status_code == 200:
                 data = response.json()
                 weather_main = data.get("weather", [{}])[0].get("main", "").lower()
