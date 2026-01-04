@@ -1,19 +1,23 @@
-# Python
+# Python 
 __pycache__/
 *.py[cod]
 *$py.class
+
+# 日志与环境
 *.log
+logs/
 venv/
 .venv/
 .env
+
+# IDE 
 .vscode/
 .idea/
 
-# Project specific
-temp_playlist.json
-logs/
-scheduler_config.json
+#  PyInstaller 
+build/
+dist/
+*.spec
 
-# test
-tests/
-.github/
+scheduler_config.json
+temp_playlist.json
