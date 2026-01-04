@@ -1,4 +1,4 @@
-import numpy as np
+import math
 import logging
 from typing import List, Dict, Any, Optional
 
@@ -23,7 +23,7 @@ class Matcher:
         # 2. Pre-calculate Normalized Playlist Vectors
         self.playlist_vectors = []
         for pl in self.playlists:
-            v = np.zeros(self.dim)
+            v = [0.0] * self.dim
             tags = pl.get("tags", [])
             if isinstance(tags, list):
                 for tag in tags:
@@ -34,9 +34,9 @@ class Matcher:
                     if tag in self.tag_to_index:
                         v[self.tag_to_index[tag]] = weight
             
-            norm = np.linalg.norm(v)
+            norm = math.sqrt(sum(x * x for x in v))
             if norm > 1e-6:
-                v = v / norm
+                v = [x / norm for x in v]
                 self.playlist_vectors.append((pl.get("name"), v))
             else:
                 logger.warning(f"Playlist '{pl.get('name')}' has no valid tags or zero weights.")
@@ -50,16 +50,16 @@ class Matcher:
             return None
 
         # 3. Create Normalized Environment Vector
-        v_env = np.zeros(self.dim)
+        v_env = [0.0] * self.dim
         for tag, weight in tags.items():
             if tag in self.tag_to_index:
                 v_env[self.tag_to_index[tag]] = weight
         
-        norm_env = np.linalg.norm(v_env)
+        norm_env = math.sqrt(sum(x * x for x in v_env))
         if norm_env < 1e-6:
             return None
         
-        v_env = v_env / norm_env
+        v_env = [x / norm_env for x in v_env]
 
         best_score = -1.0
         best_playlist = None
@@ -67,7 +67,7 @@ class Matcher:
         # 4. Compare with each Playlist Vector
         for name, v_pl in self.playlist_vectors:
             # Since both are normalized, dot product is cosine similarity
-            similarity = np.dot(v_env, v_pl)
+            similarity = sum(a * b for a, b in zip(v_env, v_pl))
             
             if similarity > best_score:
                 best_score = similarity
