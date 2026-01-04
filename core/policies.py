@@ -40,7 +40,8 @@ class Policy(ABC):
 class ActivityPolicy(Policy):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.rules = config.get("rules", {})
+        # Convert rules to lowercase for case-insensitive matching
+        self.rules = {k.lower(): v for k, v in config.get("rules", {}).items()}
         self.title_rules = config.get("title_rules", {})
         
         # EMA Configuration
@@ -77,7 +78,7 @@ class ActivityPolicy(Policy):
                 return {tag: 1.0}
 
         # 2. Check Process Rules (Fallback)
-        tag = self.rules.get(process_name)
+        tag = self.rules.get(process_name.lower())
         if tag:
             return {tag: 1.0}
         
