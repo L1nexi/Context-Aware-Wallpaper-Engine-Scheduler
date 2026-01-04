@@ -111,22 +111,25 @@ def main() -> None:
             # 3. Act (Executor)
             if best_playlist:
                 # Check with Disturbance Controller
-                if controller.can_switch(context):
-                    if best_playlist != current_playlist:
+                if best_playlist != current_playlist:
+                    # Case A: Context changed significantly -> Switch Playlist
+                    if controller.can_switch_playlist(context):
                         logger.info(f"[Action] Switching Playlist from '{current_playlist}' to '{best_playlist}'")
                         executor.open_playlist(best_playlist)
                         current_playlist = best_playlist
-                        controller.notify_switch()
+                        controller.notify_playlist_switch()
                     else:
-                        # Same playlist, but maybe we want to cycle wallpaper?
-                        # We can use the same disturbance rules for cycling wallpapers within a playlist
-                        # This effectively keeps the playlist "fresh" even if the context hasn't changed
+                        # Blocked by playlist cooling down
+                        pass
+                else:
+                    # Case B: Context stable -> Cycle Wallpaper occasionally
+                    if controller.can_cycle_wallpaper(context):
                         logger.info(f"[Action] Cycling Wallpaper in '{current_playlist}'")
                         executor.next_wallpaper()
-                        controller.notify_switch()
-                else:
-                    # Intent detected but blocked by controller
-                    pass
+                        controller.notify_wallpaper_cycle()
+                    else:
+                        # Blocked by wallpaper cooling down
+                        pass
             
             # Placeholder for testing: print sensor data and tags
             process_name = context.get("window", {}).get("process", "N/A")
