@@ -1,39 +1,82 @@
 {
   "we_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe",
   "playlists": [
-    { "name": "WORK", "tags": { "#work": 1.0 } },
-    { "name": "GAME", "tags": { "#game": 1.0 } },
-    { "name": "CHILL", "tags": { "#chill": 1.0 } },
-    { "name": "WORK_NIGHT", "tags": { "#work": 1.0, "#night": 1.0 } }
+    {
+      "name": "CASUAL_ANIME",
+      "tags": { "#chill": 1.0, "#day": 1.0, "#clear": 0.5 }
+    },
+    {
+      "name": "WORK_QUIET",
+      "tags": { "#focus": 1.0, "#day": 0.3, "#night": 0.3 }
+    },
+    {
+      "name": "NIGHT_CHILL",
+      "tags": { "#chill": 1.0, "#night": 1.0 }
+    },
+    {
+      "name": "CYBER_WORK",
+      "tags": { "#focus": 1.0, "#night": 1.0 }
+    },
+    {
+      "name": "RAINY_MOOD",
+      "tags": { "#rain": 1.0, "#chill": 0.4, "#focus": 0.4 }
+    },
+    {
+      "name": "WINTER_VIBES",
+      "tags": { "#winter": 1.0, "#chill": 0.5, "#sunset": 0.5 }
+    }
   ],
   "policies": {
-    "activity": { 
-      "enabled": true, 
-      "weight_scale": 1.0,
+    "activity": {
+      "enabled": true,
+      "weight_scale": 1.2,
+      "smoothing_window": 60,
       "rules": {
-        "Code.exe": "#work",
-        "steam.exe": "#game",
-        "chrome.exe": "#chill"
+        "Code.exe": "#focus",
+        "Obsidian.exe": "#focus",
+        "POWERPNT.EXE": "#focus",
+        "Acrobat.exe": "#focus",
+        "DingTalk.exe": "#focus",
+        "Feishu.exe": "#focus",
+        "Wemeet.exe": "#focus",
+        "steam.exe": "#chill",
+        "explorer.exe": "#chill",
+        "chrome.exe": "#chill",
+        "firefox.exe": "#chill",
+        "cloudmusic.exe": "#chill",
+        "ui32.exe": "#chill",
+        "QQ.exe": "#chill"
       },
       "title_rules": {
-        "GitHub": "#work",
-        "Stack Overflow": "#work"
+        "GitHub": "#focus",
+        "Stack Overflow": "#focus",
+        "Docs": "#focus",
+        "Jupyter": "#focus",
+        "YouTube": "#chill",
+        "直播": "#chill"
       }
     },
-    "season": { "enabled": true, "weight_scale": 0.5 },
-    "time": { "enabled": true, "weight_scale": 0.5 },
-    "weather": {
-      "enabled": false,
+    "season": { "enabled": true, "weight_scale": 0.6 },
+    "time": {
+      "enabled": true,
       "weight_scale": 0.8,
-      "api_key": "YOUR_OPENWEATHERMAP_API_KEY_HERE",
-      "lat": "31.2304",
-      "lon": "121.4737",
+      "night_start": 20,
+      "day_start": 8
+    },
+    "weather": {
+      "enabled": true,
+      "weight_scale": 1.5,
+      "api_key": "YOUR_OPENWEATHERMAP_API_KEY",
+      "lat": "0.0",
+      "lon": "0.0",
       "interval": 600
-    }
+    },
+    "mood": { "enabled": false, "weight_scale": 2.0 }
   },
   "disturbance": {
-    "idle_threshold": 60,
-    "min_interval": 1800,
-    "force_interval": 14400
+    "idle_threshold": 15,
+    "min_interval": 120,
+    "wallpaper_interval": 900,
+    "force_interval": 3600
   }
 }
