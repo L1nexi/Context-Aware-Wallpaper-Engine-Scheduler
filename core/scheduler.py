@@ -2,6 +2,7 @@ import time
 import threading
 import logging
 import os
+import sys
 from typing import List, Dict, Any, Optional
 
 from utils.config_loader import ConfigLoader
@@ -157,4 +158,5 @@ class WEScheduler:
         tag_str = " | ".join(tag_parts)
         self.last_status_line = f"[{decision or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}"
         # Print to console if attached
-        print(f"\r{self.last_status_line:<100}", end="", flush=True)
+        if sys.stdout and not getattr(sys, 'frozen', False):
+             print(f"\r{self.last_status_line:<100}", end="", flush=True)

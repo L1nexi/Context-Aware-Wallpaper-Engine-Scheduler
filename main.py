@@ -4,8 +4,12 @@ import argparse
 import time
 
 # Ensure we can import from core and utils
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# When frozen, we don't need this as everything is bundled.
+# But for script mode, we keep it.
+if not getattr(sys, 'frozen', False):
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from utils.app_context import get_app_root
 from utils.logger import setup_logger
 from core.scheduler import WEScheduler
 from core.tray import TrayIcon
@@ -22,7 +26,7 @@ def main() -> None:
     # Resolve config path
     config_path = args.config
     if not os.path.isabs(config_path):
-        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+        config_path = os.path.join(get_app_root(), config_path)
 
     # Initialize Scheduler
     scheduler = WEScheduler(config_path)

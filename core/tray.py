@@ -3,6 +3,8 @@ import os
 from core.scheduler import WEScheduler
 from utils.icon_generator import IconGenerator
 
+from utils.app_context import get_app_root
+
 class TrayIcon:
     def __init__(self, scheduler: WEScheduler):
         self.scheduler = scheduler
@@ -27,7 +29,7 @@ class TrayIcon:
         self._open_file(self.scheduler.config_path)
 
     def _on_open_logs(self, icon, item):
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        project_root = get_app_root()
         log_path = os.path.join(project_root, "logs", "scheduler.log")
         self._open_file(log_path)
 

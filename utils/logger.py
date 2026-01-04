@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
+from utils.app_context import get_app_root
 
 def setup_logger(name: str = "WEScheduler", log_file: str = "scheduler.log", level: int = logging.INFO) -> logging.Logger:
     """
@@ -18,7 +19,7 @@ def setup_logger(name: str = "WEScheduler", log_file: str = "scheduler.log", lev
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # Determine log path
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project_root = get_app_root()
     log_dir = os.path.join(project_root, "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, log_file)
