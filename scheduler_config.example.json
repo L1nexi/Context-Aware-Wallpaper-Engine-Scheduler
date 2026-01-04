@@ -74,9 +74,9 @@
     "mood": { "enabled": false, "weight_scale": 2.0 }
   },
   "disturbance": {
-    "idle_threshold": 15,
-    "min_interval": 120,
-    "wallpaper_interval": 900,
-    "force_interval": 3600
+    "idle_threshold": 30,
+    "min_interval": 600,
+    "wallpaper_interval": 3600,
+    "force_interval": 14400
   }
 }
