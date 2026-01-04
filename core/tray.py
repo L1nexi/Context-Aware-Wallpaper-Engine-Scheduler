@@ -1,22 +1,12 @@
 import pystray
-from PIL import Image, ImageDraw
 import os
 from core.scheduler import WEScheduler
+from utils.icon_generator import IconGenerator
 
 class TrayIcon:
     def __init__(self, scheduler: WEScheduler):
         self.scheduler = scheduler
         self.icon = None
-
-    def create_image(self, width=64, height=64, color1="blue", color2="white"):
-        # Generate a simple icon
-        image = Image.new('RGB', (width, height), color1)
-        dc = ImageDraw.Draw(image)
-        dc.rectangle(
-            (width // 4, height // 4, width * 3 // 4, height * 3 // 4),
-            fill=color2
-        )
-        return image
 
     def _open_file(self, path):
         if os.path.exists(path):
@@ -27,6 +17,9 @@ class TrayIcon:
             self.scheduler.resume()
         else:
             self.scheduler.pause()
+        
+        # Update Icon Image
+        icon.icon = IconGenerator.generate(paused=self.scheduler.paused)
         # Refresh menu to update label
         icon.menu = self._build_menu()
 
@@ -61,7 +54,7 @@ class TrayIcon:
         )
 
     def run(self):
-        image = self.create_image()
+        image = IconGenerator.generate(paused=self.scheduler.paused)
 
         self.icon = pystray.Icon(
             "WEScheduler", 
