@@ -16,6 +16,7 @@ from core.context import ContextManager
 from core.arbiter import Arbiter
 from core.matcher import Matcher
 from core.controller import DisturbanceController
+from core.actuator import Actuator
 from core.sensors import WindowSensor, IdleSensor
 
 def main() -> None:
@@ -89,11 +90,12 @@ def main() -> None:
     logger.info("Arbiter initialized.")
     logger.info("Matcher initialized.")
     
-    # 6. Initialize Disturbance Controller
+    # 6. Initialize Disturbance Controller & Actuator
     disturbance_config = config_loader.get_disturbance_config()
     logger.info(f"Disturbance Config: {disturbance_config}")
     controller = DisturbanceController(disturbance_config)
-    logger.info("DisturbanceController initialized.")
+    actuator = Actuator(executor, controller)
+    logger.info("DisturbanceController & Actuator initialized.")
     
     current_playlist: str = ""
 
@@ -108,28 +110,8 @@ def main() -> None:
             aggregated_tags = arbiter.arbitrate(context)
             best_playlist = matcher.match(aggregated_tags)
             
-            # 3. Act (Executor)
-            if best_playlist:
-                # Check with Disturbance Controller
-                if best_playlist != current_playlist:
-                    # Case A: Context changed significantly -> Switch Playlist
-                    if controller.can_switch_playlist(context):
-                        logger.info(f"[Action] Switching Playlist from '{current_playlist}' to '{best_playlist}'")
-                        executor.open_playlist(best_playlist)
-                        current_playlist = best_playlist
-                        controller.notify_playlist_switch()
-                    else:
-                        # Blocked by playlist cooling down
-                        pass
-                else:
-                    # Case B: Context stable -> Cycle Wallpaper occasionally
-                    if controller.can_cycle_wallpaper(context):
-                        logger.info(f"[Action] Cycling Wallpaper in '{current_playlist}'")
-                        executor.next_wallpaper()
-                        controller.notify_wallpaper_cycle()
-                    else:
-                        # Blocked by wallpaper cooling down
-                        pass
+            # 3. Act (Actuator)
+            current_playlist = actuator.act(context, best_playlist, current_playlist)
             
             # Placeholder for testing: print sensor data and tags
             process_name = context.get("window", {}).get("process", "N/A")
