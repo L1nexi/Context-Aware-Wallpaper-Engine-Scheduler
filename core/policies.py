@@ -85,9 +85,6 @@ class ActivityPolicy(Policy):
         return {}
 
     def _apply_ema(self, instant_tags: Dict[str, float]) -> Dict[str, float]:
-        if not self.smoothed_tags:
-            return instant_tags.copy()
-
         all_tags = set(self.smoothed_tags.keys()) | set(instant_tags.keys())
         new_smoothed_tags = {}
         
