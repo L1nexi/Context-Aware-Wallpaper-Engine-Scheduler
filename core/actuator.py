@@ -15,7 +15,7 @@ class Actuator:
         self.executor = executor
         self.controller = controller
 
-    def act(self, context: Dict[str, Any], best_playlist: Optional[str], current_playlist: str) -> str:
+    def act(self, context: Dict[str, Any], aggregated_tags: Dict[str, float], best_playlist: Optional[str], current_playlist: str) -> str:
         """
         Decides and executes the appropriate action.
         Returns the new (or unchanged) current_playlist.
@@ -23,10 +23,17 @@ class Actuator:
         if not best_playlist:
             return current_playlist
 
+        # Helper to format tags for logging
+        def log_tags():
+            sorted_tags = sorted(aggregated_tags.items(), key=lambda x: x[1], reverse=True)
+            tag_str = ", ".join([f"{k}:{v:.2f}" for k, v in sorted_tags])
+            logger.info(f"Trigger Context: [{tag_str}]")
+
         # Case A: Context suggests a different playlist
         if best_playlist != current_playlist:
             if self.controller.can_switch_playlist(context):
                 logger.info(f"[Action] Switching Playlist from '{current_playlist}' to '{best_playlist}'")
+                log_tags()
                 self.executor.open_playlist(best_playlist)
                 self.controller.notify_playlist_switch()
                 return best_playlist

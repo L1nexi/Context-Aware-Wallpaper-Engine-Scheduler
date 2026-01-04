@@ -2,7 +2,7 @@ import time
 import sys
 import os
 import argparse
-from typing import List, Dict
+from typing import List, Dict, Any
 
 # Ensure we can import from core and utils
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +18,31 @@ from core.matcher import Matcher
 from core.controller import DisturbanceController
 from core.actuator import Actuator
 from core.sensors import WindowSensor, IdleSensor
+
+def render_status_bar(context: Dict[str, Any], tags: Dict[str, float], decision: str) -> str:
+    """
+    Renders a cool status bar for the console.
+    Format: [Decision] PLAYLIST | #tag1 0.9 ■■■■■ | #tag2 0.5 ■■
+    """
+    # 1. Process Info
+    process_name = context.get("window", {}).get("process", "N/A")
+    idle_time = context.get("idle", 0.0)
+    
+    # 2. Sort and format tags
+    sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:3] # Top 3
+    
+    tag_parts = []
+    for tag, weight in sorted_tags:
+        # Bar length: max 5 blocks for 1.0+
+        bar_len = int(min(weight, 1.5) * 5) 
+        bar = "■" * bar_len
+        tag_parts.append(f"{tag} {weight:.1f} {bar}")
+    
+    tag_str = " | ".join(tag_parts)
+    
+    # 3. Assemble
+    # Clear line with spaces at the end
+    return f"\r[{decision or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str:<50}"
 
 def main() -> None:
     logger = setup_logger()
@@ -111,13 +136,11 @@ def main() -> None:
             best_playlist = matcher.match(aggregated_tags)
             
             # 3. Act (Actuator)
-            current_playlist = actuator.act(context, best_playlist, current_playlist)
+            current_playlist = actuator.act(context, aggregated_tags, best_playlist, current_playlist)
             
-            # Placeholder for testing: print sensor data and tags
-            process_name = context.get("window", {}).get("process", "N/A")
-            idle_time = context.get("idle", 0.0)
-            # Use print for the dynamic status line to avoid flooding logs
-            print(f"\r[Sensor] {process_name} (Idle: {idle_time:.1f}s) -> [Tags] {aggregated_tags} -> [Decision] {best_playlist or 'None'}          ", flush=True)
+            # Dynamic Status Line
+            status_line = render_status_bar(context, aggregated_tags, best_playlist)
+            print(status_line, end="", flush=True)
             
             time.sleep(1)
     except KeyboardInterrupt:
