@@ -245,6 +245,6 @@ class WeatherPolicy(Policy):
                 self.cached_tags = tags
                 logger.info(f"Weather updated: {weather_main} -> {tags}")
             else:
-                logger.error(f"Weather API Error: {response.status_code}")
+                logger.warning(f"Weather API Error: {response.status_code}")
         except Exception as e:
-            logger.error(f"Weather fetch failed: {e}")
+            logger.warning(f"Weather fetch failed: {e}")
