@@ -87,3 +87,14 @@ class IconGenerator:
         img = img.resize((size, size), Image.Resampling.LANCZOS)
         
         return img
+
+if __name__ == "__main__":
+    import os
+    icon_image = IconGenerator.generate(paused=False, size=256)
+    output_path = "AppIcon.ico"
+    icon_image.save(
+        output_path, 
+        format='ICO', 
+        sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
+    )
+    print(f"Success! Icon saved to: {os.path.abspath(output_path)}")

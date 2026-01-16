@@ -18,6 +18,7 @@ if exist *.spec del /q *.spec
 
 echo [3/4] Running PyInstaller...
 pyinstaller --noconsole --onefile --name "WEScheduler" ^
+    --icon "AppIcon.ico" ^
     --hidden-import=pystray ^
     --hidden-import=PIL ^
     --hidden-import=psutil ^
