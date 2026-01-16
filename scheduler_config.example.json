@@ -2,35 +2,39 @@
   "we_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe",
   "playlists": [
     {
-      "name": "CASUAL_ANIME",
-      "tags": { "#chill": 1.0, "#day": 1.0, "#clear": 0.5 }
+      "name": "BRIGHT_FLOW",
+      "tags": { "#focus": 0.9, "#day": 0.8, "#chill": 0.2, "#clear": 0.4 }
     },
     {
-      "name": "WORK_QUIET",
-      "tags": { "#focus": 1.0, "#day": 0.3, "#night": 0.3 }
+      "name": "CASUAL_ANIME",
+      "tags": { "#chill": 0.7, "#day": 0.9, "#focus": 0.3, "#clear": 0.5 }
+    },
+    {
+      "name": "SUNSET_GLOW",
+      "tags": { "#sunset": 1.0, "#chill": 0.6, "#day": 0.3, "#night": 0.3 }
     },
     {
       "name": "NIGHT_CHILL",
-      "tags": { "#chill": 1.0, "#night": 1.0 }
+      "tags": { "#chill": 0.9, "#night": 0.8, "#sunset": 0.2, "#focus": 0.2 }
     },
     {
-      "name": "CYBER_WORK",
-      "tags": { "#focus": 1.0, "#night": 1.0 }
+      "name": "NIGHT_FOCUS",
+      "tags": { "#focus": 1.0, "#night": 0.8, "#chill": 0.1 }
     },
     {
       "name": "RAINY_MOOD",
-      "tags": { "#rain": 1.0, "#chill": 0.4, "#focus": 0.4 }
+      "tags": { "#rain": 1.0, "#chill": 0.4, "#focus": 0.3 }
     },
     {
       "name": "WINTER_VIBES",
-      "tags": { "#winter": 1.0, "#chill": 0.5, "#sunset": 0.5 }
+      "tags": { "#winter": 1.0, "#chill": 0.3, "#sunset": 0.5, "#day": 0.2 }
     }
   ],
   "policies": {
     "activity": {
       "enabled": true,
       "weight_scale": 1.2,
-      "smoothing_window": 60,
+      "smoothing_window": 120,
       "rules": {
         "Code.exe": "#focus",
         "Obsidian.exe": "#focus",
@@ -74,9 +78,9 @@
     "mood": { "enabled": false, "weight_scale": 2.0 }
   },
   "disturbance": {
-    "idle_threshold": 30,
-    "min_interval": 600,
-    "wallpaper_interval": 3600,
-    "force_interval": 14400
+    "idle_threshold": 20,
+    "min_interval": 150,
+    "wallpaper_interval": 900,
+    "force_interval": 3600
   }
 }
