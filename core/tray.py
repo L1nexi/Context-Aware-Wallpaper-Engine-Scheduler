@@ -1,6 +1,5 @@
 import pystray
 import os
-import time
 import logging
 import threading
 import tkinter as tk
@@ -148,18 +147,18 @@ class TrayIcon:
     **Menu state** (text, visibility) uses pystray callable properties
     — re-evaluated lazily on every menu open.  No rebuild needed.
 
-    **Icon image** is synced via ``_sync_icon()`` (direct call from
-    pystray-thread handlers) or ``_schedule_icon_sync(delay)`` (Timer
-    for deferred cross-thread scenarios like custom-dialog confirm and
-    timed-pause auto-resume).
+    **Icon image** is synced via ``_sync_icon()``:
+    - Direct call from pystray-thread menu handlers.
+    - Via ``scheduler.on_auto_resume`` hook when a timed pause expires.
+    - Via a short Timer for cross-thread callers (custom-dialog confirm).
     """
 
     def __init__(self, scheduler: WEScheduler):
         self.scheduler = scheduler
         self.icon = None
         self._last_paused_state: Optional[bool] = None
-        # Timer for deferred icon sync (auto-resume / cross-thread)
-        self._sync_timer: Optional[threading.Timer] = None
+        # Let the scheduler notify us when a timed pause auto-expires.
+        self.scheduler.on_auto_resume = self._sync_icon
 
     # ── Helpers ──────────────────────────────────────────────────
 
@@ -188,39 +187,6 @@ class TrayIcon:
         # reflects the latest scheduler state (harmless if redundant).
         self.icon.update_menu()
 
-    def _cancel_sync_timer(self):
-        """Cancel any pending icon-sync timer."""
-        if self._sync_timer is not None:
-            self._sync_timer.cancel()
-            self._sync_timer = None
-
-    def _schedule_icon_sync(self, delay: float):
-        """
-        Schedule a deferred ``_sync_icon()`` call after *delay* seconds.
-        Cancels any previously scheduled timer.  Used for:
-          - timed pause auto-resume (delay = remaining seconds + buffer)
-          - cross-thread callers like the custom-dialog callback (delay ≈ 0)
-        """
-        self._cancel_sync_timer()
-        if delay < 0:
-            delay = 0
-        self._sync_timer = threading.Timer(delay, self._deferred_sync)
-        self._sync_timer.daemon = True
-        self._sync_timer.start()
-
-    def _deferred_sync(self):
-        """
-        Timer callback: sync icon + menu, then retry once if the
-        scheduler hasn't caught up with a timed-pause expiry yet.
-        """
-        self._sync_icon()
-        # If a timed pause should have expired but the scheduler loop
-        # hasn't called resume() yet (±1 s loop jitter), retry shortly.
-        if (self.scheduler.paused
-                and self.scheduler.pause_until > 0
-                and time.time() >= self.scheduler.pause_until):
-            self._schedule_icon_sync(1)
-
     # ── Menu action handlers ─────────────────────────────────────
 
     def _on_pause(self, seconds: Optional[int] = None):
@@ -230,22 +196,11 @@ class TrayIcon:
         """
         def handler(icon, item):
             self.scheduler.pause(seconds)
-            # Direct call — we're in pystray's own thread.
-            # (pystray's _handler wrapper also calls update_menu()
-            #  after us, which is redundant but harmless.)
             self._sync_icon()
-            # Schedule icon sync for auto-resume with a 2 s buffer so
-            # the Timer fires *after* the scheduler loop has detected
-            # the timed-pause expiry and called resume().
-            if seconds is not None:
-                self._schedule_icon_sync(seconds + 2)
-            else:
-                self._cancel_sync_timer()
         return handler
 
     def _on_resume(self, icon, item):
         self.scheduler.resume()
-        self._cancel_sync_timer()
         self._sync_icon()
 
     def _on_custom_pause(self, icon, item):
@@ -253,14 +208,7 @@ class TrayIcon:
         def _show():
             def on_confirm(total_seconds: int):
                 self.scheduler.pause(total_seconds)
-                # Immediate sync (tiny delay so scheduler state is stable),
-                # then schedule a second sync for auto-resume.
-                def _immediate_then_schedule():
-                    self._sync_icon()
-                    self._schedule_icon_sync(total_seconds + 2)
-                t_now = threading.Timer(0.1, _immediate_then_schedule)
-                t_now.daemon = True
-                t_now.start()
+                self._sync_icon()
             CustomPauseDialog(on_confirm).show()
         threading.Thread(target=_show, daemon=True).start()
 
@@ -285,17 +233,20 @@ class TrayIcon:
         if remaining is None:
             return t("status_paused")
 
-        # Format remaining time: e.g. "2d 3h 15m"
+        # Format remaining time: e.g. "2d 3h 15m" or "45s"
         r = int(remaining)
         days, r = divmod(r, 86400)
         hours, r = divmod(r, 3600)
-        minutes, _ = divmod(r, 60)
+        minutes, seconds = divmod(r, 60)
         parts = []
         if days > 0:
             parts.append(f"{days}d")
         if hours > 0:
             parts.append(f"{hours}h")
-        parts.append(f"{minutes}m")
+        if days == 0 and hours == 0 and minutes == 0:
+            parts.append(f"{seconds}s")
+        else:
+            parts.append(f"{minutes}m")
         return t("status_paused_remaining", remaining=" ".join(parts))
 
     # ── Menu construction ────────────────────────────────────────

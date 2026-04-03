@@ -26,6 +26,11 @@ class WEScheduler:
         self.pause_until: float = 0
         self.thread: Optional[threading.Thread] = None
         self.stop_event = threading.Event()
+
+        # Hook: called (from the scheduler thread) after an automatic
+        # timed-pause resume.  Allows the tray to sync icon / menu
+        # without polling or guessing timing.
+        self.on_auto_resume = None
         
         # Components
         self.config_loader: Optional[ConfigLoader] = None
@@ -142,6 +147,11 @@ class WEScheduler:
                 if self.pause_until > 0 and time.time() >= self.pause_until:
                     logger.info("Timed pause expired. Resuming scheduler.")
                     self.resume()
+                    if self.on_auto_resume:
+                        try:
+                            self.on_auto_resume()
+                        except Exception:
+                            logger.exception("on_auto_resume hook failed")
                 else:
                     time.sleep(1)
                     continue
