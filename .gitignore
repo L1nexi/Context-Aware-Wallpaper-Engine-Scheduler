@@ -22,5 +22,4 @@ dist/
 scheduler_config.json
 temp_playlist.json
 
-.github/
 tests/
