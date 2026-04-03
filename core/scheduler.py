@@ -110,16 +110,18 @@ class WEScheduler:
             self.thread.join(timeout=2)
         logger.info("Scheduler stopped.")
 
-    def pause(self):
+    def pause(self, seconds: Optional[int] = None):
+        """
+        Pauses the scheduler.
+        :param seconds: Duration in seconds. None means indefinite.
+        """
         self.paused = True
-        self.pause_until = 0
-        logger.info("Scheduler paused (indefinitely).")
-
-    def pause_for(self, seconds: int):
-        """Pauses the scheduler for a specified duration in seconds."""
-        self.pause_until = time.time() + seconds
-        self.paused = True
-        logger.info(f"Scheduler paused for {seconds}s (until {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.pause_until))}).")
+        if seconds is not None:
+            self.pause_until = time.time() + seconds
+            logger.info(f"Scheduler paused for {seconds}s (until {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.pause_until))}).")
+        else:
+            self.pause_until = 0
+            logger.info("Scheduler paused (indefinitely).")
 
     def resume(self):
         self.paused = False

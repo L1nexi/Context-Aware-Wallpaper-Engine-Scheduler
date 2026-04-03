@@ -50,8 +50,6 @@ def main() -> None:
         logger.info("Starting System Tray...")
         tray = TrayIcon(scheduler)
         tray.run()
-        # When tray exits, stop scheduler
-        scheduler.stop()
 
 if __name__ == "__main__":
     main()
