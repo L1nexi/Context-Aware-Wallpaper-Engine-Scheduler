@@ -23,6 +23,7 @@ class WEScheduler:
         self.initialized = False
         self.running = False
         self.paused = False
+        self.pause_until: float = 0
         self.thread: Optional[threading.Thread] = None
         self.stop_event = threading.Event()
         
@@ -111,17 +112,37 @@ class WEScheduler:
 
     def pause(self):
         self.paused = True
-        logger.info("Scheduler paused.")
+        self.pause_until = 0
+        logger.info("Scheduler paused (indefinitely).")
+
+    def pause_for(self, seconds: int):
+        """Pauses the scheduler for a specified duration in seconds."""
+        self.pause_until = time.time() + seconds
+        self.paused = True
+        logger.info(f"Scheduler paused for {seconds}s (until {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.pause_until))}).")
 
     def resume(self):
         self.paused = False
+        self.pause_until = 0
         logger.info("Scheduler resumed.")
+
+    def get_pause_remaining(self) -> Optional[float]:
+        """Returns remaining pause seconds, or None if not in a timed pause."""
+        if not self.paused or self.pause_until == 0:
+            return None
+        remaining = self.pause_until - time.time()
+        return max(0.0, remaining)
 
     def _run_loop(self):
         while not self.stop_event.is_set():
             if self.paused:
-                time.sleep(1)
-                continue
+                # Check for timed pause expiry
+                if self.pause_until > 0 and time.time() >= self.pause_until:
+                    logger.info("Timed pause expired. Resuming scheduler.")
+                    self.resume()
+                else:
+                    time.sleep(1)
+                    continue
 
             try:
                 # 1. Sense

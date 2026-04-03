@@ -12,12 +12,15 @@ class DisturbanceController:
         self.playlist_min_interval = config.get("min_interval", 1800)
         self.playlist_force_interval = config.get("force_interval", 14400)
         
-        # Wallpaper Cycling Config (New)
-        # Default: Cycle wallpaper every 10 mins if playlist hasn't changed
+        # Wallpaper Cycling Config
         self.wallpaper_min_interval = config.get("wallpaper_interval", 600) 
         
-        self.last_playlist_switch_time = 0
-        self.last_wallpaper_switch_time = 0
+        # If switch_on_start is False, pretend we just switched — the cooldown
+        # will naturally block the first switch attempt.
+        switch_on_start = config.get("switch_on_start", True)
+        init_time = 0 if switch_on_start else time.time()
+        self.last_playlist_switch_time = init_time
+        self.last_wallpaper_switch_time = init_time
 
     def can_switch_playlist(self, context: Dict[str, Any]) -> bool:
         """
