@@ -1,11 +1,13 @@
 import time
 import threading
 import logging
+import json
 import os
 import sys
 from typing import List, Dict, Any, Optional
 
 from utils.config_loader import ConfigLoader
+from utils.app_context import get_app_root
 from core.executor import WEExecutor
 from core.sensors import WindowSensor, IdleSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
@@ -16,6 +18,26 @@ from core.controller import DisturbanceController
 from core.actuator import Actuator
 
 logger = logging.getLogger("WEScheduler.Core")
+
+_STATE_FILE = os.path.join(get_app_root(), "state.json")
+
+
+def _load_state() -> Dict[str, Any]:
+    """Load persisted state from state.json. Returns {} on any error."""
+    try:
+        with open(_STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_state(state: Dict[str, Any]) -> None:
+    """Persist state to state.json. Silently ignores write errors."""
+    try:
+        with open(_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+    except Exception:
+        logger.warning("Failed to write state.json", exc_info=True)
 
 class WEScheduler:
     def __init__(self, config_path: str):
@@ -83,7 +105,25 @@ class WEScheduler:
             disturbance_config = self.config_loader.get_disturbance_config()
             controller = DisturbanceController(disturbance_config)
             self.actuator = Actuator(self.executor, controller)
-            
+
+            # 7. Restore persisted state
+            state = _load_state()
+            self.current_playlist = state.get("current_playlist", "")
+            saved_until = float(state.get("pause_until", 0))
+            if saved_until > time.time():
+                # Timed pause is still active — restore it
+                self.paused = True
+                self.pause_until = saved_until
+                logger.info(
+                    f"Restored timed pause (until "
+                    f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(saved_until))})."
+                )
+            elif state.get("paused") and saved_until == 0:
+                # Indefinite pause was active, restore it
+                self.paused = True
+                self.pause_until = 0
+                logger.info("Restored indefinite pause.")
+
             logger.info("Scheduler initialized successfully.")
             self.initialized = True
             return True
@@ -113,6 +153,7 @@ class WEScheduler:
         self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=2)
+        _save_state(self._build_state())
         logger.info("Scheduler stopped.")
 
     def pause(self, seconds: Optional[int] = None):
@@ -127,11 +168,13 @@ class WEScheduler:
         else:
             self.pause_until = 0
             logger.info("Scheduler paused (indefinitely).")
+        _save_state(self._build_state())
 
     def resume(self):
         self.paused = False
         self.pause_until = 0
         logger.info("Scheduler resumed.")
+        _save_state(self._build_state())
 
     def get_pause_remaining(self) -> Optional[float]:
         """Returns remaining pause seconds, or None if not in a timed pause."""
@@ -165,9 +208,12 @@ class WEScheduler:
                 best_playlist = self.matcher.match(aggregated_tags)
                 
                 # 3. Act
-                self.current_playlist = self.actuator.act(
+                new_playlist = self.actuator.act(
                     context, aggregated_tags, best_playlist, self.current_playlist
                 )
+                if new_playlist != self.current_playlist:
+                    self.current_playlist = new_playlist
+                    _save_state(self._build_state())
                 
                 # Status Update (for console/tray)
                 self._update_status(context, aggregated_tags, best_playlist)
@@ -176,6 +222,14 @@ class WEScheduler:
                 logger.error(f"Error in main loop: {e}")
             
             time.sleep(1)
+
+    def _build_state(self) -> Dict[str, Any]:
+        """Returns a snapshot of the scheduler state suitable for persistence."""
+        return {
+            "paused": self.paused,
+            "pause_until": self.pause_until,
+            "current_playlist": self.current_playlist,
+        }
 
     def _update_status(self, context: Dict[str, Any], tags: Dict[str, float], decision: str):
         process_name = context.get("window", {}).get("process", "N/A")

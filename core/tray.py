@@ -51,7 +51,6 @@ class CustomPauseDialog:
 
     def show(self):
         """Creates the dialog window and blocks until it is closed."""
-        self._enable_dpi_awareness()
 
         root = tk.Tk()
         root.title(t("dialog_title"))
@@ -126,16 +125,6 @@ class CustomPauseDialog:
         root.geometry(f"+{x}+{y}")
 
         root.mainloop()
-
-    # ──────────────────────────────────────────────────────────────
-    @staticmethod
-    def _enable_dpi_awareness():
-        """Best-effort HiDPI support on Windows."""
-        try:
-            import ctypes
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        except Exception:
-            pass
 
 
 # ── System Tray Icon ─────────────────────────────────────────────
@@ -306,4 +295,31 @@ class TrayIcon:
             "Context Aware WE Scheduler",
             menu=self._build_menu(),
         )
+        self._patch_menu_refresh()
         self.icon.run()
+
+    def _patch_menu_refresh(self):
+        """
+        Monkey-patches pystray's Win32 WM_NOTIFY handler so that
+        ``_update_menu()`` is called right before every right-click
+        popup.  This ensures dynamic menu text (e.g. remaining pause
+        time) is always freshly evaluated.
+
+        Implementation: replaces the WM_NOTIFY entry in
+        ``icon._message_handlers`` — a plain dict keyed by Win32
+        message numbers that the WndProc dispatcher reads at runtime
+        (_win32.py line 412).  Wrapped in try/except so a future
+        pystray upgrade that changes internals degrades gracefully.
+        """
+        try:
+            from pystray._util import win32 as _w32
+            _original = self.icon._message_handlers[_w32.WM_NOTIFY]
+
+            def _notify_with_refresh(wparam, lparam):
+                if self.icon._menu_handle and lparam == _w32.WM_RBUTTONUP:
+                    self.icon._update_menu()
+                _original(wparam, lparam)
+
+            self.icon._message_handlers[_w32.WM_NOTIFY] = _notify_with_refresh
+        except Exception:
+            logger.debug("Menu-refresh patch not applied (pystray internals may have changed)")

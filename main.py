@@ -3,6 +3,16 @@ import os
 import argparse
 import time
 
+# ── DPI Awareness ───────────────────────────────────────────────
+# Must be called before any window or UI object is created.
+# PROCESS_PER_MONITOR_DPI_AWARE (2) gives the sharpest rendering on
+# high-DPI displays.  Falls back silently on older Windows versions.
+try:
+    import ctypes
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+except Exception:
+    pass
+
 # Ensure we can import from core and utils
 # When frozen, we don't need this as everything is bundled.
 # But for script mode, we keep it.
