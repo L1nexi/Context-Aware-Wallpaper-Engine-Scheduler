@@ -14,6 +14,18 @@ def _circular_distance(a: float, b: float, period: float) -> float:
     return min(d, period - d)
 
 
+def _hann(d: float, H: float) -> float:
+    """Hann window: 0.5·(1 + cos(π·d/H)) for d < H, else 0.
+
+    Properties:
+    * w(0) = 1,  w(H) = 0
+    * w'(H) = 0  →  C¹-smooth at the boundary (no kink)
+    """
+    if d >= H:
+        return 0.0
+    return 0.5 * (1.0 + math.cos(math.pi * d / H))
+
+
 class Policy(ABC):
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -165,9 +177,7 @@ class TimePolicy(Policy):
         tags: Dict[str, float] = {}
         for tag, peak in self._peaks.items():
             d = _circular_distance(hour, peak, 24)
-            if d >= self._H:
-                continue
-            w = 0.5 * (1.0 + math.cos(math.pi * d / self._H))
+            w = _hann(d, self._H)
             if w > 1e-4:
                 tags[tag] = w
 
@@ -217,9 +227,7 @@ class SeasonPolicy(Policy):
         tags: Dict[str, float] = {}
         for tag, peak in self._peaks.items():
             d = _circular_distance(doy, peak, 365)
-            if d >= self._H:
-                continue
-            w = 0.5 * (1.0 + math.cos(math.pi * d / self._H))
+            w = _hann(d, self._H)
             if w > 1e-4:
                 tags[tag] = w
 
@@ -228,99 +236,135 @@ class SeasonPolicy(Policy):
 
 class WeatherPolicy(Policy):
     """
-    Maps OpenWeatherMap ``weather.id`` (condition code 200-804) to fine-
-    grained, multi-tag vectors with intensity weights.
+    Maps OpenWeatherMap condition codes to intensity-weighted tag vectors.
 
-    Falls back to the coarse ``weather.main`` string when the ``id``
-    field is missing or unrecognised.
+    ── Design principle: output = intensity × unit_direction ──────────────
 
-    Recognised tags: ``#rain``, ``#snow``, ``#storm``, ``#fog``,
-    ``#clear``, ``#cloudy``.
+    Each entry in ``_ID_TAGS`` encodes two orthogonal quantities:
+
+    1. **intensity** ``s`` = L2 norm of the output vector ∈ (0, 1].
+       Represents "how much this weather overrides other signals":
+
+         T1 ≈ 0.25  negligible   mist, haze, dust whirls, few clouds
+         T2 ≈ 0.50  light        drizzle, light rain/snow, scattered clouds
+         T3 ≈ 0.75  heavy        moderate rain, dense fog, broken clouds
+         T4 = 1.00  extreme      very heavy rain, heavy snow, tornado
+
+    2. **unit_direction** = tag composition (Σ component² = 1).
+       Encodes "what kind of weather" without changing voting power.
+
+       Two-tag directions use fixed angle presets:
+         2:1 ratio  → (cos 27° ≈ 0.89, sin 27° ≈ 0.45)   primary dominates
+         3:1 ratio  → (cos 18° ≈ 0.95, sin 18° ≈ 0.32)   strongly primary
+         1:1 ratio  → (cos 45° ≈ 0.71, sin 45° ≈ 0.71)   equal mix
+
+    ── Normalisation policy ──────────────────────────────────────────────
+
+    Unlike Time/Season, this policy does **NOT** L2-normalise its output.
+    The raw tag vector (scaled by ``weight_scale``) is passed directly to
+    the Arbiter sum.  Consequences:
+
+    * Mild weather (T1-T2) contributes a small norm → yields to Activity
+      and Time signals.
+    * Extreme weather (T4) contributes a large norm → dominates direction.
+    * ``weight_scale`` in config is the influence *ceiling* (at s = 1.00).
+      With the default weight_scale = 1.5, extreme weather contributes
+      norm 1.5, comparable to a fully-matched ActivityPolicy (ws = 1.2).
     """
 
-    # ── Weather-ID → tag mapping (OpenWeatherMap condition codes) ──
+    # ── Weather-ID → tag mapping ─────────────────────────────────────────
+    # Values follow:  component = s × direction_component
+    # Single-tag:  value = s
+    # Two-tag 2:1: primary = s × 0.89,  secondary = s × 0.45
+    # Two-tag 3:1: primary = s × 0.95,  secondary = s × 0.32
+    # Two-tag 1:1: each   = s × 0.71
     _ID_TAGS: Dict[int, Dict[str, float]] = {
-        # 2xx Thunderstorm
-        200: {"#storm": 0.7, "#rain": 0.4},   # thunderstorm + light rain
-        201: {"#storm": 0.8, "#rain": 0.6},   # thunderstorm + rain
-        202: {"#storm": 1.0, "#rain": 0.8},   # thunderstorm + heavy rain
-        210: {"#storm": 0.6},                  # light thunderstorm
-        211: {"#storm": 0.7},                  # thunderstorm
-        212: {"#storm": 1.0},                  # heavy thunderstorm
-        221: {"#storm": 0.9},                  # ragged thunderstorm
-        230: {"#storm": 0.7, "#rain": 0.3},   # thunderstorm + light drizzle
-        231: {"#storm": 0.8, "#rain": 0.4},   # thunderstorm + drizzle
-        232: {"#storm": 0.9, "#rain": 0.6},   # thunderstorm + heavy drizzle
-        # 3xx Drizzle
-        300: {"#rain": 0.3},                   # light drizzle
-        301: {"#rain": 0.4},                   # drizzle
-        302: {"#rain": 0.6},                   # heavy drizzle
-        310: {"#rain": 0.3},                   # light drizzle rain
-        311: {"#rain": 0.4},                   # drizzle rain
-        312: {"#rain": 0.6},                   # heavy drizzle rain
-        313: {"#rain": 0.5},                   # shower rain + drizzle
-        314: {"#rain": 0.7},                   # heavy shower rain + drizzle
-        321: {"#rain": 0.5},                   # shower drizzle
-        # 5xx Rain
-        500: {"#rain": 0.4},                   # light rain
-        501: {"#rain": 0.6},                   # moderate rain
-        502: {"#rain": 0.9},                   # heavy intensity rain
-        503: {"#rain": 1.0},                   # very heavy rain
-        504: {"#rain": 1.0},                   # extreme rain
-        511: {"#rain": 0.5, "#snow": 0.3},     # freezing rain
-        520: {"#rain": 0.5},                   # light shower rain
-        521: {"#rain": 0.7},                   # shower rain
-        522: {"#rain": 1.0},                   # heavy shower rain
-        531: {"#rain": 0.8},                   # ragged shower rain
-        # 6xx Snow
-        600: {"#snow": 0.5},                   # light snow
-        601: {"#snow": 0.8},                   # snow
-        602: {"#snow": 1.0},                   # heavy snow
-        611: {"#snow": 0.4, "#rain": 0.3},     # sleet
-        612: {"#snow": 0.5, "#rain": 0.3},     # light shower sleet
-        613: {"#snow": 0.5, "#rain": 0.3},     # shower sleet
-        615: {"#snow": 0.4, "#rain": 0.3},     # light rain and snow
-        616: {"#snow": 0.5, "#rain": 0.4},     # rain and snow
-        620: {"#snow": 0.4},                   # light shower snow
-        621: {"#snow": 0.7},                   # shower snow
-        622: {"#snow": 1.0},                   # heavy shower snow
-        # 7xx Atmosphere
-        701: {"#fog": 0.6},                    # mist
-        711: {"#fog": 0.5},                    # smoke
-        721: {"#fog": 0.4},                    # haze
-        731: {"#fog": 0.3},                    # dust whirls
-        741: {"#fog": 0.8},                    # fog
-        751: {"#fog": 0.3},                    # sand
-        761: {"#fog": 0.4},                    # dust
-        762: {"#fog": 0.6},                    # volcanic ash
-        771: {"#storm": 0.6},                  # squall
-        781: {"#storm": 1.0},                  # tornado
-        # 800 Clear
-        800: {"#clear": 1.0},                  # clear sky
-        # 80x Clouds
-        801: {"#clear": 0.6, "#cloudy": 0.3},  # few clouds (11-25%)
-        802: {"#cloudy": 0.5, "#clear": 0.3},  # scattered clouds (25-50%)
-        803: {"#cloudy": 0.8},                 # broken clouds (51-84%)
-        804: {"#cloudy": 1.0},                 # overcast (85-100%)
+        # 2xx Thunderstorm ────────────────────────────────────────────────
+        # Pure storm: T2→T4 by severity
+        210: {"#storm": 0.50},                   # s=T2   light thunderstorm
+        211: {"#storm": 0.75},                   # s=T3   thunderstorm
+        212: {"#storm": 1.00},                   # s=T4   heavy thunderstorm
+        221: {"#storm": 0.90},                   # s=T3.6 ragged thunderstorm
+        # Storm + rain: s = T3 → T4, direction 2:1 (storm primary)
+        200: {"#storm": 0.67, "#rain": 0.34},    # s=0.75 ts+light rain
+        201: {"#storm": 0.80, "#rain": 0.40},    # s=0.89 ts+rain
+        202: {"#storm": 0.89, "#rain": 0.45},    # s=1.00 ts+heavy rain
+        # Storm + drizzle: direction 3:1 (storm primary)
+        230: {"#storm": 0.62, "#rain": 0.21},    # s=0.65 ts+light drizzle
+        231: {"#storm": 0.71, "#rain": 0.24},    # s=0.75 ts+drizzle
+        232: {"#storm": 0.80, "#rain": 0.36},    # s=0.89 ts+heavy drizzle
+        # 3xx Drizzle ─────────────────────────────────────────────────────
+        300: {"#rain": 0.25},                    # s=T1   light drizzle
+        301: {"#rain": 0.40},                    # s=T2   drizzle
+        302: {"#rain": 0.55},                    # s=T2+  heavy drizzle
+        310: {"#rain": 0.30},                    # s=T1+  light drizzle rain
+        311: {"#rain": 0.50},                    # s=T2   drizzle rain
+        312: {"#rain": 0.60},                    # s=T2+  heavy drizzle rain
+        313: {"#rain": 0.50},                    # s=T2   shower rain+drizzle
+        314: {"#rain": 0.65},                    # s=T2+  heavy shower+drizzle
+        321: {"#rain": 0.50},                    # s=T2   shower drizzle
+        # 5xx Rain ────────────────────────────────────────────────────────
+        500: {"#rain": 0.40},                    # s=T2   light rain
+        501: {"#rain": 0.65},                    # s=T2+  moderate rain
+        502: {"#rain": 0.85},                    # s=T3+  heavy intensity rain
+        503: {"#rain": 1.00},                    # s=T4   very heavy rain
+        504: {"#rain": 1.00},                    # s=T4   extreme rain
+        511: {"#rain": 0.53, "#snow": 0.27},     # s=0.59 freezing rain, 2:1
+        520: {"#rain": 0.45},                    # s=T2   light shower rain
+        521: {"#rain": 0.65},                    # s=T2+  shower rain
+        522: {"#rain": 0.90},                    # s=T3+  heavy shower rain
+        531: {"#rain": 0.70},                    # s=T3   ragged shower rain
+        # 6xx Snow ────────────────────────────────────────────────────────
+        600: {"#snow": 0.40},                    # s=T2   light snow
+        601: {"#snow": 0.70},                    # s=T3   snow
+        602: {"#snow": 1.00},                    # s=T4   heavy snow
+        611: {"#snow": 0.39, "#rain": 0.39},     # s=0.55 sleet, 1:1
+        612: {"#snow": 0.32, "#rain": 0.32},     # s=0.45 light shower sleet, 1:1
+        613: {"#snow": 0.35, "#rain": 0.35},     # s=0.50 shower sleet, 1:1
+        615: {"#rain": 0.35, "#snow": 0.35},     # s=0.50 light rain and snow, 1:1
+        616: {"#rain": 0.42, "#snow": 0.42},     # s=0.60 rain and snow, 1:1
+        620: {"#snow": 0.40},                    # s=T2   light shower snow
+        621: {"#snow": 0.65},                    # s=T2+  shower snow
+        622: {"#snow": 1.00},                    # s=T4   heavy shower snow
+        # 7xx Atmosphere ──────────────────────────────────────────────────
+        701: {"#fog": 0.30},                     # s=T1+  mist
+        711: {"#fog": 0.45},                     # s=T2   smoke
+        721: {"#fog": 0.25},                     # s=T1   haze
+        731: {"#fog": 0.25},                     # s=T1   dust whirls
+        741: {"#fog": 0.75},                     # s=T3   fog
+        751: {"#fog": 0.30},                     # s=T1+  sand
+        761: {"#fog": 0.40},                     # s=T2   dust
+        762: {"#fog": 0.60},                     # s=T2+  volcanic ash
+        771: {"#storm": 0.65},                   # s=T2+  squall
+        781: {"#storm": 1.00},                   # s=T4   tornado
+        # 800 Clear ───────────────────────────────────────────────────────
+        800: {"#clear": 1.00},                   # s=T4   clear sky
+        # 80x Clouds (gradual clear→cloudy) ──────────────────────────────
+        # 801-802 centred at T2=0.50; 803-804 at T3-T4.
+        # Direction shifts from clear-primary to cloudy-primary.
+        801: {"#clear": 0.47, "#cloudy": 0.16},  # s=0.50, 3:1 clear:cloudy
+        802: {"#clear": 0.35, "#cloudy": 0.35},  # s=0.50, 1:1 equal
+        803: {"#cloudy": 0.71, "#clear": 0.24},  # s=0.75, 3:1 cloudy:clear
+        804: {"#cloudy": 1.00},                  # s=T4   overcast
     }
 
-    # Coarse fallback when id is missing / unrecognised
+    # Coarse fallback when id is missing / unrecognised ───────────────────
     _MAIN_FALLBACK: Dict[str, Dict[str, float]] = {
-        "thunderstorm": {"#storm": 0.8, "#rain": 0.5},
-        "drizzle":      {"#rain": 0.4},
-        "rain":         {"#rain": 0.7},
-        "snow":         {"#snow": 0.7},
-        "mist":         {"#fog": 0.5},
-        "smoke":        {"#fog": 0.4},
-        "haze":         {"#fog": 0.3},
-        "dust":         {"#fog": 0.3},
-        "fog":          {"#fog": 0.7},
-        "sand":         {"#fog": 0.3},
-        "ash":          {"#fog": 0.5},
-        "squall":       {"#storm": 0.6},
-        "tornado":      {"#storm": 1.0},
-        "clear":        {"#clear": 1.0},
-        "clouds":       {"#cloudy": 0.7},
+        "thunderstorm": {"#storm": 0.67, "#rain": 0.34},  # T3 × 2:1
+        "drizzle":      {"#rain": 0.40},                   # T2
+        "rain":         {"#rain": 0.65},                   # T2+
+        "snow":         {"#snow": 0.65},                   # T2+
+        "mist":         {"#fog": 0.30},                    # T1+
+        "smoke":        {"#fog": 0.45},                    # T2
+        "haze":         {"#fog": 0.25},                    # T1
+        "dust":         {"#fog": 0.40},                    # T2
+        "fog":          {"#fog": 0.75},                    # T3
+        "sand":         {"#fog": 0.30},                    # T1+
+        "ash":          {"#fog": 0.55},                    # T2+
+        "squall":       {"#storm": 0.65},                  # T2+
+        "tornado":      {"#storm": 1.00},                  # T4
+        "clear":        {"#clear": 1.00},                  # T4
+        "clouds":       {"#cloudy": 0.65},                 # T2+
     }
 
     def __init__(self, config: Dict[str, Any]):
@@ -337,13 +381,13 @@ class WeatherPolicy(Policy):
         if not self.enabled or not self.api_key:
             return {}
 
-        current_timestamp = time.time()
-
-        if current_timestamp - self.last_fetch_time > self.interval:
+        if time.time() - self.last_fetch_time > self.interval:
             self._fetch_weather()
-            self.last_fetch_time = current_timestamp
+            self.last_fetch_time = time.time()
 
-        return self._normalize_and_scale(self.cached_tags)
+        # Preserve intensity: do NOT normalise.
+        # effective norm = s × weight_scale  (ceiling at s=1.00).
+        return {tag: w * self.weight_scale for tag, w in self.cached_tags.items()}
 
     # ── ID → tags resolution ──
 
