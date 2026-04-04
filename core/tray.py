@@ -178,7 +178,7 @@ class TrayIcon:
 
     # ── Menu action handlers ─────────────────────────────────────
 
-    def _on_pause(self, seconds: Optional[int] = None):
+    def _on_pause_wrapper(self, seconds: Optional[int] = None):
         """
         Returns a pystray-compatible handler that pauses for *seconds*.
         ``None`` means indefinite pause.
@@ -248,12 +248,12 @@ class TrayIcon:
         """
         # -- Pause submenu: Indefinitely + presets + custom --
         pause_items = [
-            pystray.MenuItem(t("pause_indefinitely"), self._on_pause(None)),
+            pystray.MenuItem(t("pause_indefinitely"), self._on_pause_wrapper(None)),
             pystray.Menu.SEPARATOR,
         ]
         for key, seconds in PAUSE_PRESETS:
             pause_items.append(
-                pystray.MenuItem(t(key), self._on_pause(seconds))
+                pystray.MenuItem(t(key), self._on_pause_wrapper(seconds))
             )
         pause_items.append(pystray.Menu.SEPARATOR)
         pause_items.append(

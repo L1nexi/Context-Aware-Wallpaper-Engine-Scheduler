@@ -23,3 +23,5 @@ scheduler_config.json
 temp_playlist.json
 
 tests/
+
+state.json

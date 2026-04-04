@@ -4,16 +4,22 @@ from typing import Dict, Any
 
 logger = logging.getLogger("WEScheduler.Controller")
 
+# Default interval constants (seconds)
+_DEFAULT_IDLE_THRESHOLD      = 60
+_DEFAULT_PLAYLIST_MIN        = 1800   # 30 min  – cooldown between playlist switches
+_DEFAULT_PLAYLIST_FORCE      = 14400  # 4 h     – force a switch even without idle
+_DEFAULT_WALLPAPER_MIN       = 600    # 10 min  – cooldown between wallpaper cycles
+
 class DisturbanceController:
     def __init__(self, config: Dict[str, Any]):
-        self.idle_threshold = config.get("idle_threshold", 60)
-        
+        self.idle_threshold = config.get("idle_threshold", _DEFAULT_IDLE_THRESHOLD)
+
         # Playlist Switching Config
-        self.playlist_min_interval = config.get("min_interval", 1800)
-        self.playlist_force_interval = config.get("force_interval", 14400)
-        
+        self.playlist_min_interval   = config.get("min_interval",      _DEFAULT_PLAYLIST_MIN)
+        self.playlist_force_interval = config.get("force_interval",    _DEFAULT_PLAYLIST_FORCE)
+
         # Wallpaper Cycling Config
-        self.wallpaper_min_interval = config.get("wallpaper_interval", 600) 
+        self.wallpaper_min_interval  = config.get("wallpaper_interval", _DEFAULT_WALLPAPER_MIN)
         
         # If switch_on_start is False, pretend we just switched — the cooldown
         # will naturally block the first switch attempt.

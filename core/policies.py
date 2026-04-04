@@ -372,7 +372,8 @@ class WeatherPolicy(Policy):
         self.api_key = config.get("api_key", "")
         self.lat = config.get("lat", "")
         self.lon = config.get("lon", "")
-        self.interval = config.get("interval", 600)  # seconds
+        self.interval = config.get("interval", 600)          # seconds
+        self.timeout  = config.get("request_timeout", 10)    # HTTP timeout (seconds)
 
         self.last_fetch_time = 0.0
         self.cached_tags: Dict[str, float] = {}
@@ -415,22 +416,19 @@ class WeatherPolicy(Policy):
 
         try:
             response = requests.get(
-                url, params=params, timeout=10,
+                url, params=params, timeout=self.timeout,
                 proxies={"http": None, "https": None},
             )
 
-            if response.status_code == 200:
+            if response.ok:
                 data = response.json()
                 first = (data.get("weather") or [{}])[0]
                 weather_id = first.get("id", 0)
                 weather_main = first.get("main", "")
 
                 self.cached_tags = self._resolve_tags(weather_id, weather_main)
-                logger.info(
-                    "Weather updated: id=%s main=%s -> %s",
-                    weather_id, weather_main, self.cached_tags,
-                )
+                logger.info(f"Weather updated: id={weather_id} main={weather_main} -> {self.cached_tags}")
             else:
-                logger.warning("Weather API error: %s", response.status_code)
+                logger.warning(f"Weather API error: {response.status_code}")
         except Exception as e:
-            logger.warning("Weather fetch failed: %s", e)
+            logger.warning(f"Weather fetch failed: {e}")

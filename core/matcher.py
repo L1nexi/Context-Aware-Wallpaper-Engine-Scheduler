@@ -4,6 +4,11 @@ from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger("WEScheduler.Matcher")
 
+# Minimum cosine similarity to consider a match valid.
+# Below this threshold the environment vector is too orthogonal to all
+# playlists to produce a meaningful selection.
+_MIN_SIMILARITY = 0.001
+
 class Matcher:
     def __init__(self, playlists: List[Dict[str, Any]]):
         self.playlists = playlists
@@ -73,7 +78,7 @@ class Matcher:
                 best_score = similarity
                 best_playlist = name
         
-        if best_score <= 0.001: 
+        if best_score <= _MIN_SIMILARITY:
             return None
             
         return best_playlist

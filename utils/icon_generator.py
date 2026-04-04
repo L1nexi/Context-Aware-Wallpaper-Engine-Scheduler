@@ -8,12 +8,11 @@ class IconGenerator:
     
     # Catppuccin Macchiato Palette
     COLORS = {
-        "bg": (36, 39, 58, 0),        # Transparent BG
-        "base": (36, 39, 58, 255),    # Dark circle background
-        "active": (138, 173, 244, 255), # Blue (Running)
-        "paused": (147, 153, 178, 255), # Overlay2 (Paused/Gray)
-        "core": (245, 189, 230, 255),   # Pink (Core center)
-        "ring": (183, 189, 248, 255)    # Lavender (Outer ring)
+        "base":   (36, 39, 58, 255),    # Dark circle background
+        "active":  (138, 173, 244, 255), # Blue (Running)
+        "paused":  (147, 153, 178, 255), # Overlay2 (Paused/Gray)
+        "core":    (245, 189, 230, 255), # Pink (Core center)
+        "ring":    (183, 189, 248, 255)  # Lavender (Outer ring)
     }
 
     @staticmethod
@@ -26,7 +25,7 @@ class IconGenerator:
         # 1. Draw at 4x resolution for anti-aliasing (Super Sampling)
         canvas_size = size * 4
         # Use RGBA for transparency
-        img = Image.new('RGBA', (canvas_size, canvas_size), IconGenerator.COLORS["bg"])
+        img = Image.new('RGBA', (canvas_size, canvas_size), (0, 0, 0, 0))
         dc = ImageDraw.Draw(img)
 
         # Config

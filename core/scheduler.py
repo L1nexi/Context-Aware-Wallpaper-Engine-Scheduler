@@ -244,6 +244,6 @@ class WEScheduler:
         
         tag_str = " | ".join(tag_parts)
         self.last_status_line = f"[{decision or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}"
-        # Print to console if attached
-        if sys.stdout and not getattr(sys, 'frozen', False):
-             print(f"\r{self.last_status_line:<100}", end="", flush=True)
+        # Print to console if not frozen (PyInstaller)
+        if not getattr(sys, 'frozen', False):
+            print(f"\r{self.last_status_line:<100}", end="", flush=True)
