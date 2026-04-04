@@ -1,6 +1,9 @@
+import logging
 from typing import Dict, Any, List, Tuple
 import time
 from core.sensors import Sensor
+
+logger = logging.getLogger("WEScheduler.Context")
 
 class ContextManager:
     def __init__(self):
@@ -21,7 +24,7 @@ class ContextManager:
             try:
                 self._context[key] = sensor.collect()
             except Exception as e:
-                print(f"Error collecting from sensor '{key}': {e}")
+                logger.warning("Error collecting from sensor '%s': %s", key, e)
                 self._context[key] = {}
 
         # 2. Add Global/System Context

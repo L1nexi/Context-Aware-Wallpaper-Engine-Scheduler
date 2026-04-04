@@ -63,11 +63,3 @@ class IdleSensor(Sensor):
             return idle_milliseconds / 1000.0
         except Exception:
             return 0.0
-
-if __name__ == "__main__":
-    import time
-    sensor = WindowSensor()
-    while True:
-        info = sensor.get_active_window_info()
-        print(f"Active: {info.get('process')} - {info.get('title')}")
-        time.sleep(1)
