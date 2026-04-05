@@ -245,10 +245,14 @@ class WeatherPolicy(Policy):
     1. **intensity** ``s`` = L2 norm of the output vector ∈ (0, 1].
        Represents "how much this weather overrides other signals":
 
-         T1 ≈ 0.25  negligible   mist, haze, dust whirls, few clouds
-         T2 ≈ 0.50  light        drizzle, light rain/snow, scattered clouds
-         T3 ≈ 0.75  heavy        moderate rain, dense fog, broken clouds
+         T1 ≈ 0.25  negligible   mist, haze, dust whirls
+         T2 ≈ 0.50  light        drizzle, light rain/snow, sky conditions
+         T3 ≈ 0.75  heavy        moderate rain, dense fog
          T4 = 1.00  extreme      very heavy rain, heavy snow, tornado
+
+       Sky conditions (clear / cloudy) are capped at **T2** because they
+       represent a stable ambient state, not an event.  Precipitation and
+       storms use the full T1–T4 range.
 
     2. **unit_direction** = tag composition (Σ component² = 1).
        Encodes "what kind of weather" without changing voting power.
@@ -280,11 +284,12 @@ class WeatherPolicy(Policy):
     # Two-tag 1:1: each   = s × 0.71
     _ID_TAGS: Dict[int, Dict[str, float]] = {
         # 2xx Thunderstorm ────────────────────────────────────────────────
-        # Pure storm: T2→T4 by severity
-        210: {"#storm": 0.50},                   # s=T2   light thunderstorm
-        211: {"#storm": 0.75},                   # s=T3   thunderstorm
-        212: {"#storm": 1.00},                   # s=T4   heavy thunderstorm
-        221: {"#storm": 0.90},                   # s=T3.6 ragged thunderstorm
+        # Pure storm: T2→T4 by severity; #rain added as fallback (dry lightning
+        # is meteorologically rare; real thunderstorms almost always have rain)
+        210: {"#storm": 0.50, "#rain": 0.25},   # s≈0.56 light thunderstorm
+        211: {"#storm": 0.75, "#rain": 0.50},   # s≈0.90 thunderstorm
+        212: {"#storm": 1.00, "#rain": 0.60},   # s≈1.17 heavy thunderstorm
+        221: {"#storm": 0.90, "#rain": 0.50},   # s≈1.03 ragged thunderstorm
         # Storm + rain: s = T3 → T4, direction 2:1 (storm primary)
         200: {"#storm": 0.67, "#rain": 0.34},    # s=0.75 ts+light rain
         201: {"#storm": 0.80, "#rain": 0.40},    # s=0.89 ts+rain
@@ -338,14 +343,16 @@ class WeatherPolicy(Policy):
         771: {"#storm": 0.65},                   # s=T2+  squall
         781: {"#storm": 1.00},                   # s=T4   tornado
         # 800 Clear ───────────────────────────────────────────────────────
-        800: {"#clear": 1.00},                   # s=T4   clear sky
+        # Sky conditions are ambient states, capped at T2 to avoid
+        # overwhelming Activity / Time signals.
+        800: {"#clear": 0.50},                   # s=T2   clear sky
         # 80x Clouds (gradual clear→cloudy) ──────────────────────────────
-        # 801-802 centred at T2=0.50; 803-804 at T3-T4.
+        # 801-802 centred at T2=0.50; 803 at T2; 804 at T2.
         # Direction shifts from clear-primary to cloudy-primary.
         801: {"#clear": 0.47, "#cloudy": 0.16},  # s=0.50, 3:1 clear:cloudy
         802: {"#clear": 0.35, "#cloudy": 0.35},  # s=0.50, 1:1 equal
-        803: {"#cloudy": 0.71, "#clear": 0.24},  # s=0.75, 3:1 cloudy:clear
-        804: {"#cloudy": 1.00},                  # s=T4   overcast
+        803: {"#cloudy": 0.47, "#clear": 0.16},  # s=0.50, 3:1 cloudy:clear
+        804: {"#cloudy": 0.50},                  # s=T2   overcast
     }
 
     # Coarse fallback when id is missing / unrecognised ───────────────────
@@ -363,8 +370,8 @@ class WeatherPolicy(Policy):
         "ash":          {"#fog": 0.55},                    # T2+
         "squall":       {"#storm": 0.65},                  # T2+
         "tornado":      {"#storm": 1.00},                  # T4
-        "clear":        {"#clear": 1.00},                  # T4
-        "clouds":       {"#cloudy": 0.65},                 # T2+
+        "clear":        {"#clear": 0.50},                  # T2
+        "clouds":       {"#cloudy": 0.50},                 # T2
     }
 
     def __init__(self, config: Dict[str, Any]):

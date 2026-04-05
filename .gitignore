@@ -25,3 +25,7 @@ temp_playlist.json
 tests/
 
 state.json
+
+# misc/ 工具生成的输出文件（图片、临时文本）
+misc/*.png
+misc/*.txt
