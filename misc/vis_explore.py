@@ -59,31 +59,47 @@ from vis_common import (
 # ======================================================================
 
 DEFAULT_PANELS = {
-    # wx-hour: 固定 (activity, doy), 变动 weather × hour  — 9 panels (3×3)
-    # 四季 × {idle, #focus, #chill} 采样，观察天气信号在不同季节和活跃状态下的权重
+    # wx-hour: 固定 (activity, doy), 变动 weather × hour  — 12 panels (3×4)
+    # Row 1: idle × 4 season peaks  — 观察季节 Policy 的主导效果
+    # Row 2: idle × 4 season transitions (各相邻峰的中点) — 验证过渡期让位效果
+    # Row 3: activity contrasts at key seasons  — 对照活跃度对天气行为的影响
     "wx-hour": [
-        {"activity": None,     "doy": 80,  "title": "idle · spring (doy 80)"},
-        {"activity": None,     "doy": 172, "title": "idle · summer (doy 172)"},
-        {"activity": None,     "doy": 265, "title": "idle · autumn (doy 265)"},
-        {"activity": None,     "doy": 355, "title": "idle · winter (doy 355)"},
+        # Row 1 — idle × season peaks
+        {"activity": None,     "doy": 80,  "title": "idle · spring-peak (doy 80)"},
+        {"activity": None,     "doy": 172, "title": "idle · summer-peak (doy 172)"},
+        {"activity": None,     "doy": 265, "title": "idle · autumn-peak (doy 265)"},
+        {"activity": None,     "doy": 355, "title": "idle · winter-peak (doy 355)"},
+        # Row 2 — idle × season transitions (midpoints between consecutive peaks)
+        {"activity": None,     "doy": 35,  "title": "idle · winter→spring (doy 35)"},
+        {"activity": None,     "doy": 126, "title": "idle · spring→summer (doy 126)"},
+        {"activity": None,     "doy": 218, "title": "idle · summer→autumn (doy 218)"},
+        {"activity": None,     "doy": 310, "title": "idle · autumn→winter (doy 310)"},
+        # Row 3 — activity contrasts
         {"activity": "#focus", "doy": 80,  "title": "#focus · spring (doy 80)"},
         {"activity": "#focus", "doy": 172, "title": "#focus · summer (doy 172)"},
-        {"activity": "#focus", "doy": 355, "title": "#focus · winter (doy 355)"},
         {"activity": "#chill", "doy": 172, "title": "#chill · summer (doy 172)"},
         {"activity": "#chill", "doy": 355, "title": "#chill · winter (doy 355)"},
     ],
-    # act-hour: 固定 (weather, doy), 变动 activity × hour  — 9 panels (3×3)
-    # 天气预设 × 代表性季节，观察活跃度渐变在不同外部条件下的决策边界
+    # act-hour: 固定 (weather, doy), 变动 activity × hour  — 12 panels (3×4)
+    # 涵盖 none / clear / mod_rain / storm 各天气在峰值 & 过渡季节的采样
+    # 过渡期季节 Policy 强度降低，主要看天气 + 活跃度的竞争如何支配 playlist
     "act-hour": [
-        {"weather": "none",     "doy": 80,  "title": "none · spring (doy 80)"},
-        {"weather": "none",     "doy": 355, "title": "none · winter (doy 355)"},
-        {"weather": "clear",    "doy": 80,  "title": "clear · spring (doy 80)"},
-        {"weather": "clear",    "doy": 172, "title": "clear · summer (doy 172)"},
-        {"weather": "clear",    "doy": 355, "title": "clear · winter (doy 355)"},
-        {"weather": "mod_rain", "doy": 172, "title": "mod_rain · summer (doy 172)"},
-        {"weather": "mod_rain", "doy": 265, "title": "mod_rain · autumn (doy 265)"},
-        {"weather": "storm",    "doy": 80,  "title": "storm · spring (doy 80)"},
-        {"weather": "storm",    "doy": 355, "title": "storm · winter (doy 355)"},
+        # none (无天气信号) — 峰值 + 过渡
+        {"weather": "none",     "doy": 80,  "title": "none · spring-peak (doy 80)"},
+        {"weather": "none",     "doy": 218, "title": "none · summer→autumn (doy 218)"},
+        {"weather": "none",     "doy": 355, "title": "none · winter-peak (doy 355)"},
+        # clear — 春到夏弧线 + 冬季参考
+        {"weather": "clear",    "doy": 80,  "title": "clear · spring-peak (doy 80)"},
+        {"weather": "clear",    "doy": 126, "title": "clear · spring→summer (doy 126)"},
+        {"weather": "clear",    "doy": 172, "title": "clear · summer-peak (doy 172)"},
+        {"weather": "clear",    "doy": 355, "title": "clear · winter-peak (doy 355)"},
+        # mod_rain — 夏秋弧线
+        {"weather": "mod_rain", "doy": 172, "title": "mod_rain · summer-peak (doy 172)"},
+        {"weather": "mod_rain", "doy": 310, "title": "mod_rain · autumn→winter (doy 310)"},
+        # storm — 冬春过渡 + 两极
+        {"weather": "storm",    "doy": 35,  "title": "storm · winter→spring (doy 35)"},
+        {"weather": "storm",    "doy": 80,  "title": "storm · spring-peak (doy 80)"},
+        {"weather": "storm",    "doy": 355, "title": "storm · winter-peak (doy 355)"},
     ],
     # wx-season: 固定 (activity, hour), 变动 weather × doy  — 9 panels (3×3)
     # 覆盖全天各时段 + 活跃度基线，观察天气对季节维度的影响强度
@@ -111,18 +127,24 @@ DEFAULT_PANELS = {
         {"weather": "storm",    "hour": 14.0, "title": "storm · 14:00"},
         {"weather": "storm",    "hour": 22.0, "title": "storm · 22:00"},
     ],
-    # wx-act: 固定 (hour, doy), 变动 weather × activity  — 9 panels (3×3)
-    # 四季 × 白天/夜晚两个时段，呈现天气 × 活跃度在不同时空背景下的完整交叉
+    # wx-act: 固定 (hour, doy), 变动 weather × activity  — 12 panels (3×4)
+    # 4 season peaks × 2 代表时段 = 8  +  4 season transitions × 14:00 = 4
+    # 过渡期面板验证：季节 Policy 减弱后，天气 × 活跃度轴的边界是否更清晰
     "wx-act": [
+        # Season peaks — 每季取早/晚两个时段
         {"hour":  8.0, "doy": 80,  "title": "08:00 · spring (doy 80)"},
-        {"hour": 14.0, "doy": 80,  "title": "14:00 · spring (doy 80)"},
-        {"hour":  8.0, "doy": 172, "title": "08:00 · summer (doy 172)"},
+        {"hour": 20.0, "doy": 80,  "title": "20:00 · spring (doy 80)"},
         {"hour": 14.0, "doy": 172, "title": "14:00 · summer (doy 172)"},
-        {"hour": 20.0, "doy": 265, "title": "20:00 · autumn (doy 265)"},
+        {"hour": 23.0, "doy": 172, "title": "23:00 · summer (doy 172)"},
+        {"hour": 14.0, "doy": 265, "title": "14:00 · autumn (doy 265)"},
         {"hour": 23.0, "doy": 265, "title": "23:00 · autumn (doy 265)"},
         {"hour": 20.0, "doy": 355, "title": "20:00 · winter (doy 355)"},
         {"hour": 23.0, "doy": 355, "title": "23:00 · winter (doy 355)"},
-        {"hour": 14.0, "doy": 355, "title": "14:00 · winter (doy 355)"},
+        # Season transitions — 固定午后 14:00 观察两季 Policy 均弱时的交叉效果
+        {"hour": 14.0, "doy": 35,  "title": "14:00 · winter→spring (doy 35)"},
+        {"hour": 14.0, "doy": 126, "title": "14:00 · spring→summer (doy 126)"},
+        {"hour": 14.0, "doy": 218, "title": "14:00 · summer→autumn (doy 218)"},
+        {"hour": 14.0, "doy": 310, "title": "14:00 · autumn→winter (doy 310)"},
     ],
     # hr-doy: 固定 (activity, weather), 变动 hour × doy — 3×4 共 12 个面板
     # Row 1 — idle × 天气梯度（无信号 → 小雨）
