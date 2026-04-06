@@ -1,33 +1,63 @@
 {
-  "we_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe",
+  "we_path": "C:\\Path\\To\\Your\\wallpaper64.exe",
   "playlists": [
     {
       "name": "BRIGHT_FLOW",
-      "tags": { "#focus": 0.9, "#day": 0.8, "#chill": 0.2, "#clear": 0.4 }
+      "tags": { "#focus": 1.0, "#day": 0.9, "#dawn": 0.3, "#clear": 0.3 }
     },
     {
       "name": "CASUAL_ANIME",
-      "tags": { "#chill": 0.7, "#day": 0.9, "#focus": 0.3, "#clear": 0.5 }
+      "tags": { "#chill": 1.0, "#day": 0.9, "#clear": 0.3 }
     },
     {
       "name": "SUNSET_GLOW",
-      "tags": { "#sunset": 1.0, "#chill": 0.6, "#day": 0.3, "#night": 0.3 }
+      "tags": { "#sunset": 1.0, "#chill": 0.5, "#clear": 0.3 }
     },
     {
       "name": "NIGHT_CHILL",
-      "tags": { "#chill": 0.9, "#night": 0.8, "#sunset": 0.2, "#focus": 0.2 }
+      "tags": { "#chill": 1.0, "#night": 0.9, "#clear": 0.2 }
     },
     {
       "name": "NIGHT_FOCUS",
-      "tags": { "#focus": 1.0, "#night": 0.8, "#chill": 0.1 }
+      "tags": { "#focus": 1.0, "#night": 0.9, "#clear": 0.2 }
     },
     {
       "name": "RAINY_MOOD",
-      "tags": { "#rain": 1.0, "#chill": 0.4, "#focus": 0.3 }
+      "tags": {
+        "#rain": 1.2,
+        "#storm": 0.4,
+        "#day": 0.3,
+        "#night": 0.3,
+        "#chill": 0.3
+      }
+    },
+    {
+      "name": "SPRING_BLOOM",
+      "tags": { "#spring": 1.0, "#day": 0.5, "#clear": 0.3, "#chill": 0.2 }
+    },
+    {
+      "name": "SUMMER_GLOW",
+      "tags": { "#summer": 1.0, "#day": 0.5, "#clear": 0.4, "#chill": 0.3 }
+    },
+    {
+      "name": "AUTUMN_DRIFT",
+      "tags": {
+        "#autumn": 1.0,
+        "#sunset": 0.5,
+        "#day": 0.3,
+        "#chill": 0.3,
+        "#clear": 0.2
+      }
     },
     {
       "name": "WINTER_VIBES",
-      "tags": { "#winter": 1.0, "#chill": 0.3, "#sunset": 0.5, "#day": 0.2 }
+      "tags": {
+        "#winter": 1.0,
+        "#sunset": 0.7,
+        "#snow": 0.5,
+        "#chill": 0.3,
+        "#clear": 0.3
+      }
     }
   ],
   "policies": {
@@ -71,8 +101,8 @@
       "enabled": true,
       "weight_scale": 1.5,
       "api_key": "YOUR_OPENWEATHERMAP_API_KEY",
-      "lat": "0.0",
-      "lon": "0.0",
+      "lat": "0",
+      "lon": "0",
       "interval": 600
     },
     "mood": { "enabled": false, "weight_scale": 2.0 }

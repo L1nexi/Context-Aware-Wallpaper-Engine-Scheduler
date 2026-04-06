@@ -166,7 +166,7 @@ def build_daily_grid(day: int, step: float = 0.25) -> tuple[np.ndarray, np.ndarr
     """
     hours = np.arange(0, 24, step)
     grid = np.array([
-        [_winner_idx(float(h), day, act, wx) for h in hours]
+        [_winner_idx(float(h), doy, act, wx) for h in hours]
         for _, act, wx in VIS_SCENARIOS
     ])
     return hours, grid
@@ -264,7 +264,7 @@ def _configure_strip_yaxis(ax, n_rows: int) -> None:
         ax.axhline(y, color="white", linewidth=0.4, alpha=0.7)
 
 
-def draw_daily_strip(ax, day: int) -> None:
+def draw_daily_strip(ax, doy: int) -> None:
     """绘制"固定日期，横轴=时间"的一维条带图。
 
     pcolormesh 核心用法：
@@ -272,7 +272,7 @@ def draw_daily_strip(ax, day: int) -> None:
       y_edges : 行边界，形状 (S+1,)，整数 0, 1, 2, ...
       grid    : 形状 (S, H)，每格存整数类别索引
     """
-    hours, grid = build_daily_grid(day)
+    hours, grid = build_daily_grid(doy)
     n_rows = grid.shape[0]
     step = hours[1] - hours[0]
 
@@ -292,9 +292,9 @@ def draw_daily_strip(ax, day: int) -> None:
     # 将 day-of-year 转换为近似日历日期，用于坐标轴标签
     _DOY_TO_MD = [(1,1),(32,2),(60,3),(91,4),(121,5),(152,6),
                   (182,7),(213,8),(244,9),(274,10),(305,11),(335,12)]
-    month = max(m for d, m in _DOY_TO_MD if d <= day)
-    mday  = day - [d for d, m in _DOY_TO_MD if m == month][0] + 1
-    ax.set_xlabel(f"Hour of day  (fixed date ≈ {month:02d}-{mday:02d},  day {day} of year)",
+    month = max(m for d, m in _DOY_TO_MD if d <= doy)
+    mdoy  = doy - [d for d, m in _DOY_TO_MD if m == month][0] + 1
+    ax.set_xlabel(f"Hour of doy  (fixed date ≈ {month:02d}-{mdoy:02d},  doy {doy} of year)",
                   fontsize=10)
     ax.set_title("Daily cycle — winning playlist per scenario variant", fontsize=11, pad=4)
 
@@ -364,10 +364,10 @@ def draw_2d_heatmap(ax, activity, weather: str, title: str) -> None:
 #    rect=[0, 0, 0.88, 1] → 右侧留 12% 给图例
 # ======================================================================
 
-def make_strip_figure(day: int) -> plt.Figure:
+def make_strip_figure(doy: int) -> plt.Figure:
     """单日条带图：X = 小时，每行 = 一种场景变体。"""
     fig, ax = plt.subplots(1, 1, figsize=(16, 5))
-    draw_daily_strip(ax, day=day)
+    draw_daily_strip(ax, doy=doy)
 
     # 图例放在图形右侧外部：bbox_to_anchor=(1.01, 0.5) 超出坐标轴范围
     fig.legend(
