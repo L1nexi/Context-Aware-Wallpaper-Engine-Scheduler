@@ -9,6 +9,7 @@ _DEFAULT_IDLE_THRESHOLD      = 60
 _DEFAULT_PLAYLIST_MIN        = 1800   # 30 min  – cooldown between playlist switches
 _DEFAULT_PLAYLIST_FORCE      = 14400  # 4 h     – force a switch even without idle
 _DEFAULT_WALLPAPER_MIN       = 600    # 10 min  – cooldown between wallpaper cycles
+_DEFAULT_CPU_THRESHOLD       = 85     # %       – defer any switch above this average; 0 = disabled
 
 class DisturbanceController:
     def __init__(self, config: Dict[str, Any]):
@@ -20,6 +21,9 @@ class DisturbanceController:
 
         # Wallpaper Cycling Config
         self.wallpaper_min_interval  = config.get("wallpaper_interval", _DEFAULT_WALLPAPER_MIN)
+
+        # CPU load gate — set to 0 to disable
+        self.cpu_threshold: float = config.get("cpu_threshold", _DEFAULT_CPU_THRESHOLD)
         
         # If switch_on_start is False, pretend we just switched — the cooldown
         # will naturally block the first switch attempt.
@@ -39,12 +43,25 @@ class DisturbanceController:
         if time_since_last < self.playlist_min_interval:
             return False
 
-        # 2. Idle Check
+        # 2. CPU Load Gate — defer (not permanently block) any switch while
+        #    the system is under sustained heavy load.  force_interval will
+        #    still fire once CPU drops; no time is "lost" because
+        #    last_playlist_switch_time is not reset here.
+        if self.cpu_threshold > 0:
+            cpu_avg = context.get("cpu", 0.0)
+            if cpu_avg >= self.cpu_threshold:
+                logger.debug(
+                    "CPU load gate: %.1f%% >= %.0f%%, deferring playlist switch",
+                    cpu_avg, self.cpu_threshold,
+                )
+                return False
+
+        # 3. Idle Check
         idle_time = context.get("idle", 0.0)
         if idle_time >= self.idle_threshold:
             return True
         
-        # 3. Force Switch Check
+        # 4. Force Switch Check
         if time_since_last >= self.playlist_force_interval:
             return True
             
@@ -60,8 +77,18 @@ class DisturbanceController:
         # 1. Cooling Down Check (Strict)
         if time_since_last < self.wallpaper_min_interval:
             return False
-            
-        # 2. Idle Check (Strict)
+
+        # 2. CPU Load Gate — same defer semantics as playlist switching
+        if self.cpu_threshold > 0:
+            cpu_avg = context.get("cpu", 0.0)
+            if cpu_avg >= self.cpu_threshold:
+                logger.debug(
+                    "CPU load gate: %.1f%% >= %.0f%%, deferring wallpaper cycle",
+                    cpu_avg, self.cpu_threshold,
+                )
+                return False
+
+        # 3. Idle Check (Strict)
         # We only cycle wallpaper when user is idle to avoid distraction
         idle_time = context.get("idle", 0.0)
         if idle_time >= self.idle_threshold:

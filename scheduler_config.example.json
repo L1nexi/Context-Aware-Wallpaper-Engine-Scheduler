@@ -112,6 +112,8 @@
     "idle_threshold": 20,
     "min_interval": 150,
     "wallpaper_interval": 900,
-    "force_interval": 3600
+    "force_interval": 3600,
+    "cpu_threshold": 85,
+    "cpu_window": 10
   }
 }

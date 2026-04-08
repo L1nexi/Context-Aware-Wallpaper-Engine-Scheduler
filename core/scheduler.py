@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from utils.config_loader import ConfigLoader
 from utils.app_context import get_app_root
 from core.executor import WEExecutor
-from core.sensors import WindowSensor, IdleSensor
+from core.sensors import WindowSensor, IdleSensor, CpuSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
 from core.context import ContextManager
 from core.arbiter import Arbiter
@@ -103,6 +103,8 @@ class WEScheduler:
             
             # 6. Initialize Controller & Actuator
             disturbance_config = self.config_loader.get_disturbance_config()
+            cpu_window = disturbance_config.get("cpu_window", 10)
+            self.context_manager.register_sensor("cpu", CpuSensor(cpu_window))
             controller = DisturbanceController(disturbance_config)
             self.actuator = Actuator(self.executor, controller)
 

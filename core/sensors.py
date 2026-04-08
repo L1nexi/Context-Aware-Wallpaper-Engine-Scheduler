@@ -2,6 +2,7 @@ import win32gui
 import win32process
 import win32api
 import psutil
+from collections import deque
 from typing import Dict, Any
 from abc import ABC, abstractmethod
 
@@ -63,3 +64,28 @@ class IdleSensor(Sensor):
             return idle_milliseconds / 1000.0
         except Exception:
             return 0.0
+
+
+class CpuSensor(Sensor):
+    """Returns a rolling-average CPU utilisation (0.0–100.0) over a sliding window.
+
+    Uses psutil.cpu_percent(interval=None) — non-blocking, measures since the
+    previous call.  The first call after import always returns 0.0 (psutil
+    limitation); we prime it in __init__ so the actual first collect() value
+    is meaningful.
+
+    Window size guideline: at 1 s/tick a window of 10 gives a 10-second
+    smoothed view — short spikes (page-faults, disk flush) don't trip the
+    gate; sustained loads (gaming, compilation, training) do.
+    """
+
+    def __init__(self, window: int = 10) -> None:
+        self._samples: deque[float] = deque(maxlen=window)
+        # Prime psutil's internal baseline so the first collect() measurement
+        # covers a real ~1 s interval rather than returning 0.0.
+        psutil.cpu_percent()
+
+    def collect(self) -> float:
+        sample = psutil.cpu_percent()
+        self._samples.append(sample)
+        return sum(self._samples) / len(self._samples)
