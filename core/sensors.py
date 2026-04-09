@@ -1,10 +1,16 @@
 import win32gui
 import win32process
 import win32api
+import ctypes
+import time
+import requests
 import psutil
+import logging
 from collections import deque
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
+
+logger = logging.getLogger("WEScheduler.Sensor")
 
 class Sensor(ABC):
     @abstractmethod
@@ -89,3 +95,92 @@ class CpuSensor(Sensor):
         sample = psutil.cpu_percent()
         self._samples.append(sample)
         return sum(self._samples) / len(self._samples)
+
+
+class FullscreenSensor(Sensor):
+    """Detects fullscreen or presentation-mode applications via Win32 API.
+
+    Uses SHQueryUserNotificationState (shell32.dll) which reliably detects:
+    - D3D exclusive fullscreen (games)
+    - Presentation mode (PowerPoint, etc.)
+    - Generic full-screen applications
+    """
+
+    _FULLSCREEN_STATES = frozenset({
+        2,  # QUNS_BUSY — full-screen app running or Presentation Settings applied
+        3,  # QUNS_RUNNING_D3D_FULL_SCREEN — D3D exclusive fullscreen
+        4,  # QUNS_PRESENTATION_MODE — presentation mode active
+    })
+
+    def collect(self) -> bool:
+        try:
+            state = ctypes.c_int(0)
+            ctypes.windll.shell32.SHQueryUserNotificationState(
+                ctypes.byref(state)
+            )
+            return state.value in self._FULLSCREEN_STATES
+        except Exception:
+            return False
+
+
+class WeatherSensor(Sensor):
+    """Periodically fetches weather data from OpenWeatherMap 2.5 /weather.
+
+    Returns a dict with weather code, main category, and sunrise/sunset
+    timestamps.  Cached for ``interval`` seconds between API calls.
+    """
+
+    def __init__(self, config: Dict[str, Any]) -> None:
+        self.api_key: str = config.get("api_key", "")
+        self.lat: str = str(config.get("lat", ""))
+        self.lon: str = str(config.get("lon", ""))
+        self.interval: float = config.get("interval", 600)
+        self.timeout: float = config.get("request_timeout", 10)
+
+        self._last_fetch: float = 0.0
+        self._cached: Optional[Dict[str, Any]] = None
+
+    def collect(self) -> Optional[Dict[str, Any]]:
+        if not self.api_key:
+            return self._cached
+
+        now = time.time()
+        # Rate-limit regardless of whether the previous fetch succeeded:
+        # _last_fetch > 0 means at least one attempt has been made.
+        if self._last_fetch > 0 and (now - self._last_fetch) < self.interval:
+            return self._cached
+
+        try:
+            resp = requests.get(
+                "https://api.openweathermap.org/data/2.5/weather",
+                params={
+                    "lat": self.lat,
+                    "lon": self.lon,
+                    "appid": self.api_key,
+                    "units": "metric",
+                },
+                timeout=self.timeout,
+                proxies={"http": None, "https": None},
+            )
+            if resp.ok:
+                data = resp.json()
+                first = (data.get("weather") or [{}])[0]
+                sys_block = data.get("sys") or {}
+                self._cached = {
+                    "id": first.get("id", 0),
+                    "main": first.get("main", ""),
+                    "sunrise": sys_block.get("sunrise", 0),
+                    "sunset": sys_block.get("sunset", 0),
+                }
+                logger.info(
+                    "Weather updated: id=%d main=%s sunrise=%d sunset=%d",
+                    self._cached["id"], self._cached["main"],
+                    self._cached["sunrise"], self._cached["sunset"],
+                )
+            else:
+                logger.warning("Weather API error: %d", resp.status_code)
+        except Exception as e:
+            logger.warning("Weather fetch failed: %s", e)
+
+        self._last_fetch = now
+        return self._cached

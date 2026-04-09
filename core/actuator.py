@@ -1,9 +1,15 @@
+import json
+import os
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from core.executor import WEExecutor
 from core.controller import DisturbanceController
+from utils.app_context import get_app_root
 
 logger = logging.getLogger("WEScheduler.Actuator")
+
+_HISTORY_FILE = os.path.join(get_app_root(), "history.jsonl")
 
 class Actuator:
     """
@@ -36,6 +42,9 @@ class Actuator:
                 log_tags()
                 self.executor.open_playlist(best_playlist)
                 self.controller.notify_playlist_switch()
+                self._write_history("playlist_switch", aggregated_tags,
+                                    playlist_from=current_playlist,
+                                    playlist_to=best_playlist)
                 return best_playlist
             else:
                 # Intent detected but blocked by controller (cooling down or not idle)
@@ -48,8 +57,26 @@ class Actuator:
                 logger.info(f"[Action] Cycling Wallpaper in '{current_playlist}'")
                 self.executor.next_wallpaper()
                 self.controller.notify_wallpaper_cycle()
+                self._write_history("wallpaper_cycle", aggregated_tags,
+                                    playlist=current_playlist)
             else:
                 # Blocked by wallpaper cooling down
                 pass
 
         return current_playlist
+
+    @staticmethod
+    def _write_history(event: str, tags: Dict[str, float], **extra: Any) -> None:
+        """Append a single JSON line to history.jsonl."""
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "event": event,
+            "tags": {k: round(v, 3) for k, v in
+                     sorted(tags.items(), key=lambda x: x[1], reverse=True)[:5]},
+            **extra,
+        }
+        try:
+            with open(_HISTORY_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            logger.debug("Failed to write history", exc_info=True)

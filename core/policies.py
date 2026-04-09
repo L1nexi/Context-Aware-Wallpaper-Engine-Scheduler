@@ -1,7 +1,6 @@
-import time
-import requests
 import logging
 import math
+import time as _time
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
@@ -146,27 +145,67 @@ class TimePolicy(Policy):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.day_start = config.get("day_start", 8)
-        self.night_start = config.get("night_start", 20)
+        self._default_day_start: float = config.get("default_day_start", 8)
+        self._default_night_start: float = config.get("default_night_start", 20)
+        self.auto:bool = config.get("auto", True)
 
-        # Pre-compute four equidistant anchor peaks on the 24 h circle
-        ds = self.day_start
-        ns = self.night_start
-        day_span = (ns - ds) % 24          # hours from dawn → sunset
-        night_span = 24 - day_span         # hours from sunset → next dawn
+        # Current effective values (may be updated dynamically from sunrise/sunset)
+        self._day_start: float = self._default_day_start
+        self._night_start: float = self._default_night_start
 
-        self._peaks = {
+        self._peaks: Dict[str, float] = {}
+        self._H: float = 0.0
+        self._recompute_peaks(self._day_start, self._night_start)
+
+    @staticmethod
+    def _compute_peaks(ds: float, ns: float) -> Dict[str, float]:
+        day_span = (ns - ds) % 24
+        night_span = 24 - day_span
+        return {
             "#dawn":   ds,
             "#day":    (ds + day_span / 2) % 24,
             "#sunset": ns % 24,
             "#night":  (ns + night_span / 2) % 24,
         }
-        # H = full inter-peak distance (not half of it)
+
+    def _recompute_peaks(self, ds: float, ns: float) -> None:
+        self._day_start = ds
+        self._night_start = ns
+        self._peaks = self._compute_peaks(ds, ns)
         self._H = 24 / len(self._peaks)  # = 6.0 h for 4 tags
+
+    def _update_from_context(self, context: Dict[str, Any]) -> None:
+        """Dynamically adjust peaks from OWM sunrise/sunset if available."""
+        weather = context.get("weather")
+        if not weather:
+            return
+
+        sunrise_ts = weather.get("sunrise", 0)
+        sunset_ts = weather.get("sunset", 0)
+        if not sunrise_ts or not sunset_ts:
+            return
+
+        # Convert UTC timestamps to local hours
+        sr = _time.localtime(sunrise_ts)
+        ss = _time.localtime(sunset_ts)
+        ds = sr.tm_hour + sr.tm_min / 60.0
+        ns = ss.tm_hour + ss.tm_min / 60.0
+
+        # Only recompute if values actually changed (±1 min tolerance)
+        if (abs(ds - self._day_start) > 1 / 60
+                or abs(ns - self._night_start) > 1 / 60):
+            self._recompute_peaks(ds, ns)
+            logger.debug(
+                "TimePolicy peaks updated: day_start=%.2f night_start=%.2f",
+                ds, ns,
+            )
 
     def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         if not self.enabled:
             return {}
+
+        if self.auto:
+            self._update_from_context(context)
 
         current_time = context.get("time")
         if not current_time:
@@ -376,26 +415,22 @@ class WeatherPolicy(Policy):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.api_key = config.get("api_key", "")
-        self.lat = config.get("lat", "")
-        self.lon = config.get("lon", "")
-        self.interval = config.get("interval", 600)          # seconds
-        self.timeout  = config.get("request_timeout", 10)    # HTTP timeout (seconds)
-
-        self.last_fetch_time = 0.0
-        self.cached_tags: Dict[str, float] = {}
 
     def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
-        if not self.enabled or not self.api_key:
+        if not self.enabled:
             return {}
 
-        if time.time() - self.last_fetch_time > self.interval:
-            self._fetch_weather()
-            self.last_fetch_time = time.time()
+        weather = context.get("weather")
+        if not weather:
+            return {}
+
+        weather_id = weather.get("id", 0)
+        weather_main = weather.get("main", "")
+        tags = self._resolve_tags(weather_id, weather_main)
 
         # Preserve intensity: do NOT normalise.
         # effective norm = s × weight_scale  (ceiling at s=1.00).
-        return {tag: w * self.weight_scale for tag, w in self.cached_tags.items()}
+        return {tag: w * self.weight_scale for tag, w in tags.items()}
 
     # ── ID → tags resolution ──
 
@@ -406,36 +441,3 @@ class WeatherPolicy(Policy):
         if tags is not None:
             return dict(tags)
         return dict(cls._MAIN_FALLBACK.get(weather_main.lower(), {}))
-
-    # ── API call ──
-
-    def _fetch_weather(self):
-        if not self.api_key:
-            return
-
-        url = "https://api.openweathermap.org/data/2.5/weather"
-        params = {
-            "lat": self.lat,
-            "lon": self.lon,
-            "appid": self.api_key,
-            "units": "metric",
-        }
-
-        try:
-            response = requests.get(
-                url, params=params, timeout=self.timeout,
-                proxies={"http": None, "https": None},
-            )
-
-            if response.ok:
-                data = response.json()
-                first = (data.get("weather") or [{}])[0]
-                weather_id = first.get("id", 0)
-                weather_main = first.get("main", "")
-
-                self.cached_tags = self._resolve_tags(weather_id, weather_main)
-                logger.info(f"Weather updated: id={weather_id} main={weather_main} -> {self.cached_tags}")
-            else:
-                logger.warning(f"Weather API error: {response.status_code}")
-        except Exception as e:
-            logger.warning(f"Weather fetch failed: {e}")
