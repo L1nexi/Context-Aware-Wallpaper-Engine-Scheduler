@@ -55,6 +55,17 @@ class Policy(ABC):
         # Normalize and scale
         return {tag: (w / norm) * self.weight_scale for tag, w in tags.items()}
 
+    def export_state(self) -> Dict[str, Any]:
+        """Export transient runtime state for hot-reload preservation.
+        Default: no state. Override in stateful subclasses.
+        """
+        return {}
+
+    def import_state(self, state: Dict[str, Any]) -> None:
+        """Restore transient runtime state after a hot reload.
+        Default: no-op. Override in stateful subclasses.
+        """
+
 class ActivityPolicy(Policy):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
@@ -116,6 +127,12 @@ class ActivityPolicy(Policy):
                 new_smoothed_tags[tag] = new_weight
         
         return new_smoothed_tags
+
+    def export_state(self) -> Dict[str, Any]:
+        return {"smoothed_tags": self.smoothed_tags.copy()}
+
+    def import_state(self, state: Dict[str, Any]) -> None:
+        self.smoothed_tags = dict(state.get("smoothed_tags", {}))
 
 class TimePolicy(Policy):
     """

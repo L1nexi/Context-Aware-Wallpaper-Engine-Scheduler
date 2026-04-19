@@ -80,43 +80,10 @@ class WEScheduler:
                 return False
             self.executor = WEExecutor(we_path)
 
-            # 3. Initialize Always-On Sensors
-            self.context_manager = ContextManager()
-            self.context_manager.register_sensor("window", WindowSensor())
-            self.context_manager.register_sensor("idle", IdleSensor())
+            # 3. Build all runtime components (sensors, policies, matcher, controller, actuator)
+            self._build_runtime_components()
 
-
-
-            # 4. Initialize Policies
-            policies: List[Policy] = []
-            policy_config = self.config_loader.get_policies()
-            weather_config = policy_config.get("weather", {})
-            if weather_config.get("enabled", True) and weather_config.get("api_key"):
-                self.context_manager.register_sensor(
-                    "weather", WeatherSensor(weather_config)
-                )
-            if "activity" in policy_config:
-                policies.append(ActivityPolicy(policy_config["activity"]))
-            if "time" in policy_config:
-                policies.append(TimePolicy(policy_config["time"]))
-            if "season" in policy_config:
-                policies.append(SeasonPolicy(policy_config["season"]))
-            if "weather" in policy_config:
-                policies.append(WeatherPolicy(policy_config["weather"]))
-
-            # 5. Initialize Logic
-            self.matcher = Matcher(self.config_loader.get_playlists(), policies)
-            
-            # 6. Initialize Controller & Actuator
-            disturbance_config = self.config_loader.get_disturbance_config()
-            cpu_window = disturbance_config.get("cpu_window", 10)
-            self.context_manager.register_sensor("cpu", CpuSensor(cpu_window))
-            if disturbance_config.get("fullscreen_defer", True):
-                self.context_manager.register_sensor("fullscreen", FullscreenSensor())
-            controller = DisturbanceController(disturbance_config)
-            self.actuator = Actuator(self.executor, controller)
-
-            # 7. Restore persisted state
+            # 4. Restore persisted state
             state = _load_state()
             self.current_playlist = state.get("current_playlist", "")
             saved_until = float(state.get("pause_until", 0))
@@ -245,49 +212,76 @@ class WEScheduler:
             self._config_mtime = mtime
             self._hot_reload()
 
+    def _build_runtime_components(self) -> None:
+        """Build/rebuild all runtime components from the current loaded config.
+
+        Assigns ``self.context_manager``, ``self.matcher``, and
+        ``self.actuator``.  Called by both ``initialize()`` and
+        ``_hot_reload()`` to avoid duplication.
+        """
+        policy_config = self.config_loader.get_policies()
+
+        cm = ContextManager()
+        cm.register_sensor("window", WindowSensor())
+        cm.register_sensor("idle", IdleSensor())
+
+        weather_config = policy_config.get("weather", {})
+        if weather_config.get("enabled", True) and weather_config.get("api_key"):
+            cm.register_sensor("weather", WeatherSensor(weather_config))
+
+        policies: List[Policy] = []
+        if "activity" in policy_config:
+            policies.append(ActivityPolicy(policy_config["activity"]))
+        if "time" in policy_config:
+            policies.append(TimePolicy(policy_config["time"]))
+        if "season" in policy_config:
+            policies.append(SeasonPolicy(policy_config["season"]))
+        if "weather" in policy_config:
+            policies.append(WeatherPolicy(policy_config["weather"]))
+
+        disturbance_config = self.config_loader.get_disturbance_config()
+        cpu_window = disturbance_config.get("cpu_window", 10)
+        cm.register_sensor("cpu", CpuSensor(cpu_window))
+        if disturbance_config.get("fullscreen_defer", True):
+            cm.register_sensor("fullscreen", FullscreenSensor())
+
+        self.context_manager = cm
+        self.matcher = Matcher(self.config_loader.get_playlists(), policies)
+        self.actuator = Actuator(self.executor, DisturbanceController(disturbance_config))
+
     def _hot_reload(self) -> None:
-        """Reload config and rebuild Policies, Matcher, Controller, Sensors.
+        """Reload config and rebuild all runtime components.
 
         Preserves: current_playlist, pause state, running/thread state.
+        Also preserves across rebuild via the export/import_state protocol:
+          - Per-policy transient state (e.g. ActivityPolicy EMA smoothing)
+          - DisturbanceController cooldown timestamps
         """
         try:
-            config = self.config_loader.load()
+            # Snapshot stateful component state before teardown
+            policy_states: Dict[str, Dict] = {}
+            if self.matcher:
+                for p in self.matcher.policies:
+                    policy_states[type(p).__name__] = p.export_state()
+
+            controller_state: Dict = {}
+            if self.actuator:
+                controller_state = self.actuator.controller.export_state()
+
+            self.config_loader.load()
             logger.info("Hot reload: config changed, rebuilding components.")
 
-            policy_config = self.config_loader.get_policies()
+            self._build_runtime_components()
 
-            # Rebuild sensors (keep window & idle, recreate weather/cpu/fullscreen)
-            self.context_manager = ContextManager()
-            self.context_manager.register_sensor("window", WindowSensor())
-            self.context_manager.register_sensor("idle", IdleSensor())
+            # Restore per-policy transient state
+            for p in self.matcher.policies:
+                saved = policy_states.get(type(p).__name__)
+                if saved:
+                    p.import_state(saved)
 
-            weather_config = policy_config.get("weather", {})
-            if weather_config.get("enabled", True) and weather_config.get("api_key"):
-                self.context_manager.register_sensor(
-                    "weather", WeatherSensor(weather_config)
-                )
-
-            # Rebuild policies
-            policies: List[Policy] = []
-            if "activity" in policy_config:
-                policies.append(ActivityPolicy(policy_config["activity"]))
-            if "time" in policy_config:
-                policies.append(TimePolicy(policy_config["time"]))
-            if "season" in policy_config:
-                policies.append(SeasonPolicy(policy_config["season"]))
-            if "weather" in policy_config:
-                policies.append(WeatherPolicy(policy_config["weather"]))
-
-            self.matcher = Matcher(self.config_loader.get_playlists(), policies)
-
-            # Rebuild controller & actuator
-            disturbance_config = self.config_loader.get_disturbance_config()
-            cpu_window = disturbance_config.get("cpu_window", 10)
-            self.context_manager.register_sensor("cpu", CpuSensor(cpu_window))
-            if disturbance_config.get("fullscreen_defer", True):
-                self.context_manager.register_sensor("fullscreen", FullscreenSensor())
-            controller = DisturbanceController(disturbance_config)
-            self.actuator = Actuator(self.executor, controller)
+            # Restore controller cooldown timestamps
+            if controller_state:
+                self.actuator.controller.import_state(controller_state)
 
             logger.info(f"Hot reload complete. {len(self.config_loader.get_playlists())} playlists loaded.")
         except Exception:

@@ -3,4 +3,5 @@ pywin32
 requests
 pystray
 Pillow
+jsonschema
 pyinstaller

@@ -149,11 +149,12 @@
 
 ### P2 — Quality of Life
 
-| # | 任务 | 工作量 | 关联 |
-|---|------|:------:|------|
-| P2-A | Hot Reload 健壮化：保留 EMA 状态 + Controller 时间戳 | 中 | #6 #7 |
-| P2-B | 配置 unknown key WARNING | 极小 | #11 |
-| P2-C | 文档化标签域分离约定 | 极小 | #1 |
+| # | 任务 | 工作量 | 关联 | 状态 |
+|---|------|:------:|------|:----:|
+| P2-A | Hot Reload 健壮化：保留 EMA 状态 + Controller 时间戳 | 中 | #6 #7 | ✅ |
+| P2-B | 配置 unknown key WARNING | 极小 | #11 | ✅ |
+| P2-C | 文档化标签域分离约定 | 极小 | #1 | ✅ |
+| P2-D | WeatherSensor 非阻塞异步化（daemon thread） | 小 | — | ✅ |
 
 ### P3 — Nice to Have
 

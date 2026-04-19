@@ -364,6 +364,17 @@ _DEFAULT_WALLPAPER_MIN   = 600   # 秒，壁纸最小切换间隔
 - `WEScheduler.Tray` — 系统托盘
 - `WEScheduler.Policies` — 各 Policy 插件
 
+### 5.7 标签域分离约定
+
+每个 Policy 应只输出属于自身"责任域"的标签，不同 Policy 不应向同一个标签贡献权重：
+
+| Policy         | 负责的标签域                                  |
+| -------------- | --------------------------------------------- |
+| ActivityPolicy | `#focus`, `#chill`, `#game`, 及自定义活动标签 |
+| TimePolicy     | `#dawn`, `#day`, `#sunset`, `#night`          |
+| SeasonPolicy   | `#spring`, `#summer`, `#autumn`, `#winter`    |
+| WeatherPolicy  | `#rain`, `#storm`, `#snow`, `#fog`, `#clear`, `#cloudy` |
+
 ---
 
 ## 6. Gate 架构 (v1.3.0)

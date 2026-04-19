@@ -140,3 +140,19 @@ class DisturbanceController:
 
     def notify_wallpaper_cycle(self):
         self.last_wallpaper_switch_time = time.time()
+
+    def export_state(self) -> Dict[str, Any]:
+        """Export cooldown timestamps for hot-reload preservation."""
+        return {
+            "last_playlist_switch_time": self.last_playlist_switch_time,
+            "last_wallpaper_switch_time": self.last_wallpaper_switch_time,
+        }
+
+    def import_state(self, state: Dict[str, Any]) -> None:
+        """Restore cooldown timestamps after a hot reload."""
+        self.last_playlist_switch_time = state.get(
+            "last_playlist_switch_time", self.last_playlist_switch_time
+        )
+        self.last_wallpaper_switch_time = state.get(
+            "last_wallpaper_switch_time", self.last_wallpaper_switch_time
+        )

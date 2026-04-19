@@ -3,6 +3,7 @@ import win32process
 import win32api
 import ctypes
 import time
+import threading
 import requests
 import psutil
 import logging
@@ -128,6 +129,10 @@ class WeatherSensor(Sensor):
 
     Returns a dict with weather code, main category, and sunrise/sunset
     timestamps.  Cached for ``interval`` seconds between API calls.
+
+    The HTTP request is executed in a background daemon thread so that
+    ``collect()`` always returns immediately with the cached value, never
+    blocking the 1-second scheduler tick.
     """
 
     def __init__(self, config: Dict[str, Any]) -> None:
@@ -139,17 +144,39 @@ class WeatherSensor(Sensor):
 
         self._last_fetch: float = 0.0
         self._cached: Optional[Dict[str, Any]] = None
+        self._fetching: bool = False  # guard: only one background thread at a time
+        self._ready_event = threading.Event()  # set after first fetch attempt completes
+
+        # Start the first fetch eagerly and block until it resolves or times out.
+        # This happens inside __init__ so the scheduler tick loop is never blocked;
+        # the brief wait is absorbed by the rest of initialize().
+        warmup_timeout: float = config.get("warmup_timeout", 3.0)
+        if self.api_key:
+            self._last_fetch = time.time()
+            self._fetching = True
+            threading.Thread(target=self._fetch_async, daemon=True).start()
+            self._ready_event.wait(timeout=warmup_timeout)
 
     def collect(self) -> Optional[Dict[str, Any]]:
         if not self.api_key:
             return self._cached
 
         now = time.time()
-        # Rate-limit regardless of whether the previous fetch succeeded:
-        # _last_fetch > 0 means at least one attempt has been made.
+        # Rate-limit: once _last_fetch is set, wait at least interval before retry.
+        # _last_fetch is set *before* the thread starts so rapid collect() calls
+        # during a fetch don't spawn multiple concurrent threads.
         if self._last_fetch > 0 and (now - self._last_fetch) < self.interval:
             return self._cached
 
+        if not self._fetching:
+            self._last_fetch = now
+            self._fetching = True
+            threading.Thread(target=self._fetch_async, daemon=True).start()
+
+        return self._cached
+
+    def _fetch_async(self) -> None:
+        """Background fetch — updates ``_cached`` on success, never blocks tick loop."""
         try:
             resp = requests.get(
                 "https://api.openweathermap.org/data/2.5/weather",
@@ -180,6 +207,6 @@ class WeatherSensor(Sensor):
                 logger.warning(f"Weather API error: {resp.status_code}")
         except Exception as e:
             logger.warning(f"Weather fetch failed: {e}")
-
-        self._last_fetch = now
-        return self._cached
+        finally:
+            self._fetching = False
+            self._ready_event.set()
