@@ -134,11 +134,15 @@ class TimePolicy(Policy):
         w(d) = 0.5 * (1 + cos(π · d / H))  for d ≤ H
                0                             for d > H
 
-    where *d* is the shortest circular distance (in hours) to the tag's
-    peak and *H* is the full inter-peak distance (= 24 / n_tags = 6 h
-    for 4 tags).  Properties:
-    * w(0) = 1 at peak, w(H) = 0 at the adjacent peak
-    * First derivative w'(H) = 0  →  smooth, kink-free transitions
+    where *d* is computed in **virtual time** after a piecewise-linear
+    warp that maps the four real peaks to 0 / 6 / 12 / 18 h, and *H* = 6 h
+    is fixed in that virtual domain.  The warp stretches or compresses each
+    real inter-peak arc to exactly 6 virtual hours, giving asymmetric windows
+    in real time that always reach exactly the adjacent peak — regardless of
+    how unequal the actual sunrise/sunset split makes them.  Properties in
+    virtual time (invariant under the warp):
+    * w(0) = 1 at peak, w(6) = 0 at the adjacent peak
+    * First derivative w'(6) = 0  →  smooth, kink-free transitions
     * Adjacent windows sum to a near-constant, so the L2-normalised
       direction vector changes smoothly with time.
     """
@@ -154,7 +158,7 @@ class TimePolicy(Policy):
         self._night_start: float = self._default_night_start
 
         self._peaks: Dict[str, float] = {}
-        self._H: float = 0.0
+        self._H: float = 6.0  # constant in virtual time; warp handles real-time distortion
         self._recompute_peaks(self._day_start, self._night_start)
 
     @staticmethod
@@ -168,11 +172,39 @@ class TimePolicy(Policy):
             "#night":  (ns + night_span / 2) % 24,
         }
 
+    # Canonical tag order (matches _compute_peaks insertion order)
+    _TAG_ORDER = ["#dawn", "#day", "#sunset", "#night"]
+    # Corresponding peak positions in virtual (uniformly-spaced) time
+    _VIRTUAL_PEAKS = [0.0, 6.0, 12.0, 18.0]
+
+    @staticmethod
+    def _warp_time(hour: float, peaks: Dict[str, float]) -> float:
+        """Piecewise-linear map: real hour → virtual hour in [0, 24).
+
+        The 24-hour circle is divided into four arcs by the actual peak
+        positions.  Each arc is linearly stretched/compressed to fill exactly
+        6 virtual hours, mapping real peaks → virtual 0 / 6 / 12 / 18.
+        After this warp the Hann kernel with H = 6 spans exactly one arc in
+        virtual time, equivalently producing an asymmetric window in real time
+        whose half-width equals the actual inter-peak arc length on each side.
+        """
+        real = [peaks[t] for t in TimePolicy._TAG_ORDER]
+        n = len(real)
+        for i in range(n):
+            r_a = real[i]
+            r_b = real[(i + 1) % n]
+            seg = (r_b - r_a) % 24   # arc length of this real segment
+            pos = (hour - r_a) % 24  # forward distance from r_a to hour
+            if pos < seg:
+                v_a = TimePolicy._VIRTUAL_PEAKS[i]
+                return (v_a + pos / seg * 6.0) % 24
+        # hour is exactly on the last peak boundary → start of next virtual arc
+        return 0.0
+
     def _recompute_peaks(self, ds: float, ns: float) -> None:
         self._day_start = ds
         self._night_start = ns
         self._peaks = self._compute_peaks(ds, ns)
-        self._H = 24 / len(self._peaks)  # = 6.0 h for 4 tags
 
     def _update_from_context(self, context: Dict[str, Any]) -> None:
         """Dynamically adjust peaks from OWM sunrise/sunset if available."""
@@ -213,10 +245,11 @@ class TimePolicy(Policy):
 
         hour = current_time.tm_hour + current_time.tm_min / 60.0
 
+        t_virtual = self._warp_time(hour, self._peaks)
         tags: Dict[str, float] = {}
-        for tag, peak in self._peaks.items():
-            d = _circular_distance(hour, peak, 24)
-            w = _hann(d, self._H)
+        for tag, v_peak in zip(self._TAG_ORDER, self._VIRTUAL_PEAKS):
+            d = _circular_distance(t_virtual, v_peak, 24)
+            w = _hann(d, self._H)   # H = 6.0 always in virtual time
             if w > 1e-4:
                 tags[tag] = w
 

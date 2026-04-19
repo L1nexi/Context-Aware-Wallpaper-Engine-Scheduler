@@ -1,6 +1,9 @@
 import math
 import logging
-from typing import List, Dict, Any, Optional
+from typing import TYPE_CHECKING, List, Dict, Any, Optional, Tuple
+
+if TYPE_CHECKING:
+    from core.policies import Policy
 
 logger = logging.getLogger("WEScheduler.Matcher")
 
@@ -9,25 +12,37 @@ logger = logging.getLogger("WEScheduler.Matcher")
 # playlists to produce a meaningful selection.
 _MIN_SIMILARITY = 0.001
 
+
 class Matcher:
-    def __init__(self, playlists: List[Dict[str, Any]]):
-        self.playlists = playlists
+    """Owns the full Think pipeline: Sense → per-policy eval → aggregate → cosine match.
+
+    Taking policies in the constructor (rather than in match()) keeps match()
+    a clean context-in / result-out interface, and avoids scattering policy
+    management across Scheduler and a now-redundant Arbiter layer.
+    """
+
+    def __init__(self, playlists: List[Dict[str, Any]], policies: List["Policy"]):
+        self.policies = policies
+
         # 1. Identify the Universe of Tags from all playlists
-        self.all_tags = set()
-        for pl in self.playlists:
+        self.all_tags: set = set()
+        for pl in playlists:
             tags = pl.get("tags", [])
             if isinstance(tags, list):
                 self.all_tags.update(tags)
             elif isinstance(tags, dict):
                 self.all_tags.update(tags.keys())
-        
+
         self.all_tags = sorted(list(self.all_tags))
         self.tag_to_index = {tag: i for i, tag in enumerate(self.all_tags)}
         self.dim = len(self.all_tags)
 
+        # Track tags we've already warned about to avoid per-tick spam
+        self._warned_tags: set = set()
+
         # 2. Pre-calculate Normalized Playlist Vectors
-        self.playlist_vectors = []
-        for pl in self.playlists:
+        self.playlist_vectors: List[tuple] = []
+        for pl in playlists:
             v = [0.0] * self.dim
             tags = pl.get("tags", [])
             if isinstance(tags, list):
@@ -38,7 +53,7 @@ class Matcher:
                 for tag, weight in tags.items():
                     if tag in self.tag_to_index:
                         v[self.tag_to_index[tag]] = weight
-            
+
             norm = math.sqrt(sum(x * x for x in v))
             if norm > 1e-6:
                 v = [x / norm for x in v]
@@ -46,39 +61,87 @@ class Matcher:
             else:
                 logger.warning(f"Playlist '{pl.get('name')}' has no valid tags or zero weights.")
 
-    def match(self, tags: Dict[str, float]) -> Optional[str]:
-        """
-        Finds the best matching playlist based on the aggregated tags.
-        Uses Cosine Similarity with pre-calculated vectors.
-        """
-        if not tags or not self.playlist_vectors:
-            return None
+    def match(self, context: Dict[str, Any]) -> Tuple[Dict[str, float], Optional[str]]:
+        """Run the full Think pipeline for one tick.
 
-        # 3. Create Normalized Environment Vector
+        Steps:
+          1. Evaluate each Policy against *context*, collect per-policy dicts.
+          2. Sum the raw per-policy dicts into *aggregated_tags* (for logging).
+          3. Project each policy's output onto the playlist tag universe;
+             apply per-policy norm-preserving rescaling so that dropping an
+             unknown tag (e.g. #storm with no matching playlist) only
+             compensates the *remaining tags of that policy* (#rain), leaving
+             every other policy's contribution completely untouched.
+          4. Cosine-similarity match against pre-normalised playlist vectors.
+        """
+        # ── Step 1 & 2: evaluate policies, build aggregated_tags for logging ──
+        per_policy: List[Dict[str, float]] = []
+        aggregated_tags: Dict[str, float] = {}
+        for policy in self.policies:
+            tags = policy.get_tags(context)
+            per_policy.append(tags)
+            for tag, w in tags.items():
+                aggregated_tags[tag] = aggregated_tags.get(tag, 0.0) + w
+
+        if not self.playlist_vectors:
+            return aggregated_tags, None
+
+        # ── Step 3: per-policy projection + norm-preserving compensation ──────
         v_env = [0.0] * self.dim
-        for tag, weight in tags.items():
-            if tag in self.tag_to_index:
-                v_env[self.tag_to_index[tag]] = weight
-        
+        any_valid = False
+        for policy_tags in per_policy:
+            if not policy_tags:
+                continue
+
+            # Warn once per unknown tag
+            for tag in policy_tags:
+                if tag not in self.tag_to_index and tag not in self._warned_tags:
+                    logger.info(
+                        f"Tag '{tag}' from a Policy is not present in any playlist "
+                        f"and will be ignored. Add a playlist using this tag, or "
+                        f"check your Policy/config for typos."
+                    )
+                    self._warned_tags.add(tag)
+
+            # Project onto valid tag set
+            valid = {t: w for t, w in policy_tags.items() if t in self.tag_to_index}
+            if not valid:
+                continue
+            any_valid = True
+            
+            # If tags were dropped, rescale this policy's valid components
+            # to restore the original L2 norm of this policy's output vector.
+            if len(valid) < len(policy_tags):
+                orig_norm_sq = sum(w * w for w in policy_tags.values())
+                valid_norm_sq = sum(w * w for w in valid.values())
+                if valid_norm_sq > 1e-12:
+                    scale = math.sqrt(orig_norm_sq / valid_norm_sq)
+                    valid = {t: w * scale for t, w in valid.items()}
+
+            for tag, weight in valid.items():
+                v_env[self.tag_to_index[tag]] += weight
+
+
+        if not any_valid:
+            return aggregated_tags, None
+
         norm_env = math.sqrt(sum(x * x for x in v_env))
         if norm_env < 1e-6:
-            return None
-        
+            return aggregated_tags, None
+
         v_env = [x / norm_env for x in v_env]
 
+        # ── Step 4: cosine similarity ─────────────────────────────────────────
         best_score = -1.0
         best_playlist = None
-
-        # 4. Compare with each Playlist Vector
         for name, v_pl in self.playlist_vectors:
-            # Since both are normalized, dot product is cosine similarity
             similarity = sum(a * b for a, b in zip(v_env, v_pl))
-            
             if similarity > best_score:
                 best_score = similarity
                 best_playlist = name
-        
+
         if best_score <= _MIN_SIMILARITY:
-            return None
-            
-        return best_playlist
+            best_playlist = None
+
+        return aggregated_tags, best_playlist
+

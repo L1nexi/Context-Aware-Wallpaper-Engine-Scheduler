@@ -12,7 +12,6 @@ from core.executor import WEExecutor
 from core.sensors import WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
 from core.context import ContextManager
-from core.arbiter import Arbiter
 from core.matcher import Matcher
 from core.controller import DisturbanceController
 from core.actuator import Actuator
@@ -58,7 +57,6 @@ class WEScheduler:
         self.config_loader: Optional[ConfigLoader] = None
         self.executor: Optional[WEExecutor] = None
         self.context_manager: Optional[ContextManager] = None
-        self.arbiter: Optional[Arbiter] = None
         self.matcher: Optional[Matcher] = None
         self.actuator: Optional[Actuator] = None
         
@@ -107,8 +105,7 @@ class WEScheduler:
                 policies.append(WeatherPolicy(policy_config["weather"]))
 
             # 5. Initialize Logic
-            self.arbiter = Arbiter(policies)
-            self.matcher = Matcher(self.config_loader.get_playlists())
+            self.matcher = Matcher(self.config_loader.get_playlists(), policies)
             
             # 6. Initialize Controller & Actuator
             disturbance_config = self.config_loader.get_disturbance_config()
@@ -220,8 +217,7 @@ class WEScheduler:
                 context = self.context_manager.refresh()
                 
                 # 2. Think
-                aggregated_tags = self.arbiter.arbitrate(context)
-                best_playlist = self.matcher.match(aggregated_tags)
+                aggregated_tags, best_playlist = self.matcher.match(context)
                 
                 # 3. Act
                 new_playlist = self.actuator.act(
@@ -282,8 +278,7 @@ class WEScheduler:
             if "weather" in policy_config:
                 policies.append(WeatherPolicy(policy_config["weather"]))
 
-            self.arbiter = Arbiter(policies)
-            self.matcher = Matcher(self.config_loader.get_playlists())
+            self.matcher = Matcher(self.config_loader.get_playlists(), policies)
 
             # Rebuild controller & actuator
             disturbance_config = self.config_loader.get_disturbance_config()
@@ -294,8 +289,7 @@ class WEScheduler:
             controller = DisturbanceController(disturbance_config)
             self.actuator = Actuator(self.executor, controller)
 
-            logger.info("Hot reload complete. %d playlists loaded.",
-                        len(self.config_loader.get_playlists()))
+            logger.info(f"Hot reload complete. {len(self.config_loader.get_playlists())} playlists loaded.")
         except Exception:
             logger.exception("Hot reload failed, keeping previous config")
 

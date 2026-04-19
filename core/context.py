@@ -24,7 +24,7 @@ class ContextManager:
             try:
                 self._context[key] = sensor.collect()
             except Exception as e:
-                logger.warning("Error collecting from sensor '%s': %s", key, e)
+                logger.warning(f"Error collecting from sensor '{key}': {e}")
                 self._context[key] = {}
 
         # 2. Add Global/System Context

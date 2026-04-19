@@ -173,14 +173,13 @@ class WeatherSensor(Sensor):
                     "sunset": sys_block.get("sunset", 0),
                 }
                 logger.info(
-                    "Weather updated: id=%d main=%s sunrise=%d sunset=%d",
-                    self._cached["id"], self._cached["main"],
-                    self._cached["sunrise"], self._cached["sunset"],
+                    f"Weather updated: id={self._cached['id']} main={self._cached['main']} "
+                    f"sunrise={self._cached['sunrise']} sunset={self._cached['sunset']}"
                 )
             else:
-                logger.warning("Weather API error: %d", resp.status_code)
+                logger.warning(f"Weather API error: {resp.status_code}")
         except Exception as e:
-            logger.warning("Weather fetch failed: %s", e)
+            logger.warning(f"Weather fetch failed: {e}")
 
         self._last_fetch = now
         return self._cached
