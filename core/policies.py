@@ -4,13 +4,14 @@ import time as _time
 from abc import ABC, abstractmethod
 from typing import ClassVar, Dict, Any, List, Union
 
-from core.context_types import Context
+from core.context import Context
 from utils.config_loader import (
     _BasePolicyConfig,
     ActivityPolicyConfig,
     TimePolicyConfig,
     SeasonPolicyConfig,
     WeatherPolicyConfig,
+    PoliciesConfig,
 )
 
 logger = logging.getLogger("WEScheduler.Policy")
@@ -38,6 +39,19 @@ class Policy(ABC):
     # Config key matching the attribute name on PoliciesConfig.
     # Each concrete subclass must define this as a class-level string.
     config_key: ClassVar[str]
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # Skip abstract intermediates that don't (yet) declare config_key.
+        if "config_key" not in cls.__dict__:
+            return
+        valid_keys = set(PoliciesConfig.model_fields.keys())
+        if cls.config_key not in valid_keys:
+            raise TypeError(
+                f"{cls.__name__}.config_key={cls.config_key!r} is not a field "
+                f"of PoliciesConfig (valid: {sorted(valid_keys)}). "
+                "Update config_loader.py or the policy class."
+            )
 
     def __init__(self, config: _BasePolicyConfig):
         self.config = config

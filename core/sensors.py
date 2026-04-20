@@ -11,7 +11,7 @@ import logging
 from collections import deque
 from typing import ClassVar, Dict, Any, Optional
 from abc import ABC, abstractmethod
-from core.context_types import WindowData, WeatherData
+from core.context import WindowData, WeatherData
 from utils.config_loader import AppConfig, WeatherPolicyConfig
 
 logger = logging.getLogger("WEScheduler.Sensor")

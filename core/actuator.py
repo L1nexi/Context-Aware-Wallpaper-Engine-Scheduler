@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from core.executor import WEExecutor
 from core.controller import DisturbanceController
-from core.context_types import Context
+from core.context import Context
 from utils.app_context import get_app_root
 
 logger = logging.getLogger("WEScheduler.Actuator")

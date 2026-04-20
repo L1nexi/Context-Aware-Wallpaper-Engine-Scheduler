@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, List, Dict, Any, Optional, Tuple
 if TYPE_CHECKING:
     from core.policies import Policy
 
-from core.context_types import Context
+from core.context import Context
 from utils.config_loader import PlaylistConfig
 
 logger = logging.getLogger("WEScheduler.Matcher")
