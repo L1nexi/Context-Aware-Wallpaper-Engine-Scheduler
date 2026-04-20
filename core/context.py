@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import time
 from core.sensors import Sensor
 
@@ -10,9 +10,13 @@ class ContextManager:
         self._sensors: List[Tuple[str, Sensor]] = []
         self._context: Dict[str, Any] = {}
 
-    def register_sensor(self, key: str, sensor: Sensor) -> None:
-        """Registers a sensor with a specific key in the context."""
-        self._sensors.append((key, sensor))
+    def register_sensor(self, key: str, sensor: Optional[Sensor]) -> None:
+        """Registers a sensor with a specific key in the context.
+        Passing ``None`` is a no-op, allowing sensor factories to signal
+        'do not register' without any conditional logic at the call site.
+        """
+        if sensor is not None:
+            self._sensors.append((key, sensor))
 
     def refresh(self) -> Dict[str, Any]:
         """

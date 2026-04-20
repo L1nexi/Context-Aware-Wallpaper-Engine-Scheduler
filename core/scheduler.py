@@ -4,7 +4,8 @@ import logging
 import json
 import os
 import sys
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Type, Callable, Tuple
+from dataclasses import dataclass, field
 
 from utils.config_loader import ConfigLoader
 from utils.app_context import get_app_root
@@ -17,6 +18,27 @@ from core.controller import DisturbanceController
 from core.actuator import Actuator
 
 logger = logging.getLogger("WEScheduler.Core")
+
+# Registry mapping config key → Policy class.
+# To add a new policy: import its class above and add one entry here.
+# Iteration order determines policy priority (first = evaluated first).
+_POLICY_REGISTRY: Dict[str, Type[Policy]] = {
+    "activity": ActivityPolicy,
+    "time":     TimePolicy,
+    "season":   SeasonPolicy,
+    "weather":  WeatherPolicy,
+}
+
+# Registry of all sensors as (context_key, create) pairs.
+# Each sensor's create(policy_cfg, disturbance_cfg) encapsulates its own
+# activation logic and config extraction.  This table contains zero logic.
+_SENSOR_REGISTRY: List[Tuple[str, Callable[[Dict, Dict], Any]]] = [
+    ("window",     WindowSensor.create),
+    ("idle",       IdleSensor.create),
+    ("cpu",        CpuSensor.create),
+    ("fullscreen", FullscreenSensor.create),
+    ("weather",    WeatherSensor.create),
+]
 
 _STATE_FILE = os.path.join(get_app_root(), "state.json")
 
@@ -220,30 +242,17 @@ class WEScheduler:
         ``_hot_reload()`` to avoid duplication.
         """
         policy_config = self.config_loader.get_policies()
+        disturbance_config = self.config_loader.get_disturbance_config()
 
         cm = ContextManager()
-        cm.register_sensor("window", WindowSensor())
-        cm.register_sensor("idle", IdleSensor())
+        for key, factory in _SENSOR_REGISTRY:
+            cm.register_sensor(key, factory(policy_config, disturbance_config))
 
-        weather_config = policy_config.get("weather", {})
-        if weather_config.get("enabled", True) and weather_config.get("api_key"):
-            cm.register_sensor("weather", WeatherSensor(weather_config))
-
-        policies: List[Policy] = []
-        if "activity" in policy_config:
-            policies.append(ActivityPolicy(policy_config["activity"]))
-        if "time" in policy_config:
-            policies.append(TimePolicy(policy_config["time"]))
-        if "season" in policy_config:
-            policies.append(SeasonPolicy(policy_config["season"]))
-        if "weather" in policy_config:
-            policies.append(WeatherPolicy(policy_config["weather"]))
-
-        disturbance_config = self.config_loader.get_disturbance_config()
-        cpu_window = disturbance_config.get("cpu_window", 10)
-        cm.register_sensor("cpu", CpuSensor(cpu_window))
-        if disturbance_config.get("fullscreen_defer", True):
-            cm.register_sensor("fullscreen", FullscreenSensor())
+        policies: List[Policy] = [
+            cls(policy_config[key])
+            for key, cls in _POLICY_REGISTRY.items()
+            if key in policy_config
+        ]
 
         self.context_manager = cm
         self.matcher = Matcher(self.config_loader.get_playlists(), policies)

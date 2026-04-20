@@ -1,3 +1,4 @@
+from __future__ import annotations
 import win32gui
 import win32process
 import win32api
@@ -20,6 +21,10 @@ class Sensor(ABC):
         pass
 
 class WindowSensor(Sensor):
+    @classmethod
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> WindowSensor:
+        return cls()
+
     def collect(self) -> Dict[str, str]:
         """
         Returns a dictionary containing the active window's title and process name.
@@ -54,6 +59,10 @@ class WindowSensor(Sensor):
             return {"title": "", "process": "", "error": str(e)}
 
 class IdleSensor(Sensor):
+    @classmethod
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> IdleSensor:
+        return cls()
+
     def collect(self) -> float:
         """
         Returns the number of seconds the user has been idle.
@@ -92,6 +101,10 @@ class CpuSensor(Sensor):
         # covers a real ~1 s interval rather than returning 0.0.
         psutil.cpu_percent()
 
+    @classmethod
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> CpuSensor:
+        return cls(window=disturbance_cfg.get("cpu_window", 10))
+
     def collect(self) -> float:
         sample = psutil.cpu_percent()
         self._samples.append(sample)
@@ -122,6 +135,13 @@ class FullscreenSensor(Sensor):
             return state.value in self._FULLSCREEN_STATES
         except Exception:
             return False
+
+    @classmethod
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[FullscreenSensor]:
+        """Return a new instance only when fullscreen-defer is enabled."""
+        if not disturbance_cfg.get("fullscreen_defer", True):
+            return None
+        return cls()
 
 
 class WeatherSensor(Sensor):
@@ -210,3 +230,11 @@ class WeatherSensor(Sensor):
         finally:
             self._fetching = False
             self._ready_event.set()
+
+    @classmethod
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[WeatherSensor]:
+        """Return a new instance only when the sensor is enabled and an API key is present."""
+        weather_cfg = policy_cfg.get("weather", {})
+        if not weather_cfg.get("enabled", True) or not weather_cfg.get("api_key"):
+            return None
+        return cls(weather_cfg)
