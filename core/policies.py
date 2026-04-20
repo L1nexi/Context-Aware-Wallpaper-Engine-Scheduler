@@ -111,7 +111,7 @@ class ActivityPolicy(Policy):
     def __init__(self, config: ActivityPolicyConfig):
         super().__init__(config)
         # Convert rules to lowercase for case-insensitive matching
-        self.rules = {k.lower(): v for k, v in config.rules.items()}
+        self.rules = {k.lower(): v for k, v in config.process_rules.items()}
         self.title_rules = config.title_rules
 
         # EMA Configuration
@@ -208,13 +208,9 @@ class TimePolicy(Policy):
 
     def __init__(self, config: TimePolicyConfig):
         super().__init__(config)
-        self._default_day_start: float = config.default_day_start
-        self._default_night_start: float = config.default_night_start
+        self._day_start: float = config.day_start
+        self._night_start: float = config.night_start
         self.auto: bool = config.auto
-
-        # Current effective values (may be updated dynamically from sunrise/sunset)
-        self._day_start: float = self._default_day_start
-        self._night_start: float = self._default_night_start
 
         self._peaks: Dict[str, float] = {}
         self._H: float = 6.0  # constant in virtual time; warp handles real-time distortion

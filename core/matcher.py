@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 import logging
 from typing import TYPE_CHECKING, List, Dict, Any, Optional, Tuple

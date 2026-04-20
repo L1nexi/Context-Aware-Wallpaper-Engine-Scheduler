@@ -3,12 +3,11 @@ import logging
 from typing import Dict, Any, List
 
 from core.context import Context
-from utils.config_loader import DisturbanceConfig
+from utils.config_loader import SchedulingConfig
 
 logger = logging.getLogger("WEScheduler.Controller")
 
 
-# ── Gate classes ─────────────────────────────────────────────────────────
 # Each gate decides whether a switch should be *deferred* (not permanently
 # blocked).  ``last_switch_time`` is NOT reset, so ``force_interval`` keeps
 # ticking and will fire once the deferral condition clears.
@@ -47,14 +46,14 @@ class FullscreenGate:
         return False
 
 
-class DisturbanceController:
-    def __init__(self, config: DisturbanceConfig):
+class SchedulingController:
+    def __init__(self, config: SchedulingConfig):
         self.idle_threshold = config.idle_threshold
 
         # Playlist Switching & Cycling Config
-        self.playlist_min_interval   = config.min_interval
-        self.playlist_force_interval = config.force_interval
-        self.wallpaper_min_interval  = config.wallpaper_interval
+        self.switch_cooldown   = config.switch_cooldown
+        self.force_after = config.force_after
+        self.cycle_cooldown  = config.cycle_cooldown
 
         # Build gate chain from config
         self._gates: List = []
@@ -65,10 +64,10 @@ class DisturbanceController:
 
         # Initialize startup_delay by backdating the last switch times,
         # so that the system is effectively "cooling down" during startup.
-        # Clamped to [0, min_interval]: values above min_interval would push
-        # init_time into the future, breaking can_switch_playlist() logic.
-        startup_delay = min(max(config.startup_delay, 0), self.playlist_min_interval)
-        init_time = time.time() - (self.playlist_min_interval - startup_delay)
+        # Clamped to [0, switch_cooldown]: values above would push init_time
+        # into the future, breaking can_switch_playlist() logic.
+        startup_delay = min(max(config.startup_delay, 0), self.switch_cooldown)
+        init_time = time.time() - (self.switch_cooldown - startup_delay)
         self.last_playlist_switch_time = init_time
         self.last_wallpaper_switch_time = init_time
 
@@ -87,7 +86,7 @@ class DisturbanceController:
         time_since_last = current_time - self.last_playlist_switch_time
         
         # 1. Cooling Down Check
-        if time_since_last < self.playlist_min_interval:
+        if time_since_last < self.switch_cooldown:
             return False
 
         # 2. Gate chain — defer (not permanently block)
@@ -100,7 +99,7 @@ class DisturbanceController:
             return True
         
         # 4. Force Switch Check
-        if time_since_last >= self.playlist_force_interval:
+        if time_since_last >= self.force_after:
             return True
             
         return False
@@ -113,7 +112,7 @@ class DisturbanceController:
         time_since_last = current_time - self.last_wallpaper_switch_time
         
         # 1. Cooling Down Check
-        if time_since_last < self.wallpaper_min_interval:
+        if time_since_last < self.cycle_cooldown:
             return False
 
         # 2. Gate chain — same defer semantics as playlist switching

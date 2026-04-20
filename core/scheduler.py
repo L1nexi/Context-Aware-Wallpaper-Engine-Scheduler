@@ -15,7 +15,7 @@ from core.sensors import Sensor, WindowSensor, IdleSensor, CpuSensor, Fullscreen
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
 from core.context import ContextManager, Context
 from core.matcher import Matcher
-from core.controller import DisturbanceController
+from core.controller import SchedulingController
 from core.actuator import Actuator
 
 logger = logging.getLogger("WEScheduler.Core")
@@ -258,7 +258,7 @@ class WEScheduler:
 
         self.context_manager = cm
         self.matcher = Matcher(config.playlists, policies)
-        self.actuator = Actuator(self.executor, DisturbanceController(config.disturbance))
+        self.actuator = Actuator(self.executor, SchedulingController(config.scheduling))
 
     def _hot_reload(self) -> None:
         """Reload config and rebuild all runtime components.
@@ -266,7 +266,7 @@ class WEScheduler:
         Preserves: current_playlist, pause state, running/thread state.
         Also preserves across rebuild via the export/import_state protocol:
           - Per-policy transient state (e.g. ActivityPolicy EMA smoothing)
-          - DisturbanceController cooldown timestamps
+          - SchedulingController cooldown timestamps
         """
         try:
             # Snapshot stateful component state before teardown

@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from core.executor import WEExecutor
-from core.controller import DisturbanceController
+from core.controller import SchedulingController
 from core.context import Context
 from utils.app_context import get_app_root
 
@@ -16,9 +16,9 @@ class Actuator:
     """
     The 'Act' component of the Sense-Think-Act loop.
     Responsible for executing changes in Wallpaper Engine based on the decision
-    from the Matcher and the constraints from the DisturbanceController.
+    from the Matcher and the constraints from the SchedulingController.
     """
-    def __init__(self, executor: WEExecutor, controller: DisturbanceController):
+    def __init__(self, executor: WEExecutor, controller: SchedulingController):
         self.executor = executor
         self.controller = controller
 

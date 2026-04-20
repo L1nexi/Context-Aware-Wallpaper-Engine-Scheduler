@@ -113,7 +113,7 @@ class CpuSensor(Sensor):
 
     @classmethod
     def create(cls, config: AppConfig) -> Optional[CpuSensor]:
-        return cls(window=config.disturbance.cpu_window)
+        return cls(window=config.scheduling.cpu_window)
 
     def collect(self) -> float:
         sample = psutil.cpu_percent()
@@ -151,7 +151,7 @@ class FullscreenSensor(Sensor):
     @classmethod
     def create(cls, config: AppConfig) -> Optional[FullscreenSensor]:
         """Return a new instance only when fullscreen-defer is enabled."""
-        if not config.disturbance.fullscreen_defer:
+        if not config.scheduling.fullscreen_defer:
             return None
         return cls()
 
@@ -173,7 +173,7 @@ class WeatherSensor(Sensor):
         self.api_key: str = config.api_key
         self.lat: str = str(config.lat)
         self.lon: str = str(config.lon)
-        self.interval: float = config.interval
+        self.interval: float = config.fetch_interval
         self.timeout: float = config.request_timeout
 
         self._last_fetch: float = 0.0
