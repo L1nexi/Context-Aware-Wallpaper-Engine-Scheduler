@@ -2,14 +2,10 @@ import time
 import logging
 from typing import Dict, Any, List
 
-logger = logging.getLogger("WEScheduler.Controller")
+from core.context_types import Context
+from utils.config_loader import DisturbanceConfig
 
-# Default interval constants (seconds)
-_DEFAULT_IDLE_THRESHOLD      = 60
-_DEFAULT_PLAYLIST_MIN        = 1800   # 30 min  – cooldown between playlist switches
-_DEFAULT_PLAYLIST_FORCE      = 14400  # 4 h     – force a switch even without idle
-_DEFAULT_WALLPAPER_MIN       = 600    # 10 min  – cooldown between wallpaper cycles
-_DEFAULT_CPU_THRESHOLD       = 85     # %       – defer any switch above this average; 0 = disabled
+logger = logging.getLogger("WEScheduler.Controller")
 
 
 # ── Gate classes ─────────────────────────────────────────────────────────
@@ -23,10 +19,10 @@ class CpuGate:
     def __init__(self, threshold: float) -> None:
         self.threshold = threshold  # 0 = disabled
 
-    def should_defer(self, context: Dict[str, Any]) -> bool:
+    def should_defer(self, context: Context) -> bool:
         if self.threshold <= 0:
             return False
-        cpu_avg = context.get("cpu", 0.0)
+        cpu_avg = context.cpu
         if cpu_avg >= self.threshold:
             logger.debug(
                 "CPU gate: %.1f%% >= %.0f%%, deferring",
@@ -42,50 +38,48 @@ class FullscreenGate:
     def __init__(self, enabled: bool = True) -> None:
         self.enabled = enabled
 
-    def should_defer(self, context: Dict[str, Any]) -> bool:
+    def should_defer(self, context: Context) -> bool:
         if not self.enabled:
             return False
-        if context.get("fullscreen", False):
+        if context.fullscreen:
             logger.debug("Fullscreen gate: deferring switch")
             return True
         return False
 
 
 class DisturbanceController:
-    def __init__(self, config: Dict[str, Any]):
-        self.idle_threshold = config.get("idle_threshold", _DEFAULT_IDLE_THRESHOLD)
+    def __init__(self, config: DisturbanceConfig):
+        self.idle_threshold = config.idle_threshold
 
         # Playlist Switching & Cycling Config
-        self.playlist_min_interval   = config.get("min_interval",      _DEFAULT_PLAYLIST_MIN)
-        self.playlist_force_interval = config.get("force_interval",    _DEFAULT_PLAYLIST_FORCE)
-        self.wallpaper_min_interval  = config.get("wallpaper_interval", _DEFAULT_WALLPAPER_MIN)
+        self.playlist_min_interval   = config.min_interval
+        self.playlist_force_interval = config.force_interval
+        self.wallpaper_min_interval  = config.wallpaper_interval
 
         # Build gate chain from config
         self._gates: List = []
-        if config.get("cpu_threshold", _DEFAULT_CPU_THRESHOLD) > 0:
-            self._gates.append(CpuGate(config.get("cpu_threshold", _DEFAULT_CPU_THRESHOLD)))
-        if config.get("fullscreen_defer", True):
+        if config.cpu_threshold > 0:
+            self._gates.append(CpuGate(config.cpu_threshold))
+        if config.fullscreen_defer:
             self._gates.append(FullscreenGate())
 
         # Initialize startup_delay by backdating the last switch times,
         # so that the system is effectively "cooling down" during startup.
-        # Clamped to [0, min_interval]
-        startup_delay = min(
-            max(config.get("startup_delay", 30), 0),
-            self.playlist_min_interval,
-        )
+        # Clamped to [0, min_interval]: values above min_interval would push
+        # init_time into the future, breaking can_switch_playlist() logic.
+        startup_delay = min(max(config.startup_delay, 0), self.playlist_min_interval)
         init_time = time.time() - (self.playlist_min_interval - startup_delay)
         self.last_playlist_switch_time = init_time
         self.last_wallpaper_switch_time = init_time
 
-    def _any_gate_defers(self, context: Dict[str, Any]) -> bool:
+    def _any_gate_defers(self, context: Context) -> bool:
         """Returns True if any gate wants to defer the current switch."""
         for gate in self._gates:
             if gate.should_defer(context):
                 return True
         return False
 
-    def can_switch_playlist(self, context: Dict[str, Any]) -> bool:
+    def can_switch_playlist(self, context: Context) -> bool:
         """
         Determines if switching to a NEW playlist is allowed.
         """
@@ -101,7 +95,7 @@ class DisturbanceController:
             return False
 
         # 3. Idle Check
-        idle_time = context.get("idle", 0.0)
+        idle_time = context.idle
         if idle_time >= self.idle_threshold:
             return True
         
@@ -111,7 +105,7 @@ class DisturbanceController:
             
         return False
 
-    def can_cycle_wallpaper(self, context: Dict[str, Any]) -> bool:
+    def can_cycle_wallpaper(self, context: Context) -> bool:
         """
         Determines if cycling to the NEXT wallpaper within the SAME playlist is allowed.
         """
@@ -128,7 +122,7 @@ class DisturbanceController:
 
         # 3. Idle Check
         # We only cycle wallpaper when user is idle to avoid distraction
-        idle_time = context.get("idle", 0.0)
+        idle_time = context.idle
         if idle_time >= self.idle_threshold:
             return True
             

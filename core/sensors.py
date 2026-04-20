@@ -9,66 +9,66 @@ import requests
 import psutil
 import logging
 from collections import deque
-from typing import Dict, Any, Optional
+from typing import ClassVar, Dict, Any, Optional
 from abc import ABC, abstractmethod
+from core.context_types import WindowData, WeatherData
+from utils.config_loader import AppConfig, WeatherPolicyConfig
 
 logger = logging.getLogger("WEScheduler.Sensor")
 
 class Sensor(ABC):
+    # Context key under which this sensor's output is stored.
+    # Each concrete subclass must define this as a class-level string.
+    key: ClassVar[str]
+
     @abstractmethod
     def collect(self) -> Any:
         """Collects data from the sensor."""
         pass
 
+    @classmethod
     @abstractmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[Sensor]:
-        """
-            Factory method to create a sensor instance based on configuration.
-            Returns None if the sensor should not be registered (e.g., disabled / missing arguments).
-        """
+    def create(cls, config: AppConfig) -> Optional["Sensor"]:
+        """Factory method: return a ready instance, or None to skip registration."""
         pass
 
 class WindowSensor(Sensor):
+    key = "window"
+
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[WindowSensor]:
+    def create(cls, config: AppConfig) -> Optional[WindowSensor]:
         return cls()
 
-    def collect(self) -> Dict[str, str]:
-        """
-        Returns a dictionary containing the active window's title and process name.
-        """
+    def collect(self) -> WindowData:
+        """Returns the active window's title and process name."""
         return self.get_active_window_info()
 
-    def get_active_window_info(self) -> Dict[str, str]:
-        """
-        Legacy method, kept for internal logic.
-        Returns a dictionary containing the active window's title and process name.
-        """
+    def get_active_window_info(self) -> WindowData:
+        """Returns active window info as a WindowData instance."""
         try:
             hwnd = win32gui.GetForegroundWindow()
             if not hwnd:
-                return {"title": "", "process": ""}
+                return WindowData()
 
             title = win32gui.GetWindowText(hwnd)
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
-            
+
             try:
                 process = psutil.Process(pid)
                 process_name = process.name()
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 process_name = "Unknown"
 
-            return {
-                "title": title,
-                "process": process_name
-            }
+            return WindowData(title=title, process=process_name)
         except Exception as e:
-            # In case of any unexpected win32 API failure
-            return {"title": "", "process": "", "error": str(e)}
+            logger.warning(f"WindowSensor error: {e}")
+            return WindowData()
 
 class IdleSensor(Sensor):
+    key = "idle"
+
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[IdleSensor]:
+    def create(cls, config: AppConfig) -> Optional[IdleSensor]:
         return cls()
 
     def collect(self) -> float:
@@ -109,9 +109,11 @@ class CpuSensor(Sensor):
         # covers a real ~1 s interval rather than returning 0.0.
         psutil.cpu_percent()
 
+    key = "cpu"
+
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[CpuSensor]:
-        return cls(window=disturbance_cfg.get("cpu_window", 10))
+    def create(cls, config: AppConfig) -> Optional[CpuSensor]:
+        return cls(window=config.disturbance.cpu_window)
 
     def collect(self) -> float:
         sample = psutil.cpu_percent()
@@ -144,10 +146,12 @@ class FullscreenSensor(Sensor):
         except Exception:
             return False
 
+    key = "fullscreen"
+
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[FullscreenSensor]:
+    def create(cls, config: AppConfig) -> Optional[FullscreenSensor]:
         """Return a new instance only when fullscreen-defer is enabled."""
-        if not disturbance_cfg.get("fullscreen_defer", True):
+        if not config.disturbance.fullscreen_defer:
             return None
         return cls()
 
@@ -163,28 +167,28 @@ class WeatherSensor(Sensor):
     blocking the 1-second scheduler tick.
     """
 
-    def __init__(self, config: Dict[str, Any]) -> None:
-        self.api_key: str = config.get("api_key", "")
-        self.lat: str = str(config.get("lat", ""))
-        self.lon: str = str(config.get("lon", ""))
-        self.interval: float = config.get("interval", 600)
-        self.timeout: float = config.get("request_timeout", 10)
+    key = "weather"
+
+    def __init__(self, config: WeatherPolicyConfig) -> None:
+        self.api_key: str = config.api_key
+        self.lat: str = str(config.lat)
+        self.lon: str = str(config.lon)
+        self.interval: float = config.interval
+        self.timeout: float = config.request_timeout
 
         self._last_fetch: float = 0.0
-        self._cached: Optional[Dict[str, Any]] = None
+        self._cached: Optional[WeatherData] = None
         self._fetching: bool = False  # guard: only one background thread at a time
         self._ready_event = threading.Event()  # set after first fetch attempt completes
 
         # Start the first fetch eagerly and block until it resolves or times out.
-        # This happens inside __init__ so the scheduler tick loop is never blocked;
-        # the brief wait is absorbed by the rest of initialize().
-        warmup_timeout: float = config.get("warmup_timeout", 3.0)
+        warmup_timeout: float = config.warmup_timeout
         self._last_fetch = time.time()
         self._fetching = True
         threading.Thread(target=self._fetch_async, daemon=True).start()
         self._ready_event.wait(timeout=warmup_timeout)
 
-    def collect(self) -> Optional[Dict[str, Any]]:
+    def collect(self) -> Optional[WeatherData]:
         now = time.time()
         # Rate-limit: once _last_fetch is set, wait at least interval before retry.
         # _last_fetch is set *before* the thread starts so rapid collect() calls
@@ -217,15 +221,15 @@ class WeatherSensor(Sensor):
                 data = resp.json()
                 first = (data.get("weather") or [{}])[0]
                 sys_block = data.get("sys") or {}
-                self._cached = {
-                    "id": first.get("id", 0),
-                    "main": first.get("main", ""),
-                    "sunrise": sys_block.get("sunrise", 0),
-                    "sunset": sys_block.get("sunset", 0),
-                }
+                self._cached = WeatherData(
+                    id=first.get("id", 0),
+                    main=first.get("main", ""),
+                    sunrise=sys_block.get("sunrise", 0),
+                    sunset=sys_block.get("sunset", 0),
+                )
                 logger.info(
-                    f"Weather updated: id={self._cached['id']} main={self._cached['main']} "
-                    f"sunrise={self._cached['sunrise']} sunset={self._cached['sunset']}"
+                    f"Weather updated: id={self._cached.id} main={self._cached.main} "
+                    f"sunrise={self._cached.sunrise} sunset={self._cached.sunset}"
                 )
             else:
                 logger.warning(f"Weather API error: {resp.status_code}")
@@ -236,16 +240,18 @@ class WeatherSensor(Sensor):
             self._ready_event.set()
 
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[WeatherSensor]:
+    def create(cls, config: AppConfig) -> Optional["WeatherSensor"]:
         """Return a new instance only when the sensor is enabled and an API key is present."""
-        weather_cfg = policy_cfg.get("weather", {})
-        if not weather_cfg.get("enabled", True) or not weather_cfg.get("api_key"):
+        weather_cfg = config.policies.weather
+        if weather_cfg is None or not weather_cfg.enabled or not weather_cfg.api_key:
             return None
         return cls(weather_cfg)
 
 class TimeSensor(Sensor):
+    key = "time"
+
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[TimeSensor]:
+    def create(cls, config: AppConfig) -> Optional["TimeSensor"]:
         return cls()
 
     def collect(self) -> time.struct_time:

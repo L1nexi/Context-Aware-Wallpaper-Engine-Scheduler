@@ -2,7 +2,16 @@ import logging
 import math
 import time as _time
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Union
+from typing import ClassVar, Dict, Any, List, Union
+
+from core.context_types import Context
+from utils.config_loader import (
+    _BasePolicyConfig,
+    ActivityPolicyConfig,
+    TimePolicyConfig,
+    SeasonPolicyConfig,
+    WeatherPolicyConfig,
+)
 
 logger = logging.getLogger("WEScheduler.Policy")
 
@@ -26,13 +35,17 @@ def _hann(d: float, H: float) -> float:
 
 
 class Policy(ABC):
-    def __init__(self, config: Dict[str, Any]):
+    # Config key matching the attribute name on PoliciesConfig.
+    # Each concrete subclass must define this as a class-level string.
+    config_key: ClassVar[str]
+
+    def __init__(self, config: _BasePolicyConfig):
         self.config = config
-        self.enabled = config.get("enabled", True)
-        self.weight_scale = config.get("weight_scale", 1.0)
+        self.enabled = config.enabled
+        self.weight_scale = config.weight_scale
 
     @abstractmethod
-    def _compute_tags(self, context: Dict[str, Any]) -> Union[Dict[str, float], List[Dict[str, float]]]:
+    def _compute_tags(self, context: Context) -> Union[Dict[str, float], List[Dict[str, float]]]:
         """Compute raw tags for the current context.
 
         Simple policies return a single ``Dict``.
@@ -40,7 +53,7 @@ class Policy(ABC):
         """
         pass
 
-    def get_tags(self, context: Dict[str, Any]) -> List[Dict[str, float]]:
+    def get_tags(self, context: Context) -> List[Dict[str, float]]:
         """Public interface: always returns List[Dict[str, float]].
 
         Wraps ``_compute_tags`` output so callers (Matcher) always receive
@@ -79,23 +92,25 @@ class Policy(ABC):
         """
 
 class ActivityPolicy(Policy):
-    def __init__(self, config: Dict[str, Any]):
+    config_key = "activity"
+
+    def __init__(self, config: ActivityPolicyConfig):
         super().__init__(config)
         # Convert rules to lowercase for case-insensitive matching
-        self.rules = {k.lower(): v for k, v in config.get("rules", {}).items()}
-        self.title_rules = config.get("title_rules", {})
-        
+        self.rules = {k.lower(): v for k, v in config.rules.items()}
+        self.title_rules = config.title_rules
+
         # EMA Configuration
-        smoothing_window = config.get("smoothing_window", 60)
+        smoothing_window = config.smoothing_window
         # Calculate alpha for EMA: alpha = 2 / (N + 1)
         if smoothing_window <= 1:
             self.alpha = 1.0
         else:
             self.alpha = 2.0 / (smoothing_window + 1.0)
-            
+
         self.smoothed_tags: Dict[str, float] = {}
 
-    def _compute_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
+    def _compute_tags(self, context: Context) -> Dict[str, float]:
         if not self.enabled:
             return {}
 
@@ -108,10 +123,9 @@ class ActivityPolicy(Policy):
         # Because we want the vector magnitude to decay when no rule is matched.
         return {tag: w * self.weight_scale for tag, w in self.smoothed_tags.items()}
 
-    def _get_instant_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
-        window_info = context.get("window", {})
-        process_name = window_info.get("process", "")
-        window_title = window_info.get("title", "")
+    def _get_instant_tags(self, context: Context) -> Dict[str, float]:
+        process_name = context.window.process
+        window_title = context.window.title
         
         # 1. Check Title Rules (Higher Priority)
         for keyword, tag in self.title_rules.items():
@@ -176,11 +190,13 @@ class TimePolicy(Policy):
       direction vector changes smoothly with time.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    config_key = "time"
+
+    def __init__(self, config: TimePolicyConfig):
         super().__init__(config)
-        self._default_day_start: float = config.get("default_day_start", 8)
-        self._default_night_start: float = config.get("default_night_start", 20)
-        self.auto:bool = config.get("auto", True)
+        self._default_day_start: float = config.default_day_start
+        self._default_night_start: float = config.default_night_start
+        self.auto: bool = config.auto
 
         # Current effective values (may be updated dynamically from sunrise/sunset)
         self._day_start: float = self._default_day_start
@@ -235,16 +251,14 @@ class TimePolicy(Policy):
         self._night_start = ns
         self._peaks = self._compute_peaks(ds, ns)
 
-    def _update_from_context(self, context: Dict[str, Any]) -> None:
+    def _update_from_context(self, context: Context) -> None:
         """Dynamically adjust peaks from OWM sunrise/sunset if available."""
-        weather = context.get("weather")
-        if not weather:
+        weather = context.weather
+        if weather is None or not weather.sunrise or not weather.sunset:
             return
 
-        sunrise_ts = weather.get("sunrise", 0)
-        sunset_ts = weather.get("sunset", 0)
-        if not sunrise_ts or not sunset_ts:
-            return
+        sunrise_ts = weather.sunrise
+        sunset_ts = weather.sunset
 
         # Convert UTC timestamps to local hours
         sr = _time.localtime(sunrise_ts)
@@ -261,17 +275,14 @@ class TimePolicy(Policy):
                 ds, ns,
             )
 
-    def _compute_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
+    def _compute_tags(self, context: Context) -> Dict[str, float]:
         if not self.enabled:
             return {}
 
         if self.auto:
             self._update_from_context(context)
 
-        current_time = context.get("time")
-        if not current_time:
-            return {}
-
+        current_time = context.time
         hour = current_time.tm_hour + current_time.tm_min / 60.0
 
         t_virtual = self._warp_time(hour, self._peaks)
@@ -298,31 +309,24 @@ class SeasonPolicy(Policy):
     Same Hann-window interpolation as TimePolicy, on a 365-day circle.
     """
 
-    # Default peaks: roughly the middle of each meteorological season
-    _DEFAULT_PEAKS = {
-        "#spring": 80,   # ~Mar 21
-        "#summer": 172,  # ~Jun 21
-        "#autumn": 265,  # ~Sep 22
-        "#winter": 355,  # ~Dec 21
-    }
+    config_key = "season"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: SeasonPolicyConfig):
         super().__init__(config)
         self._peaks = {
-            tag: config.get(f"{tag[1:]}_peak", default)
-            for tag, default in self._DEFAULT_PEAKS.items()
+            "#spring": config.spring_peak,
+            "#summer": config.summer_peak,
+            "#autumn": config.autumn_peak,
+            "#winter": config.winter_peak,
         }
         # H = full inter-peak distance ≈ 91.25 days for 4 seasons
         self._H = 365 / len(self._peaks)
 
-    def _compute_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
+    def _compute_tags(self, context: Context) -> Dict[str, float]:
         if not self.enabled:
             return {}
 
-        current_time = context.get("time")
-        if not current_time:
-            return {}
-
+        current_time = context.time
         doy = current_time.tm_yday
 
         tags: Dict[str, float] = {}
@@ -479,19 +483,21 @@ class WeatherPolicy(Policy):
         "clouds":       [{"#cloudy": 0.50}],                 # T2
     }
 
-    def __init__(self, config: Dict[str, Any]):
+    config_key = "weather"
+
+    def __init__(self, config: WeatherPolicyConfig):
         super().__init__(config)
 
-    def _compute_tags(self, context: Dict[str, Any]) -> List[Dict[str, float]]:
+    def _compute_tags(self, context: Context) -> List[Dict[str, float]]:
         if not self.enabled:
             return []
 
-        weather = context.get("weather")
-        if not weather:
+        weather = context.weather
+        if weather is None:
             return []
 
-        weather_id = weather.get("id", 0)
-        weather_main = weather.get("main", "")
+        weather_id = weather.id
+        weather_main = weather.main
         resolved = self._resolve_tags(weather_id, weather_main)
 
         # Apply weight_scale to each sub-vector independently.

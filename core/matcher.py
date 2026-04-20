@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING, List, Dict, Any, Optional, Tuple
 if TYPE_CHECKING:
     from core.policies import Policy
 
+from core.context_types import Context
+from utils.config_loader import PlaylistConfig
+
 logger = logging.getLogger("WEScheduler.Matcher")
 
 # Minimum cosine similarity to consider a match valid.
@@ -21,19 +24,15 @@ class Matcher:
     management across Scheduler and a now-redundant Arbiter layer.
     """
 
-    def __init__(self, playlists: List[Dict[str, Any]], policies: List["Policy"]):
+    def __init__(self, playlists: List[PlaylistConfig], policies: List[Policy]):
         self.policies = policies
 
         # 1. Identify the Universe of Tags from all playlists
-        self.all_tags: set = set()
+        all_tags: set = set()
         for pl in playlists:
-            tags = pl.get("tags", [])
-            if isinstance(tags, list):
-                self.all_tags.update(tags)
-            elif isinstance(tags, dict):
-                self.all_tags.update(tags.keys())
+            all_tags.update(pl.tags.keys())
 
-        self.all_tags = sorted(list(self.all_tags))
+        self.all_tags = sorted(all_tags)
         self.tag_to_index = {tag: i for i, tag in enumerate(self.all_tags)}
         self.dim = len(self.all_tags)
 
@@ -44,24 +43,18 @@ class Matcher:
         self.playlist_vectors: List[tuple] = []
         for pl in playlists:
             v = [0.0] * self.dim
-            tags = pl.get("tags", [])
-            if isinstance(tags, list):
-                for tag in tags:
-                    if tag in self.tag_to_index:
-                        v[self.tag_to_index[tag]] = 1.0
-            elif isinstance(tags, dict):
-                for tag, weight in tags.items():
-                    if tag in self.tag_to_index:
-                        v[self.tag_to_index[tag]] = weight
+            for tag, weight in pl.tags.items():
+                if tag in self.tag_to_index:
+                    v[self.tag_to_index[tag]] = weight
 
             norm = math.sqrt(sum(x * x for x in v))
             if norm > 1e-6:
                 v = [x / norm for x in v]
-                self.playlist_vectors.append((pl.get("name"), v))
+                self.playlist_vectors.append((pl.name, v))
             else:
-                logger.warning(f"Playlist '{pl.get('name')}' has no valid tags or zero weights.")
+                logger.warning(f"Playlist '{pl.name}' has no valid tags or zero weights.")
 
-    def match(self, context: Dict[str, Any]) -> Tuple[Dict[str, float], Optional[str]]:
+    def match(self, context: Context) -> Tuple[Dict[str, float], Optional[str]]:
         """Run the full Think pipeline for one tick.
 
         Steps:

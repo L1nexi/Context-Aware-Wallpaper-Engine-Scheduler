@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 import logging
-from typing import Dict, Any, List, Tuple, Optional
-import time
-from core.sensors import Sensor
+from typing import List, Tuple, Optional, TYPE_CHECKING
+
+from core.context_types import Context
+
+if TYPE_CHECKING:
+    from core.sensors import Sensor
 
 logger = logging.getLogger("WEScheduler.Context")
 
 class ContextManager:
     def __init__(self):
         self._sensors: List[Tuple[str, Sensor]] = []
-        self._context: Dict[str, Any] = {}
+        self._context: Context = Context()
 
     def register_sensor(self, key: str, sensor: Optional[Sensor]) -> None:
         """Registers a sensor with a specific key in the context.
@@ -18,15 +23,19 @@ class ContextManager:
         if sensor is not None:
             self._sensors.append((key, sensor))
 
-    def refresh(self) -> Dict[str, Any]:
+    def refresh(self) -> Context:
         """Polls all registered sensors and updates the context."""
         for key, sensor in self._sensors:
             try:
-                self._context[key] = sensor.collect()
+                value = sensor.collect()
+                if hasattr(self._context, key):
+                    setattr(self._context, key, value)
+                else:
+                    self._context.extra[key] = value
             except Exception as e:
                 logger.warning(f"Error collecting from sensor '{key}': {e}")
-                self._context[key] = {}
         return self._context
 
-    def get_context(self) -> Dict[str, Any]:
+    def get_context(self) -> Context:
         return self._context
+

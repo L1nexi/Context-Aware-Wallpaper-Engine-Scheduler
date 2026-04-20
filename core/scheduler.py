@@ -4,41 +4,40 @@ import logging
 import json
 import os
 import sys
-from typing import List, Dict, Any, Optional, Type, Callable, Tuple
-from dataclasses import dataclass, field
+from typing import List, Dict, Any, Optional, Type
 
 from utils.config_loader import ConfigLoader
 from utils.app_context import get_app_root
 from core.executor import WEExecutor
-from core.sensors import WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor, TimeSensor
+from core.sensors import Sensor, WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor, TimeSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
 from core.context import ContextManager
+from core.context_types import Context
 from core.matcher import Matcher
 from core.controller import DisturbanceController
 from core.actuator import Actuator
 
 logger = logging.getLogger("WEScheduler.Core")
 
-# Registry mapping config key → Policy class.
-# To add a new policy: import its class above and add one entry here.
-# Iteration order determines policy priority (first = evaluated first).
-_POLICY_REGISTRY: Dict[str, Type[Policy]] = {
-    "activity": ActivityPolicy,
-    "time":     TimePolicy,
-    "season":   SeasonPolicy,
-    "weather":  WeatherPolicy,
-}
+# Registry of Policy classes in evaluation order.
+# To add a new policy: import its class above and append it here.
+_POLICY_REGISTRY: List[Type[Policy]] = [
+    ActivityPolicy,
+    TimePolicy,
+    SeasonPolicy,
+    WeatherPolicy,
+]
 
-# Registry of all sensors as (context_key, create) pairs.
-# Each sensor's create(policy_cfg, disturbance_cfg) encapsulates its own
-# activation logic and config extraction.  This table contains zero logic.
-_SENSOR_REGISTRY: List[Tuple[str, Callable[[Dict, Dict], Any]]] = [
-    ("window",     WindowSensor.create),
-    ("idle",       IdleSensor.create),
-    ("cpu",        CpuSensor.create),
-    ("fullscreen", FullscreenSensor.create),
-    ("weather",    WeatherSensor.create),
-    ("time",       TimeSensor.create),
+# Registry of Sensor classes.
+# Each sensor carries its own context key (Sensor.key) and activation logic
+# (Sensor.create(config)).  This table contains zero logic.
+_SENSOR_REGISTRY: List[Type[Sensor]] = [
+    WindowSensor,
+    IdleSensor,
+    CpuSensor,
+    FullscreenSensor,
+    WeatherSensor,
+    TimeSensor,
 ]
 
 _STATE_FILE = os.path.join(get_app_root(), "state.json")
@@ -94,14 +93,10 @@ class WEScheduler:
             self.config_loader = ConfigLoader(self.config_path)
             config = self.config_loader.load()
             self._config_mtime = os.path.getmtime(self.config_path)
-            logger.info(f"Loaded {len(self.config_loader.get_playlists())} playlists.")
+            logger.info(f"Loaded {len(config.playlists)} playlists.")
 
             # 2. Initialize Executor
-            we_path = self.config_loader.get_we_path()
-            if not we_path:
-                logger.error("'we_path' not found in config.")
-                return False
-            self.executor = WEExecutor(we_path)
+            self.executor = WEExecutor(config.we_path)
 
             # 3. Build all runtime components (sensors, policies, matcher, controller, actuator)
             self._build_runtime_components()
@@ -242,22 +237,21 @@ class WEScheduler:
         ``self.actuator``.  Called by both ``initialize()`` and
         ``_hot_reload()`` to avoid duplication.
         """
-        policy_config = self.config_loader.get_policies()
-        disturbance_config = self.config_loader.get_disturbance_config()
+        config = self.config_loader.config
 
         cm = ContextManager()
-        for key, factory in _SENSOR_REGISTRY:
-            cm.register_sensor(key, factory(policy_config, disturbance_config))
+        for sensor_cls in _SENSOR_REGISTRY:
+            cm.register_sensor(sensor_cls.key, sensor_cls.create(config))
 
         policies: List[Policy] = [
-            cls(policy_config[key])
-            for key, cls in _POLICY_REGISTRY.items()
-            if key in policy_config
+            cls(getattr(config.policies, cls.config_key))
+            for cls in _POLICY_REGISTRY
+            if getattr(config.policies, cls.config_key) is not None
         ]
 
         self.context_manager = cm
-        self.matcher = Matcher(self.config_loader.get_playlists(), policies)
-        self.actuator = Actuator(self.executor, DisturbanceController(disturbance_config))
+        self.matcher = Matcher(config.playlists, policies)
+        self.actuator = Actuator(self.executor, DisturbanceController(config.disturbance))
 
     def _hot_reload(self) -> None:
         """Reload config and rebuild all runtime components.
@@ -279,6 +273,7 @@ class WEScheduler:
                 controller_state = self.actuator.controller.export_state()
 
             self.config_loader.load()
+            config = self.config_loader.config
             logger.info("Hot reload: config changed, rebuilding components.")
 
             self._build_runtime_components()
@@ -293,7 +288,7 @@ class WEScheduler:
             if controller_state:
                 self.actuator.controller.import_state(controller_state)
 
-            logger.info(f"Hot reload complete. {len(self.config_loader.get_playlists())} playlists loaded.")
+            logger.info(f"Hot reload complete. {len(config.playlists)} playlists loaded.")
         except Exception:
             logger.exception("Hot reload failed, keeping previous config")
 
@@ -305,9 +300,9 @@ class WEScheduler:
             "current_playlist": self.current_playlist,
         }
 
-    def _update_status(self, context: Dict[str, Any], tags: Dict[str, float], decision: str):
-        process_name = context.get("window", {}).get("process", "N/A")
-        idle_time = context.get("idle", 0.0)
+    def _update_status(self, context: Context, tags: Dict[str, float], decision: str):
+        process_name = context.window.process or "N/A"
+        idle_time = context.idle
         sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:3]
         
         tag_parts = []

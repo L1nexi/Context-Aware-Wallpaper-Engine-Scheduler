@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from core.executor import WEExecutor
 from core.controller import DisturbanceController
+from core.context_types import Context
 from utils.app_context import get_app_root
 
 logger = logging.getLogger("WEScheduler.Actuator")
@@ -21,7 +22,7 @@ class Actuator:
         self.executor = executor
         self.controller = controller
 
-    def act(self, context: Dict[str, Any], aggregated_tags: Dict[str, float], best_playlist: Optional[str], current_playlist: str) -> str:
+    def act(self, context: Context, aggregated_tags: Dict[str, float], best_playlist: Optional[str], current_playlist: str) -> str:
         """
         Decides and executes the appropriate action.
         Returns the new (or unchanged) current_playlist.
