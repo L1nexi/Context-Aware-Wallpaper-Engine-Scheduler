@@ -2,7 +2,7 @@ import logging
 import math
 import time as _time
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, List, Union
 
 logger = logging.getLogger("WEScheduler.Policy")
 
@@ -32,12 +32,24 @@ class Policy(ABC):
         self.weight_scale = config.get("weight_scale", 1.0)
 
     @abstractmethod
-    def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
-        """
-        Returns a dictionary of tags and their weights based on the context.
-        Example: {"#work": 0.8, "#night": 0.5}
+    def _compute_tags(self, context: Dict[str, Any]) -> Union[Dict[str, float], List[Dict[str, float]]]:
+        """Compute raw tags for the current context.
+
+        Simple policies return a single ``Dict``.
+        Policies that need semantic sub-vectors return a ``List[Dict]``
         """
         pass
+
+    def get_tags(self, context: Dict[str, Any]) -> List[Dict[str, float]]:
+        """Public interface: always returns List[Dict[str, float]].
+
+        Wraps ``_compute_tags`` output so callers (Matcher) always receive
+        a uniform list of sub-vectors regardless of what the subclass returns.
+        """
+        result = self._compute_tags(context)
+        if isinstance(result, dict):
+            return [result]
+        return result
     
     def _normalize_and_scale(self, tags: Dict[str, float]) -> Dict[str, float]:
         """
@@ -83,7 +95,7 @@ class ActivityPolicy(Policy):
             
         self.smoothed_tags: Dict[str, float] = {}
 
-    def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
+    def _compute_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         if not self.enabled:
             return {}
 
@@ -249,7 +261,7 @@ class TimePolicy(Policy):
                 ds, ns,
             )
 
-    def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
+    def _compute_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         if not self.enabled:
             return {}
 
@@ -303,7 +315,7 @@ class SeasonPolicy(Policy):
         # H = full inter-peak distance ≈ 91.25 days for 4 seasons
         self._H = 365 / len(self._peaks)
 
-    def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
+    def _compute_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
         if not self.enabled:
             return {}
 
@@ -371,7 +383,7 @@ class WeatherPolicy(Policy):
     # Two-tag 2:1: primary = s × 0.89,  secondary = s × 0.45
     # Two-tag 3:1: primary = s × 0.95,  secondary = s × 0.32
     # Two-tag 1:1: each   = s × 0.71
-    _ID_TAGS: Dict[int, Dict[str, float]] = {
+    _ID_TAGS: Dict[int, Dict[str, float] | List[Dict[str, float]]] = {
         # 2xx Thunderstorm ────────────────────────────────────────────────
         # Pure storm: T2→T4 by severity; #rain added as fallback (dry lightning
         # is meteorologically rare; real thunderstorms almost always have rain)
@@ -438,56 +450,63 @@ class WeatherPolicy(Policy):
         # 80x Clouds (gradual clear→cloudy) ──────────────────────────────
         # 801-802 centred at T2=0.50; 803 at T2; 804 at T2.
         # Direction shifts from clear-primary to cloudy-primary.
-        801: {"#clear": 0.47, "#cloudy": 0.16},  # s=0.50, 3:1 clear:cloudy
-        802: {"#clear": 0.35, "#cloudy": 0.35},  # s=0.50, 1:1 equal
-        803: {"#cloudy": 0.47, "#clear": 0.16},  # s=0.50, 3:1 cloudy:clear
-        804: {"#cloudy": 0.50},                  # s=T2   overcast
+        801: [{"#clear": 0.47}, {"#cloudy": 0.16}],  # s=0.50, independent: clear and cloudy are semantic opposites
+        802: [{"#clear": 0.35}, {"#cloudy": 0.35}],  # s=0.50, independent: equal mix, no cross-fallback
+        803: [{"#cloudy": 0.47}, {"#clear": 0.16}],  # s=0.50, independent: cloudy primary
+        804: {"#cloudy": 0.50},                      # s=T2   overcast
     }
+    # Normalize to uniform List[Dict] at class load time so runtime methods
+    # never need to branch on the entry type.
+    _ID_TAGS = {k: (v if isinstance(v, list) else [v]) for k, v in _ID_TAGS.items()}
+    _ID_TAGS: Dict[int, List[Dict[str, float]]]
 
     # Coarse fallback when id is missing / unrecognised ───────────────────
-    _MAIN_FALLBACK: Dict[str, Dict[str, float]] = {
-        "thunderstorm": {"#storm": 0.67, "#rain": 0.34},  # T3 × 2:1
-        "drizzle":      {"#rain": 0.40},                   # T2
-        "rain":         {"#rain": 0.65},                   # T2+
-        "snow":         {"#snow": 0.65},                   # T2+
-        "mist":         {"#fog": 0.30},                    # T1+
-        "smoke":        {"#fog": 0.45},                    # T2
-        "haze":         {"#fog": 0.25},                    # T1
-        "dust":         {"#fog": 0.40},                    # T2
-        "fog":          {"#fog": 0.75},                    # T3
-        "sand":         {"#fog": 0.30},                    # T1+
-        "ash":          {"#fog": 0.55},                    # T2+
-        "squall":       {"#storm": 0.65},                  # T2+
-        "tornado":      {"#storm": 1.00},                  # T4
-        "clear":        {"#clear": 0.50},                  # T2
-        "clouds":       {"#cloudy": 0.50},                 # T2
+    _MAIN_FALLBACK: Dict[str, List[Dict[str, float]]] = {
+        "thunderstorm": [{"#storm": 0.67, "#rain": 0.34}],  # T3 × 2:1
+        "drizzle":      [{"#rain": 0.40}],                   # T2
+        "rain":         [{"#rain": 0.65}],                   # T2+
+        "snow":         [{"#snow": 0.65}],                   # T2+
+        "mist":         [{"#fog": 0.30}],                    # T1+
+        "smoke":        [{"#fog": 0.45}],                    # T2
+        "haze":         [{"#fog": 0.25}],                    # T1
+        "dust":         [{"#fog": 0.40}],                    # T2
+        "fog":          [{"#fog": 0.75}],                    # T3
+        "sand":         [{"#fog": 0.30}],                    # T1+
+        "ash":          [{"#fog": 0.55}],                    # T2+
+        "squall":       [{"#storm": 0.65}],                  # T2+
+        "tornado":      [{"#storm": 1.00}],                  # T4
+        "clear":        [{"#clear": 0.50}],                  # T2
+        "clouds":       [{"#cloudy": 0.50}],                 # T2
     }
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
 
-    def get_tags(self, context: Dict[str, Any]) -> Dict[str, float]:
+    def _compute_tags(self, context: Dict[str, Any]) -> List[Dict[str, float]]:
         if not self.enabled:
-            return {}
+            return []
 
         weather = context.get("weather")
         if not weather:
-            return {}
+            return []
 
         weather_id = weather.get("id", 0)
         weather_main = weather.get("main", "")
-        tags = self._resolve_tags(weather_id, weather_main)
+        resolved = self._resolve_tags(weather_id, weather_main)
 
+        # Apply weight_scale to each sub-vector independently.
         # Preserve intensity: do NOT normalise.
-        # effective norm = s × weight_scale  (ceiling at s=1.00).
-        return {tag: w * self.weight_scale for tag, w in tags.items()}
-
-    # ── ID → tags resolution ──
+        return [{tag: w * self.weight_scale for tag, w in sub.items()} for sub in resolved]
 
     @classmethod
-    def _resolve_tags(cls, weather_id: int, weather_main: str) -> Dict[str, float]:
-        """Return tag dict for a given weather condition, preferring *id*."""
-        tags = cls._ID_TAGS.get(weather_id)
-        if tags is not None:
-            return dict(tags)
-        return dict(cls._MAIN_FALLBACK.get(weather_main.lower(), {}))
+    def _resolve_tags(cls, weather_id: int, weather_main: str) -> List[Dict[str, float]]:
+        """Return sub-vectors for a given weather condition, preferring *id*.
+
+        Always returns ``List[Dict]``; entries are independent energy sources
+        that Matcher projects and compensates separately.
+        """
+        entry = cls._ID_TAGS.get(weather_id)
+        if entry is not None:
+            return [dict(sub) for sub in entry]
+        fallback = cls._MAIN_FALLBACK.get(weather_main.lower())
+        return [dict(sub) for sub in fallback] if fallback else []

@@ -75,51 +75,56 @@ class Matcher:
           4. Cosine-similarity match against pre-normalised playlist vectors.
         """
         # ── Step 1 & 2: evaluate policies, build aggregated_tags for logging ──
-        per_policy: List[Dict[str, float]] = []
+        per_policy: List[List[Dict[str, float]]] = []
         aggregated_tags: Dict[str, float] = {}
         for policy in self.policies:
-            tags = policy.get_tags(context)
-            per_policy.append(tags)
-            for tag, w in tags.items():
-                aggregated_tags[tag] = aggregated_tags.get(tag, 0.0) + w
+            sub_vectors = policy.get_tags(context)
+            per_policy.append(sub_vectors)
+            for sub in sub_vectors:
+                for tag, w in sub.items():
+                    aggregated_tags[tag] = aggregated_tags.get(tag, 0.0) + w
 
         if not self.playlist_vectors:
             return aggregated_tags, None
 
-        # ── Step 3: per-policy projection + norm-preserving compensation ──────
+        # ── Step 3: per-sub-vector projection + norm-preserving compensation ─
+        # Each sub-vector is an independent energy source.  Compensation for
+        # dropped tags is scoped to the sub-vector it came from, so tags that
+        # are semantic opposites (e.g. #cloudy / #clear) can never boost each
+        # other when one is absent from all playlists.
         v_env = [0.0] * self.dim
         any_valid = False
-        for policy_tags in per_policy:
-            if not policy_tags:
-                continue
+        for sub_vectors in per_policy:
+            for sub in sub_vectors:
+                if not sub:
+                    continue
 
-            # Warn once per unknown tag
-            for tag in policy_tags:
-                if tag not in self.tag_to_index and tag not in self._warned_tags:
-                    logger.info(
-                        f"Tag '{tag}' from a Policy is not present in any playlist "
-                        f"and will be ignored. Add a playlist using this tag, or "
-                        f"check your Policy/config for typos."
-                    )
-                    self._warned_tags.add(tag)
+                # Warn once per unknown tag
+                for tag in sub:
+                    if tag not in self.tag_to_index and tag not in self._warned_tags:
+                        logger.info(
+                            f"Tag '{tag}' from a Policy is not present in any playlist "
+                            f"and will be ignored. Add a playlist using this tag, or "
+                            f"check your Policy/config for typos."
+                        )
+                        self._warned_tags.add(tag)
 
-            # Project onto valid tag set
-            valid = {t: w for t, w in policy_tags.items() if t in self.tag_to_index}
-            if not valid:
-                continue
-            any_valid = True
-            
-            # If tags were dropped, rescale this policy's valid components
-            # to restore the original L2 norm of this policy's output vector.
-            if len(valid) < len(policy_tags):
-                orig_norm_sq = sum(w * w for w in policy_tags.values())
-                valid_norm_sq = sum(w * w for w in valid.values())
-                if valid_norm_sq > 1e-12:
-                    scale = math.sqrt(orig_norm_sq / valid_norm_sq)
-                    valid = {t: w * scale for t, w in valid.items()}
+                # Project onto valid tag set
+                valid = {t: w for t, w in sub.items() if t in self.tag_to_index}
+                if not valid:
+                    continue
+                any_valid = True
 
-            for tag, weight in valid.items():
-                v_env[self.tag_to_index[tag]] += weight
+                # Norm-preserving rescale scoped to this sub-vector only.
+                if len(valid) < len(sub):
+                    orig_norm_sq = sum(w * w for w in sub.values())
+                    valid_norm_sq = sum(w * w for w in valid.values())
+                    if valid_norm_sq > 1e-12:
+                        scale = math.sqrt(orig_norm_sq / valid_norm_sq)
+                        valid = {t: w * scale for t, w in valid.items()}
+
+                for tag, weight in valid.items():
+                    v_env[self.tag_to_index[tag]] += weight
 
 
         if not any_valid:
