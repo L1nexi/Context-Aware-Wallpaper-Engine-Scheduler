@@ -104,7 +104,7 @@ class WEScheduler:
             logger.info(f"Loaded {len(config.playlists)} playlists.")
 
             # 2. Initialize Executor
-            self.executor = WEExecutor(config.we_path)
+            self.executor = WEExecutor(config.wallpaper_engine_path)
 
             # 3. Build all runtime components (sensors, policies, matcher, controller, actuator)
             self._build_runtime_components()
@@ -269,15 +269,12 @@ class WEScheduler:
           - SchedulingController cooldown timestamps
         """
         try:
-            # Snapshot stateful component state before teardown
-            policy_states: Dict[str, Dict] = {}
-            if self.matcher:
-                for p in self.matcher.policies:
-                    policy_states[type(p).__name__] = p.export_state()
-
-            controller_state: Dict = {}
-            if self.actuator:
-                controller_state = self.actuator.controller.export_state()
+            # Snapshot stateful component state before teardown.
+            policy_states: Dict[str, Dict] = {
+                type(p).__name__: p.export_state()
+                for p in self.matcher.policies
+            }
+            controller_state = self.actuator.controller.export_state()
 
             self.config_loader.load()
             config = self.config_loader.config
@@ -292,8 +289,7 @@ class WEScheduler:
                     p.import_state(saved)
 
             # Restore controller cooldown timestamps
-            if controller_state:
-                self.actuator.controller.import_state(controller_state)
+            self.actuator.controller.import_state(controller_state)
 
             logger.info(f"Hot reload complete. {len(config.playlists)} playlists loaded.")
         except Exception:

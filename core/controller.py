@@ -59,7 +59,7 @@ class SchedulingController:
         self._gates: List = []
         if config.cpu_threshold > 0:
             self._gates.append(CpuGate(config.cpu_threshold))
-        if config.fullscreen_defer:
+        if config.pause_on_fullscreen:
             self._gates.append(FullscreenGate())
 
         # Initialize startup_delay by backdating the last switch times,

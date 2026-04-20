@@ -50,9 +50,9 @@
 
 #### 顶层字段
 
-| 字段      | 说明                                                              |
-| --------- | ----------------------------------------------------------------- |
-| `we_path` | Wallpaper Engine 可执行文件的完整路径（通常为 `wallpaper64.exe`） |
+| 字段                    | 说明                                                              |
+| ----------------------- | ----------------------------------------------------------------- |
+| `wallpaper_engine_path` | Wallpaper Engine 可执行文件的完整路径（通常为 `wallpaper64.exe`） |
 
 ---
 
@@ -70,9 +70,9 @@
 
 | 标签       | 来源 Policy    | 触发条件                                             |
 | ---------- | -------------- | ---------------------------------------------------- |
-| `#dawn`    | TimePolicy     | 黎明时段（`day_start` 附近，Hann 窗平滑过渡）        |
+| `#dawn`    | TimePolicy     | 黎明时段（`day_start_hour` 附近，Hann 窗平滑过渡）   |
 | `#day`     | TimePolicy     | 白天时段                                             |
-| `#sunset`  | TimePolicy     | 日落时段（`night_start` 附近）                       |
+| `#sunset`  | TimePolicy     | 日落时段（`night_start_hour` 附近）                  |
 | `#night`   | TimePolicy     | 夜间时段                                             |
 | `#spring`  | SeasonPolicy   | 春季（3–5 月，Hann 窗平滑过渡）                      |
 | `#summer`  | SeasonPolicy   | 夏季（6–8 月）                                       |
@@ -99,7 +99,7 @@
   "enabled": true,
   "weight_scale": 1.2,
   "smoothing_window": 120,
-  "rules": { "Code.exe": "#focus", "steam.exe": "#chill" },
+  "process_rules": { "Code.exe": "#focus", "steam.exe": "#chill" },
   "title_rules": { "GitHub": "#focus", "YouTube": "#chill" }
 }
 ```
@@ -108,20 +108,20 @@
 | ------------------ | ------ | ----------------------------------------------------------------------- |
 | `weight_scale`     | `1.0`  | 该策略的影响权重倍数                                                    |
 | `smoothing_window` | `120`  | EMA 平滑窗口（秒）。值越大对活动切换的响应越迟钝、越稳定                |
-| `rules`            | `{}`   | 进程名 → 标签的映射，**不区分大小写**，匹配当前前台窗口的 `.exe` 文件名 |
+| `process_rules`    | `{}`   | 进程名 → 标签的映射，**不区分大小写**，匹配当前前台窗口的 `.exe` 文件名 |
 | `title_rules`      | `{}`   | 窗口标题关键词 → 标签的映射（子字符串匹配，不区分大小写）               |
 
 #### TimePolicy — 时段感知
 
 ```json
-"time": { "enabled": true, "weight_scale": 0.8, "day_start": 8, "night_start": 20 }
+"time": { "enabled": true, "weight_scale": 0.8, "day_start_hour": 8, "night_start_hour": 20 }
 ```
 
-| 字段           | 默认值 | 说明                                                             |
-| -------------- | ------ | ---------------------------------------------------------------- |
-| `weight_scale` | `1.0`  | 该策略的影响权重倍数                                             |
-| `day_start`    | `8`    | 白天开始时刻（24 小时制整数小时），同时也是 `#dawn` 峰值所在时刻 |
-| `night_start`  | `20`   | 夜晚开始时刻，同时也是 `#sunset` 峰值所在时刻                    |
+| 字段               | 默认值 | 说明                                                             |
+| ------------------ | ------ | ---------------------------------------------------------------- |
+| `weight_scale`     | `1.0`  | 该策略的影响权重倍数                                             |
+| `day_start_hour`   | `8`    | 白天开始时刻（24 小时制整数小时），同时也是 `#dawn` 峰值所在时刻 |
+| `night_start_hour` | `20`   | 夜晚开始时刻，同时也是 `#sunset` 峰值所在时刻                    |
 
 时段标签采用 **Hann 窗平滑插值**（半宽约 6 小时），相邻时段之间连续过渡，不会突变。
 

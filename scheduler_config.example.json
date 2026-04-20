@@ -1,5 +1,5 @@
 {
-  "we_path": "C:\\Path\\To\\Your\\wallpaper64.exe",
+  "wallpaper_engine_path": "C:\\Path\\To\\Your\\wallpaper64.exe",
   "playlists": [
     {
       "name": "BRIGHT_FLOW",
@@ -65,7 +65,7 @@
       "enabled": true,
       "weight_scale": 1.2,
       "smoothing_window": 120,
-      "rules": {
+      "process_rules": {
         "Code.exe": "#focus",
         "Obsidian.exe": "#focus",
         "POWERPNT.EXE": "#focus",
@@ -95,8 +95,8 @@
       "enabled": true,
       "weight_scale": 0.8,
       "auto": true,
-      "default_night_start": 20,
-      "default_day_start": 8
+      "day_start_hour": 8,
+      "night_start_hour": 20
     },
     "weather": {
       "enabled": true,
@@ -104,19 +104,19 @@
       "api_key": "YOUR_OPENWEATHERMAP_API_KEY",
       "lat": "0",
       "lon": "0",
-      "interval": 600,
+      "fetch_interval": 600,
       "request_timeout": 10
     },
     "mood": { "enabled": false, "weight_scale": 2.0 }
   },
-  "disturbance": {
+  "scheduling": {
     "startup_delay": 30,
     "idle_threshold": 20,
-    "min_interval": 150,
-    "wallpaper_interval": 900,
-    "force_interval": 3600,
+    "switch_cooldown": 150,
+    "cycle_cooldown": 900,
+    "force_after": 3600,
     "cpu_threshold": 85,
-    "cpu_window": 10,
-    "fullscreen_defer": true
+    "cpu_sample_window": 10,
+    "pause_on_fullscreen": true
   }
 }

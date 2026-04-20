@@ -30,8 +30,8 @@ class ActivityPolicyConfig(_BasePolicyConfig):
 
 class TimePolicyConfig(_BasePolicyConfig):
     auto: bool = True
-    day_start: float = Field(8.0, ge=0, lt=24)
-    night_start: float = Field(20.0, ge=0, lt=24)
+    day_start_hour: float = Field(8.0, ge=0, lt=24)
+    night_start_hour: float = Field(20.0, ge=0, lt=24)
 
 
 class SeasonPolicyConfig(_BasePolicyConfig):
@@ -70,13 +70,13 @@ class SchedulingConfig(BaseModel):
     force_after: float = Field(14400.0, ge=0)
     cycle_cooldown: float = Field(600.0, ge=0)
     cpu_threshold: float = Field(85.0, ge=0, le=100)
-    cpu_window: int = Field(10, ge=1)
-    fullscreen_defer: bool = True
+    cpu_sample_window: int = Field(10, ge=1)
+    pause_on_fullscreen: bool = True
 
 
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    we_path: str = Field(min_length=1)
+    wallpaper_engine_path: str = Field(min_length=1)
     language: Optional[str] = None
     playlists: List[PlaylistConfig] = Field(min_length=1)
     policies: PoliciesConfig = Field(default_factory=PoliciesConfig)

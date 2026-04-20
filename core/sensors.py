@@ -113,7 +113,7 @@ class CpuSensor(Sensor):
 
     @classmethod
     def create(cls, config: AppConfig) -> Optional[CpuSensor]:
-        return cls(window=config.scheduling.cpu_window)
+        return cls(window=config.scheduling.cpu_sample_window)
 
     def collect(self) -> float:
         sample = psutil.cpu_percent()
@@ -151,7 +151,7 @@ class FullscreenSensor(Sensor):
     @classmethod
     def create(cls, config: AppConfig) -> Optional[FullscreenSensor]:
         """Return a new instance only when fullscreen-defer is enabled."""
-        if not config.scheduling.fullscreen_defer:
+        if not config.scheduling.pause_on_fullscreen:
             return None
         return cls()
 

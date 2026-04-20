@@ -208,8 +208,8 @@ class TimePolicy(Policy):
 
     def __init__(self, config: TimePolicyConfig):
         super().__init__(config)
-        self._day_start: float = config.day_start
-        self._night_start: float = config.night_start
+        self._day_start: float = config.day_start_hour
+        self._night_start: float = config.night_start_hour
         self.auto: bool = config.auto
 
         self._peaks: Dict[str, float] = {}
