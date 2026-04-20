@@ -104,7 +104,7 @@ _CONFIG_SCHEMA: Dict[str, Any] = {
             "type": "object",
             "additionalProperties": False,
             "properties": {
-                "switch_on_start":   {"type": "boolean"},
+                "startup_delay":     {"type": "number", "minimum": 0},
                 "idle_threshold":    {"type": "number", "minimum": 0},
                 "min_interval":      {"type": "number", "minimum": 0},
                 "force_interval":    {"type": "number", "minimum": 0},

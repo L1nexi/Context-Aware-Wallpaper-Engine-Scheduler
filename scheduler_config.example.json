@@ -110,7 +110,7 @@
     "mood": { "enabled": false, "weight_scale": 2.0 }
   },
   "disturbance": {
-    "switch_on_start": false,
+    "startup_delay": 30,
     "idle_threshold": 20,
     "min_interval": 150,
     "wallpaper_interval": 900,

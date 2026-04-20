@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from utils.config_loader import ConfigLoader
 from utils.app_context import get_app_root
 from core.executor import WEExecutor
-from core.sensors import WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor
+from core.sensors import WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor, TimeSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
 from core.context import ContextManager
 from core.matcher import Matcher
@@ -38,6 +38,7 @@ _SENSOR_REGISTRY: List[Tuple[str, Callable[[Dict, Dict], Any]]] = [
     ("cpu",        CpuSensor.create),
     ("fullscreen", FullscreenSensor.create),
     ("weather",    WeatherSensor.create),
+    ("time",       TimeSensor.create),
 ]
 
 _STATE_FILE = os.path.join(get_app_root(), "state.json")

@@ -55,25 +55,26 @@ class DisturbanceController:
     def __init__(self, config: Dict[str, Any]):
         self.idle_threshold = config.get("idle_threshold", _DEFAULT_IDLE_THRESHOLD)
 
-        # Playlist Switching Config
+        # Playlist Switching & Cycling Config
         self.playlist_min_interval   = config.get("min_interval",      _DEFAULT_PLAYLIST_MIN)
         self.playlist_force_interval = config.get("force_interval",    _DEFAULT_PLAYLIST_FORCE)
-
-        # Wallpaper Cycling Config
         self.wallpaper_min_interval  = config.get("wallpaper_interval", _DEFAULT_WALLPAPER_MIN)
 
         # Build gate chain from config
         self._gates: List = []
-        cpu_threshold = config.get("cpu_threshold", _DEFAULT_CPU_THRESHOLD)
-        if cpu_threshold > 0:
-            self._gates.append(CpuGate(cpu_threshold))
+        if config.get("cpu_threshold", _DEFAULT_CPU_THRESHOLD) > 0:
+            self._gates.append(CpuGate(config.get("cpu_threshold", _DEFAULT_CPU_THRESHOLD)))
         if config.get("fullscreen_defer", True):
             self._gates.append(FullscreenGate())
 
-        # If switch_on_start is False, pretend we just switched — the cooldown
-        # will naturally block the first switch attempt.
-        switch_on_start = config.get("switch_on_start", True)
-        init_time = 0 if switch_on_start else time.time()
+        # Initialize startup_delay by backdating the last switch times,
+        # so that the system is effectively "cooling down" during startup.
+        # Clamped to [0, min_interval]
+        startup_delay = min(
+            max(config.get("startup_delay", 30), 0),
+            self.playlist_min_interval,
+        )
+        init_time = time.time() - (self.playlist_min_interval - startup_delay)
         self.last_playlist_switch_time = init_time
         self.last_wallpaper_switch_time = init_time
 
@@ -117,7 +118,7 @@ class DisturbanceController:
         current_time = time.time()
         time_since_last = current_time - self.last_wallpaper_switch_time
         
-        # 1. Cooling Down Check (Strict)
+        # 1. Cooling Down Check
         if time_since_last < self.wallpaper_min_interval:
             return False
 
@@ -125,7 +126,7 @@ class DisturbanceController:
         if self._any_gate_defers(context):
             return False
 
-        # 3. Idle Check (Strict)
+        # 3. Idle Check
         # We only cycle wallpaper when user is idle to avoid distraction
         idle_time = context.get("idle", 0.0)
         if idle_time >= self.idle_threshold:

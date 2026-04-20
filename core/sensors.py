@@ -20,9 +20,17 @@ class Sensor(ABC):
         """Collects data from the sensor."""
         pass
 
+    @abstractmethod
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[Sensor]:
+        """
+            Factory method to create a sensor instance based on configuration.
+            Returns None if the sensor should not be registered (e.g., disabled / missing arguments).
+        """
+        pass
+
 class WindowSensor(Sensor):
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> WindowSensor:
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[WindowSensor]:
         return cls()
 
     def collect(self) -> Dict[str, str]:
@@ -60,7 +68,7 @@ class WindowSensor(Sensor):
 
 class IdleSensor(Sensor):
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> IdleSensor:
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[IdleSensor]:
         return cls()
 
     def collect(self) -> float:
@@ -102,7 +110,7 @@ class CpuSensor(Sensor):
         psutil.cpu_percent()
 
     @classmethod
-    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> CpuSensor:
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[CpuSensor]:
         return cls(window=disturbance_cfg.get("cpu_window", 10))
 
     def collect(self) -> float:
@@ -171,16 +179,12 @@ class WeatherSensor(Sensor):
         # This happens inside __init__ so the scheduler tick loop is never blocked;
         # the brief wait is absorbed by the rest of initialize().
         warmup_timeout: float = config.get("warmup_timeout", 3.0)
-        if self.api_key:
-            self._last_fetch = time.time()
-            self._fetching = True
-            threading.Thread(target=self._fetch_async, daemon=True).start()
-            self._ready_event.wait(timeout=warmup_timeout)
+        self._last_fetch = time.time()
+        self._fetching = True
+        threading.Thread(target=self._fetch_async, daemon=True).start()
+        self._ready_event.wait(timeout=warmup_timeout)
 
     def collect(self) -> Optional[Dict[str, Any]]:
-        if not self.api_key:
-            return self._cached
-
         now = time.time()
         # Rate-limit: once _last_fetch is set, wait at least interval before retry.
         # _last_fetch is set *before* the thread starts so rapid collect() calls
@@ -238,3 +242,12 @@ class WeatherSensor(Sensor):
         if not weather_cfg.get("enabled", True) or not weather_cfg.get("api_key"):
             return None
         return cls(weather_cfg)
+
+class TimeSensor(Sensor):
+    @classmethod
+    def create(cls, policy_cfg: Dict, disturbance_cfg: Dict) -> Optional[TimeSensor]:
+        return cls()
+
+    def collect(self) -> time.struct_time:
+        """Returns the current local time as a struct_time."""
+        return time.localtime()

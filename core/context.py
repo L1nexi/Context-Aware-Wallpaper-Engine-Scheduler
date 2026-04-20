@@ -19,22 +19,13 @@ class ContextManager:
             self._sensors.append((key, sensor))
 
     def refresh(self) -> Dict[str, Any]:
-        """
-        Polls all registered sensors and updates the context.
-        Also adds global context like time.
-        """
-        # 1. Collect from Sensors
+        """Polls all registered sensors and updates the context."""
         for key, sensor in self._sensors:
             try:
                 self._context[key] = sensor.collect()
             except Exception as e:
                 logger.warning(f"Error collecting from sensor '{key}': {e}")
                 self._context[key] = {}
-
-        # 2. Add Global/System Context
-        # In a real system, Time might be its own sensor, but it's simple enough to keep here for now
-        self._context["time"] = time.localtime()
-        
         return self._context
 
     def get_context(self) -> Dict[str, Any]:
