@@ -1,5 +1,17 @@
 {
   "wallpaper_engine_path": "C:\\Path\\To\\Your\\wallpaper64.exe",
+  "tags": {
+    "#dawn": { "fallback": { "#day": 0.7, "#chill": 0.3 } },
+    "#sunset": { "fallback": { "#chill": 0.3, "#night": 0.7 } },
+    "#spring": { "fallback": { "#day": 0.5, "#chill": 0.5 } },
+    "#summer": { "fallback": { "#day": 0.7, "#clear": 0.3 } },
+    "#autumn": { "fallback": { "#sunset": 0.6, "#chill": 0.4 } },
+    "#winter": { "fallback": { "#night": 0.5, "#chill": 0.5 } },
+    "#storm": { "fallback": { "#rain": 1 } },
+    "#snow": { "fallback": { "#winter": 0.6, "#rain": 0.6 } },
+    "#fog": { "fallback": { "#rain": 0.4, "#chill": 0.4 } },
+    "#cloudy": { "fallback": { "#clear": 0.5, "#chill": 0.3 } }
+  },
   "playlists": [
     {
       "name": "BRIGHT_FLOW",

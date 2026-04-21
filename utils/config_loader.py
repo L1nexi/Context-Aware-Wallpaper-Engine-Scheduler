@@ -10,6 +10,11 @@ logger = logging.getLogger("WEScheduler.Config")
 
 # ── Config models ────────────────────────────────────────────────────────────
 
+class TagSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    fallback: Dict[str, float] = Field(default_factory=dict)
+
+
 class PlaylistConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1)
@@ -78,6 +83,7 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     wallpaper_engine_path: str = Field(min_length=1)
     language: Optional[str] = None
+    tags: Dict[str, TagSpec] = Field(default_factory=dict)
     playlists: List[PlaylistConfig] = Field(min_length=1)
     policies: PoliciesConfig = Field(default_factory=PoliciesConfig)
     scheduling: SchedulingConfig = Field(default_factory=SchedulingConfig)

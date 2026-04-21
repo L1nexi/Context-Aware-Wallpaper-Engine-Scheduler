@@ -5,53 +5,74 @@
 采用 **"感知-决策-执行" (Sense-Think-Act)** 循环架构 (1s tick)，配合 JSON 配置文件驱动。
 
 ```
-Sensors → ContextManager → Arbiter (weighted aggregation) → Matcher (cosine similarity) → Actuator → WEExecutor
-                                                                              ↑
-                                                                    DisturbanceController
-                                                                    [CpuGate, FullscreenGate]
+Sensors → ContextManager → [Policies] → Matcher (TagSpec fallback + cosine similarity) → Actuator → WEExecutor
+                                                        ↑
+                                              SchedulingController
+                                              [CpuGate, FullscreenGate]
 ```
 
 - `core/sensors.py` — 感知层: `WindowSensor`, `IdleSensor`, `CpuSensor`, `FullscreenSensor`, `WeatherSensor`
 - `core/policies.py` — 策略插件: `ActivityPolicy` (EMA), `TimePolicy` (Hann 插值 + 动态日出日落), `SeasonPolicy`, `WeatherPolicy`
-- `core/arbiter.py` — 仲裁器: 加权聚合各 Policy 的归一化标签向量
-- `core/matcher.py` — 匹配器: 余弦相似度选择最佳 Playlist
-- `core/controller.py` — `DisturbanceController` + `CpuGate` / `FullscreenGate`: 门控链
+- `core/matcher.py` — 匹配器: TagSpec fallback 解析 + 余弦相似度选择最佳 Playlist
+- `core/controller.py` — `SchedulingController` + `CpuGate` / `FullscreenGate`: 门控链
 - `core/actuator.py` — 执行器: 咨询 Controller 后调用 WEExecutor；写 `history.jsonl`
 - `core/executor.py` — WE CLI 封装 (`wallpaper64.exe -control`)
 - `core/scheduler.py` — 主调度循环 (后台线程), 暂停/恢复, `on_auto_resume` hook, 配置热重载
 - `core/tray.py` — 系统托盘 UI (pystray + tkinter 弹窗)
 - `utils/i18n.py` — 轻量 i18n (`t(key)`, zh/en)
-- `utils/config_loader.py` — JSON 配置加载
+- `utils/config_loader.py` — JSON 配置加载 (Pydantic v2)
 - `utils/icon_generator.py` — PIL 托盘图标生成
 - `utils/logger.py` — RotatingFileHandler 日志 (根 logger `WEScheduler` 装 handler，子 logger propagate)
 
 详细设计见 `docs/README_DEV.md`。
 
+## Policy 接口
+
+- `Policy.get_tags(context) -> Dict[str, float]` — 统一公开接口，返回单一 dict
+- `Policy._compute_tags(context) -> Dict[str, float]` — 子类实现
+- `WeatherPolicy._compute_tags` 返回单一 dict（不再是 `List[Dict]`）；`_ID_TAGS`/`_MAIN_FALLBACK` 均为 `Dict[int/str, Dict[str, float]]`
+- **No Arbiter layer** — Matcher 直接持有 policies，`match()` 内统一 evaluate
+
+## TagSpec Fallback 系统
+
+```python
+# config_loader.py
+class TagSpec(BaseModel):
+    fallback: Dict[str, float] = {}   # tag → weight (可以不归一化；余量视为"静默衰减")
+```
+
+- `AppConfig.tags: Dict[str, TagSpec]` — 顶层 `"tags"` 块，key 为标签名
+- Matcher 在 `__init__` 接收 `tag_specs`，`_fallback_expand(tag, weight, visited)` 递归展开
+- 截断条件：循环（visited 集合）或 `weight < _MIN_EXPAND_WEIGHT = 0.02`
+- 合并：同 key 贡献简单相加（线性叠加，与下游 L2 归一化配合正确）
+- **Policy 不做 fallback**——仅输出物理语义标签（如 `#fog`、`#storm`），fallback 完全由 Matcher 处理
+
 ## Sensor → Context 映射
 
-| context key       | Sensor           | 类型                        |
-|-------------------|------------------|-----------------------------|
-| `"window"`        | WindowSensor     | `{title, process}`          |
-| `"idle"`          | IdleSensor       | `float` (秒)                |
-| `"cpu"`           | CpuSensor        | `float` 滑动均值 0–100      |
-| `"fullscreen"`    | FullscreenSensor | `bool`                      |
-| `"weather"`       | WeatherSensor    | `{id, main, sunrise, sunset}` (OWM) |
-| `"time"`          | ContextManager   | `time.struct_time`          |
+| context key    | Sensor           | 类型                                |
+| -------------- | ---------------- | ----------------------------------- |
+| `"window"`     | WindowSensor     | `{title, process}`                  |
+| `"idle"`       | IdleSensor       | `float` (秒)                        |
+| `"cpu"`        | CpuSensor        | `float` 滑动均值 0–100              |
+| `"fullscreen"` | FullscreenSensor | `bool`                              |
+| `"weather"`    | WeatherSensor    | `{id, main, sunrise, sunset}` (OWM) |
+| `"time"`       | ContextManager   | `time.struct_time`                  |
 
-## Gate 链 (DisturbanceController)
+## Gate 链 (SchedulingController)
 
 ```
 cooldown → [CpuGate.should_defer(), FullscreenGate.should_defer()] → idle/force
 ```
+
 - Gate 是 **defer**（不重置计时器），force_interval 仍在计时，条件消失后照常触发。
-- `cpu_threshold=0` 禁用 CpuGate；`fullscreen_defer=false` 禁用 FullscreenGate。
+- `cpu_threshold=0` 禁用 CpuGate；`pause_on_fullscreen=false` 禁用 FullscreenGate。
 
 ## WeatherSensor 与数据共享
 
-- WeatherSensor 调用 OWM 2.5 `/weather`，结果写入 `context["weather"]`。
-- WeatherPolicy 和 TimePolicy 均从 `context["weather"]` 读取，不各自发 HTTP 请求。
+- WeatherSensor 调用 OWM 2.5 `/weather`，结果写入 `context.weather`。
+- WeatherPolicy 和 TimePolicy 均从 `context.weather` 读取，不各自发 HTTP 请求。
 - WeatherSensor 节流：`_last_fetch > 0` 时才比较 interval（失败也计时，防止每秒重试）。
-- TimePolicy：若 `context["weather"]` 包含 `sunrise`/`sunset`，动态更新 `day_start`/`night_start` 峰值。
+- TimePolicy：若 `context.weather` 包含 `sunrise`/`sunset`，动态更新 `day_start`/`night_start` 峰值。
 
 ## 配置热重载
 
@@ -86,8 +107,8 @@ scripts/build.bat                       # PyInstaller 打包
 
 ## Conventions
 
-- 配置项 `switch_on_start` 位于 `disturbance` 块内
 - 所有 UI 文本通过 `utils/i18n.py` 的 `t(key)` 查找, 不硬编码
 - 暂停统一 API: `scheduler.pause(seconds=None)`, `None` = 无限期
-- `disturbance` 块新增: `cpu_threshold`(默认85), `cpu_window`(默认10), `fullscreen_defer`(默认true)
-- `weather` 块新增: `request_timeout`(默认10)
+- `scheduling` 块字段: `cpu_threshold`(默认85), `cpu_sample_window`(默认10), `pause_on_fullscreen`(默认true)
+- `weather` 块字段: `request_timeout`(默认10), `warmup_timeout`(默认3)
+- 配置顶层新增 `tags` 块: `Dict[str, TagSpec]`，定义标签 fallback 链

@@ -243,7 +243,7 @@ class WEScheduler:
         ]
 
         self.context_manager = cm
-        self.matcher = Matcher(config.playlists, policies)
+        self.matcher = Matcher(config.playlists, policies, config.tags)
         self.actuator = Actuator(self.executor, SchedulingController(config.scheduling))
 
     def _hot_reload(self) -> None:

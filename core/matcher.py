@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from core.policies import Policy
 
 from core.context import Context
-from utils.config_loader import PlaylistConfig
+from utils.config_loader import PlaylistConfig, TagSpec
 
 logger = logging.getLogger("WEScheduler.Matcher")
 
@@ -17,6 +17,7 @@ logger = logging.getLogger("WEScheduler.Matcher")
 # Below this threshold the environment vector is too orthogonal to all
 # playlists to produce a meaningful selection.
 _MIN_SIMILARITY = 0.001
+_MIN_EXPAND_WEIGHT = 0.02  # stop recursing when contribution drops below this
 
 
 @dataclass
@@ -35,14 +36,21 @@ class Matcher:
     management across Scheduler and a now-redundant Arbiter layer.
     """
 
-    def __init__(self, playlists: List[PlaylistConfig], policies: List[Policy]):
+    def __init__(
+        self,
+        playlists: List[PlaylistConfig],
+        policies: List[Policy],
+        tag_specs: Optional[Dict[str, TagSpec]] = None,
+    ):
         self.policies = policies
+        self._tag_specs: Dict[str, TagSpec] = tag_specs or {}
 
         # 1. Identify the Universe of Tags from all playlists
         all_tags: set = set()
         for pl in playlists:
             all_tags.update(pl.tags.keys())
 
+        self._known_tags: set = set(all_tags) # O(1) membership tests
         self.all_tags = sorted(all_tags)
         self.tag_to_index = {tag: i for i, tag in enumerate(self.all_tags)}
         self.dim = len(self.all_tags)
@@ -75,64 +83,29 @@ class Matcher:
         Steps:
           1. Evaluate each Policy against *context*, collect per-policy dicts.
           2. Sum the raw per-policy dicts into *aggregated_tags* (for logging).
-          3. Project each policy's output onto the playlist tag universe;
-             apply per-policy norm-preserving rescaling so that dropping an
-             unknown tag (e.g. #storm with no matching playlist) only
-             compensates the *remaining tags of that policy* (#rain), leaving
-             every other policy's contribution completely untouched.
+          3. Resolve each sub-vector via TagSpec fallback: unknown tags are
+             redistributed to playlist-known tags according to their fallback
+             chains; tags with no fallback lose their weight (logged once).
           4. Cosine-similarity match against pre-normalised playlist vectors.
         """
-        # ── Step 1 & 2: evaluate policies, build aggregated_tags for logging ──
-        per_policy: List[List[Dict[str, float]]] = []
+        # ── Steps 1–3: evaluate policies, aggregate for logging, resolve + project ──
         aggregated_tags: Dict[str, float] = {}
+        v_env = [0.0] * self.dim
+        any_valid = False
+
         for policy in self.policies:
-            sub_vectors = policy.get_tags(context)
-            per_policy.append(sub_vectors)
-            for sub in sub_vectors:
-                for tag, w in sub.items():
-                    aggregated_tags[tag] = aggregated_tags.get(tag, 0.0) + w
+            tags = policy.get_tags(context)
+            for tag, w in tags.items():
+                aggregated_tags[tag] = aggregated_tags.get(tag, 0.0) + w
+
+            resolved = self._resolve_raw_tags(tags)
+            if resolved:
+                any_valid = True
+                for tag, weight in resolved.items():
+                    v_env[self.tag_to_index[tag]] += weight
 
         if not self.playlist_vectors:
             return None
-
-        # ── Step 3: per-sub-vector projection + norm-preserving compensation ─
-        # Each sub-vector is an independent energy source.  Compensation for
-        # dropped tags is scoped to the sub-vector it came from, so tags that
-        # are semantic opposites (e.g. #cloudy / #clear) can never boost each
-        # other when one is absent from all playlists.
-        v_env = [0.0] * self.dim
-        any_valid = False
-        for sub_vectors in per_policy:
-            for sub in sub_vectors:
-                if not sub:
-                    continue
-
-                # Warn once per unknown tag
-                for tag in sub:
-                    if tag not in self.tag_to_index and tag not in self._warned_tags:
-                        logger.info(
-                            f"Tag '{tag}' from a Policy is not present in any playlist "
-                            f"and will be ignored. Add a playlist using this tag, or "
-                            f"check your Policy/config for typos."
-                        )
-                        self._warned_tags.add(tag)
-
-                # Project onto valid tag set
-                valid = {t: w for t, w in sub.items() if t in self.tag_to_index}
-                if not valid:
-                    continue
-                any_valid = True
-
-                # Norm-preserving rescale scoped to this sub-vector only.
-                if len(valid) < len(sub):
-                    orig_norm_sq = sum(w * w for w in sub.values())
-                    valid_norm_sq = sum(w * w for w in valid.values())
-                    if valid_norm_sq > 1e-12:
-                        scale = math.sqrt(orig_norm_sq / valid_norm_sq)
-                        valid = {t: w * scale for t, w in valid.items()}
-
-                for tag, weight in valid.items():
-                    v_env[self.tag_to_index[tag]] += weight
 
 
         if not any_valid:
@@ -161,4 +134,59 @@ class Matcher:
             similarity=best_score,
             aggregated_tags=aggregated_tags,
         )
+
+    # ── TagSpec fallback helpers ──────────────────────────────────────────────
+
+    def _resolve_raw_tags(self, sub: Dict[str, float]) -> Dict[str, float]:
+        """Project a policy raw tags onto the playlist tag universe.
+
+        Known tags pass through unchanged.  Unknown tags are expanded
+        recursively via their :class:`TagSpec` fallback chains.  Unknown
+        tags with no fallback lose their weight and are logged once.
+        """
+        resolved: Dict[str, float] = {}
+        for tag, weight in sub.items():
+            if tag in self._known_tags:
+                resolved[tag] = resolved.get(tag, 0.0) + weight
+            else:
+                expanded = self._recursive_expand_fallback(tag, weight, frozenset())
+                if expanded:
+                    for t, w in expanded.items():
+                        resolved[t] = resolved.get(t, 0.0) + w
+                elif tag not in self._warned_tags:
+                    logger.info(
+                        f"Tag '{tag}' from a Policy is not present in any playlist "
+                        f"and has no fallback defined in 'tags' config. Add a "
+                        f"playlist using this tag, define a fallback, or check "
+                        f"for typos."
+                    )
+                    self._warned_tags.add(tag)
+        return resolved
+
+    def _recursive_expand_fallback(
+        self, tag: str, weight: float, visited: frozenset
+    ) -> Dict[str, float]:
+        """Recursively expand one tag via its TagSpec fallback chain.
+
+        Returns ``{known_tag: contributed_weight}`` for all reachable
+        known tags.  Returns an empty dict when no known tag is reachable
+        (no spec, empty fallback, or all branches cycle/unknown).
+        """
+        if tag in self._known_tags:
+            return {tag: weight}
+        if tag in visited or weight < _MIN_EXPAND_WEIGHT:
+            return {}  # cycle or contribution too small — stop
+
+        spec = self._tag_specs.get(tag)
+        if not spec or not spec.fallback:
+            return {}
+
+        result: Dict[str, float] = {}
+        new_visited = visited | {tag}
+        for fb_tag, fb_weight in spec.fallback.items():
+            for t, w in self._recursive_expand_fallback(
+                fb_tag, weight * fb_weight, new_visited
+            ).items():
+                result[t] = result.get(t, 0.0) + w
+        return result
 
