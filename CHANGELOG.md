@@ -9,7 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.4.0] — 2026-04-21
+## [0.4.0] — 2026-04-21
 
 **类型化架构重构 (Typed-Interface Refactor)**
 
@@ -31,25 +31,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 以下字段均有默认值，**不向后兼容**（旧字段名被 `extra="forbid"` 拒绝）：
 
-| 旧字段名 | 新字段名 | 所在配置块 |
-|---|---|---|
-| `we_path` | `wallpaper_engine_path` | 顶层 |
-| `disturbance` | `scheduling` | 顶层块名 |
-| `min_interval` | `switch_cooldown` | `scheduling` |
-| `force_interval` | `force_after` | `scheduling` |
-| `wallpaper_interval` | `cycle_cooldown` | `scheduling` |
-| `cpu_window` | `cpu_sample_window` | `scheduling` |
-| `fullscreen_defer` | `pause_on_fullscreen` | `scheduling` |
-| `rules` | `process_rules` | `policies.activity` |
-| `default_day_start` | `day_start_hour` | `policies.time` |
-| `default_night_start` | `night_start_hour` | `policies.time` |
-| `interval` | `fetch_interval` | `policies.weather` |
+| 旧字段名              | 新字段名                | 所在配置块          |
+| --------------------- | ----------------------- | ------------------- |
+| `we_path`             | `wallpaper_engine_path` | 顶层                |
+| `disturbance`         | `scheduling`            | 顶层块名            |
+| `min_interval`        | `switch_cooldown`       | `scheduling`        |
+| `force_interval`      | `force_after`           | `scheduling`        |
+| `wallpaper_interval`  | `cycle_cooldown`        | `scheduling`        |
+| `cpu_window`          | `cpu_sample_window`     | `scheduling`        |
+| `fullscreen_defer`    | `pause_on_fullscreen`   | `scheduling`        |
+| `rules`               | `process_rules`         | `policies.activity` |
+| `default_day_start`   | `day_start_hour`        | `policies.time`     |
+| `default_night_start` | `night_start_hour`      | `policies.time`     |
+| `interval`            | `fetch_interval`        | `policies.weather`  |
 
 > **迁移方式**：参照 `scheduler_config.example.json` 重命名对应字段，或直接复制 example 后填入自己的值。
 
 ---
 
-## [1.3.3] — 2026-04-14
+## [0.3.3] — 2026-04-20
 
 **可维护性与鲁棒性重构**
 
@@ -65,7 +65,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.3.2] — 2026-04-08
+## [0.3.2] — 2026-04-20
 
 **策略语义子向量重构**
 
@@ -76,7 +76,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.3.1] — 2026-03-31
+## [0.3.1] — 2026-04-20
 
 **Arbiter 移除 · TimePolicy 时间扭曲修复**
 
@@ -95,7 +95,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.3.0] — 2026-03-20
+## [0.3.0] — 2026-04-09
 
 **感知增强与工程化**
 
@@ -119,31 +119,83 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.1.2] — 2026-02-xx
+## [0.2.2] — 2026-04-07
 
-请参阅对应 Git tag 的 commit 记录。
+**misc/ 可视化与调优工具增强**
 
-## [1.1.1] — 2026-02-xx
+### Added
 
-请参阅对应 Git tag 的 commit 记录。
-
-## [1.1.0] — 2026-01-xx
-
-请参阅对应 Git tag 的 commit 记录。
-
-## [1.0.0] — 2026-01-xx
-
-初始发布。
+- `misc/` 新增过渡期热力图脚本，可视化 Policy 输出在一天/一年中的分布。
+- `misc/` 可视化与调优工具整体优化，支持更灵活的参数输入。
+- 更新 `scheduler_config.example.json`，与当前字段保持同步。
 
 ---
 
-[Unreleased]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.4.0...HEAD
-[1.4.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.3.3...v1.4.0
-[1.3.3]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.3.2...v1.3.3
-[1.3.2]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.3.1...v1.3.2
-[1.3.1]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.3.0...v1.3.1
-[1.3.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.1.2...v1.3.0
-[1.1.2]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.1.1...v1.1.2
-[1.1.1]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.1.0...v1.1.1
-[1.1.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/releases/tag/v1.0.0
+## [0.2.1] — 2026-04-06
+
+**WeatherPolicy 调优 · misc/ 调试工具**
+
+### Added
+
+- `misc/` 新增 Policy 匹配情况模拟器与余弦相似度可视化脚本，用于离线调优播放列表标签权重。
+
+### Changed
+
+- 优化 `WeatherPolicy` 中 `#clear` 标签的强度曲线以及风暴标签权重，使晴天/恶劣天气的对比更明显。
+
+---
+
+## [0.2.0] — 2026-04-05
+
+**系统托盘增强 · 国际化 · Policy 插值重构**
+
+### Added
+
+- **国际化 (i18n)**：支持简体中文 / English 双语，基于 `locale.getdefaultlocale()` 自动切换，所有 UI 文本通过 `t(key)` 查找。
+- **启动时切换选项** (`switch_on_start`)：控制程序启动后是否立即执行一次壁纸切换。
+- **按时段暂停**：托盘菜单支持预设时长暂停（30m / 2h / 12h / 24h / 48h）及自定义时长（tkinter 弹窗输入）。
+- **自动恢复 hook** (`on_auto_resume`)：暂停到期后通过回调通知托盘图标刷新状态，支持亚分钟级状态显示更新。
+
+### Changed
+
+- **Policy 插值升级**：从线性插值改为 raised-cosine 插值（后续版本进一步改进为 Hann 窗），时段/季节标签过渡更平滑。
+- **WeatherPolicy 细化**：更精细地利用 OWM 天气代码，区分细雨/中雨/暴雨等强度级别。
+- `WeatherPolicy` 新增 `warmup_timeout`：首次请求使用短超时，避免冷启动阻塞。
+
+### Fixed
+
+- 托盘菜单文本（状态、Resume 可见性）在非菜单回调触发的状态变更后未刷新，现通过手动调用 `update_menu()` 修复。
+
+### Refactored
+
+- 清理 magic numbers，提取为具名常量；补全 `logging` 调用；归一化策略统一；补全类型注解。
+
+---
+
+## [0.1.0] — 2026-01-17
+
+**初始发布**
+
+### Added
+
+- **Sense-Think-Act 调度循环**（1 s tick）：`ContextManager` 聚合多路 Sensor，`Matcher` 余弦相似度选 Playlist，`Actuator` 调用 WE CLI。
+- **Sensor 感知层**：`WindowSensor`（前台进程/标题）、`IdleSensor`（Win32 鼠标/键盘空闲时长）、`CpuSensor`（滑动均值）、`WeatherSensor`（OWM 2.5 API）。
+- **Policy 策略层**：`ActivityPolicy`（进程/标题 → 标签，EMA 平滑）、`TimePolicy`（Hann 窗时段插值）、`SeasonPolicy`（Hann 窗季节插值）、`WeatherPolicy`（OWM 天气码强度模型）。
+- **DisturbanceController**：冷却时间 + 空闲检测 + 强制切换兜底，避免打扰用户。
+- **系统托盘 (pystray)**：运行状态图标、右键菜单（Pause / Resume / Exit）。
+- **WEExecutor**：封装 `wallpaper64.exe -control` CLI，支持 `openPlaylist` / `nextWallpaper`，进程存活检测与自动拉起。
+- **JSON 配置驱动**：`scheduler_config.json` 定义播放列表标签权重与所有策略参数。
+- **PyInstaller 打包**：`scripts/build.bat` 生成 `dist/WEScheduler.exe`。
+
+---
+
+[Unreleased]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.3.3...v0.4.0
+[0.3.3]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.2.2...v0.3.0
+[0.2.2]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/releases/tag/v0.1.0
