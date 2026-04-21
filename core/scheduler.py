@@ -14,7 +14,7 @@ from core.executor import WEExecutor
 from core.sensors import Sensor, WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor, TimeSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
 from core.context import ContextManager, Context
-from core.matcher import Matcher
+from core.matcher import Matcher, MatchResult
 from core.controller import SchedulingController
 from core.actuator import Actuator
 
@@ -49,21 +49,23 @@ class SchedulerState(BaseModel):
     paused: bool = False
     pause_until: float = 0.0
     current_playlist: str = ""
+    last_playlist_switch_time: float = 0.0
+    last_wallpaper_switch_time: float = 0.0
     
     @staticmethod
-    def load_state() -> SchedulerState:
+    def load_state(path: str = _STATE_FILE) -> SchedulerState:
         """Load persisted state from state.json. Returns defaults on any error."""
         try:
-            with open(_STATE_FILE, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 return SchedulerState.model_validate(json.load(f))
         except Exception:
             return SchedulerState()
         
     @staticmethod
-    def save_state(state: SchedulerState) -> None:
+    def save_state(state: SchedulerState, path: str = _STATE_FILE) -> None:
         """Persist state to state.json. Silently ignores write errors."""
         try:
-            with open(_STATE_FILE, "w", encoding="utf-8") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(state.model_dump_json(indent=2))
         except Exception:
             logger.warning("Failed to write state.json", exc_info=True)
@@ -110,21 +112,7 @@ class WEScheduler:
             self._build_runtime_components()
 
             # 4. Restore persisted state
-            state = SchedulerState.load_state()
-            self.current_playlist = state.current_playlist
-            if state.pause_until > time.time():
-                # Timed pause is still active — restore it
-                self.paused = True
-                self.pause_until = state.pause_until
-                logger.info(
-                    f"Restored timed pause (until "
-                    f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(state.pause_until))})."
-                )
-            elif state.paused and state.pause_until == 0:
-                # Indefinite pause was active, restore it
-                self.paused = True
-                self.pause_until = 0
-                logger.info("Restored indefinite pause.")
+            self._restore_state(SchedulerState.load_state())
 
             logger.info("Scheduler initialized successfully.")
             self.initialized = True
@@ -209,18 +197,16 @@ class WEScheduler:
                 context = self.context_manager.refresh()
                 
                 # 2. Think
-                aggregated_tags, best_playlist = self.matcher.match(context)
+                result = self.matcher.match(context)
                 
                 # 3. Act
-                new_playlist = self.actuator.act(
-                    context, aggregated_tags, best_playlist, self.current_playlist
-                )
+                new_playlist = self.actuator.act(context, result, self.current_playlist)
                 if new_playlist != self.current_playlist:
                     self.current_playlist = new_playlist
                     SchedulerState.save_state(self._build_state())
                 
                 # Status Update (for console/tray)
-                self._update_status(context, aggregated_tags, best_playlist)
+                self._update_status(context, result)
                 
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")
@@ -296,16 +282,52 @@ class WEScheduler:
             logger.exception("Hot reload failed, keeping previous config")
 
     def _build_state(self) -> SchedulerState:
-        """Returns a snapshot of the scheduler state suitable for persistence."""
+        """Returns a snapshot of the scheduler state suitable for persistence.
+        
+        Captures the current pause status, current playlist, and controller cooldown timestamps.
+        Safe to call any time after _build_runtime_components().
+        """
+        controller = self.actuator.controller
         return SchedulerState(
             paused=self.paused,
             pause_until=self.pause_until,
             current_playlist=self.current_playlist,
+            last_playlist_switch_time=controller.last_playlist_switch_time,
+            last_wallpaper_switch_time=controller.last_wallpaper_switch_time,
         )
 
-    def _update_status(self, context: Context, tags: Dict[str, float], decision: str):
+    def _restore_state(self, state: SchedulerState) -> None:
+        """Apply a persisted SchedulerState to the live scheduler and controller.
+
+        Restores pause status, current playlist, and controller cooldown
+        timestamps.  Safe to call any time after _build_runtime_components().
+        """
+        self.current_playlist = state.current_playlist
+
+        # Restore controller cooldown timestamps 
+        self.actuator.controller.import_state({
+            "last_playlist_switch_time": state.last_playlist_switch_time,
+            "last_wallpaper_switch_time": state.last_wallpaper_switch_time,
+        })
+
+        # Restore pause state
+        if state.pause_until > time.time():
+            self.paused = True
+            self.pause_until = state.pause_until
+            logger.info(
+                "Restored timed pause (until %s).",
+                time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(state.pause_until)),
+            )
+        elif state.paused and state.pause_until == 0:
+            self.paused = True
+            self.pause_until = 0
+            logger.info("Restored indefinite pause.")
+
+    def _update_status(self, context: Context, result: Optional[MatchResult]) -> None:
         process_name = context.window.process or "N/A"
         idle_time = context.idle
+        decision = result.best_playlist if result is not None else None
+        tags = result.aggregated_tags if result is not None else {}
         sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:3]
         
         tag_parts = []

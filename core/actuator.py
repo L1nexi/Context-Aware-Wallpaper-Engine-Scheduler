@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from core.executor import WEExecutor
 from core.controller import SchedulingController
 from core.context import Context
+from core.matcher import MatchResult
 from utils.app_context import get_app_root
 
 logger = logging.getLogger("WEScheduler.Actuator")
@@ -22,13 +23,16 @@ class Actuator:
         self.executor = executor
         self.controller = controller
 
-    def act(self, context: Context, aggregated_tags: Dict[str, float], best_playlist: Optional[str], current_playlist: str) -> str:
+    def act(self, context: Context, result: Optional[MatchResult], current_playlist: str) -> str:
         """
         Decides and executes the appropriate action.
         Returns the new (or unchanged) current_playlist.
         """
-        if not best_playlist:
+        if result is None:
             return current_playlist
+
+        best_playlist = result.best_playlist
+        aggregated_tags = result.aggregated_tags
 
         # Helper to format tags for logging
         def log_tags():

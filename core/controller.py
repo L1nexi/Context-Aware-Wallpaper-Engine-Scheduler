@@ -124,6 +124,10 @@ class SchedulingController:
         idle_time = context.idle
         if idle_time >= self.idle_threshold:
             return True
+        
+        # note: cycle do not have a force-switch
+        # since we force-switch only to match scenario changes,
+        # not to keep wallpapers fresh during stable scenarios
             
         return False
 

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import math
 import logging
-from typing import TYPE_CHECKING, List, Dict, Any, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, List, Dict, Optional
 
 if TYPE_CHECKING:
     from core.policies import Policy
@@ -16,6 +17,14 @@ logger = logging.getLogger("WEScheduler.Matcher")
 # Below this threshold the environment vector is too orthogonal to all
 # playlists to produce a meaningful selection.
 _MIN_SIMILARITY = 0.001
+
+
+@dataclass
+class MatchResult:
+    """Output of Matcher.match(): the best playlist choice plus diagnostics."""
+    best_playlist: str
+    similarity: float
+    aggregated_tags: Dict[str, float] = field(default_factory=dict)
 
 
 class Matcher:
@@ -56,8 +65,12 @@ class Matcher:
             else:
                 logger.warning(f"Playlist '{pl.name}' has no valid tags or zero weights.")
 
-    def match(self, context: Context) -> Tuple[Dict[str, float], Optional[str]]:
+    def match(self, context: Context) -> Optional[MatchResult]:
         """Run the full Think pipeline for one tick.
+
+        Returns a :class:`MatchResult` when a valid playlist is found, or
+        ``None`` when the environment vector is zero / below the similarity
+        threshold (i.e. no policy is producing meaningful output).
 
         Steps:
           1. Evaluate each Policy against *context*, collect per-policy dicts.
@@ -80,7 +93,7 @@ class Matcher:
                     aggregated_tags[tag] = aggregated_tags.get(tag, 0.0) + w
 
         if not self.playlist_vectors:
-            return aggregated_tags, None
+            return None
 
         # ── Step 3: per-sub-vector projection + norm-preserving compensation ─
         # Each sub-vector is an independent energy source.  Compensation for
@@ -123,11 +136,11 @@ class Matcher:
 
 
         if not any_valid:
-            return aggregated_tags, None
+            return None
 
         norm_env = math.sqrt(sum(x * x for x in v_env))
         if norm_env < 1e-6:
-            return aggregated_tags, None
+            return None
 
         v_env = [x / norm_env for x in v_env]
 
@@ -140,8 +153,12 @@ class Matcher:
                 best_score = similarity
                 best_playlist = name
 
-        if best_score <= _MIN_SIMILARITY:
-            best_playlist = None
+        if best_score <= _MIN_SIMILARITY or best_playlist is None:
+            return None
 
-        return aggregated_tags, best_playlist
+        return MatchResult(
+            best_playlist=best_playlist,
+            similarity=best_score,
+            aggregated_tags=aggregated_tags,
+        )
 
