@@ -51,6 +51,11 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "minutes":                 {"en": "Minutes:",          "zh": "分钟:"},
     "ok":                      {"en": "OK",                "zh": "确定"},
     "cancel":                  {"en": "Cancel",            "zh": "取消"},
+
+    # -- Startup error dialog --
+    "startup_error_title":     {"en": "Startup Failed",                    "zh": "启动失败"},
+    "startup_error_body":      {"en": "Scheduler failed to start.\n\n{detail}\n\nCheck the log for details.",
+                                "zh": "调度器启动失败。\n\n{detail}\n\n请查看日志获取详情。"},
 }
 
 

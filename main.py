@@ -21,8 +21,22 @@ if not getattr(sys, 'frozen', False):
 
 from utils.app_context import get_app_root
 from utils.logger import setup_logger
+from utils.i18n import t
 from core.scheduler import WEScheduler
 from core.tray import TrayIcon
+
+def _show_error(detail: str) -> None:
+    """Show a native error dialog, then exit. Works with or without a tray."""
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        messagebox.showerror(t("startup_error_title"), t("startup_error_body", detail=detail))
+        root.destroy()
+    except Exception:
+        pass  # headless / tkinter unavailable — error is already in the log
 
 def main() -> None:
     logger = setup_logger()
@@ -40,9 +54,13 @@ def main() -> None:
 
     # Initialize Scheduler
     scheduler = WEScheduler(config_path)
-    
-    if not scheduler.initialize():
-        logger.critical("Failed to initialize scheduler. Exiting.")
+
+    try:
+        scheduler.initialize()
+    except Exception as e:
+        msg = str(e)
+        logger.critical(f"Failed to initialize scheduler: {msg}")
+        _show_error(msg)
         sys.exit(1)
 
     # Start Scheduler Loop (in background thread)

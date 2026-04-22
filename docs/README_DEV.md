@@ -527,11 +527,107 @@ for name, field_info in SchedulingConfig.model_fields.items():
 
 GUI 保存配置后只需写入 `scheduler_config.json`——调度器的热重载机制（`_hot_reload`，每 tick 检查 `getmtime`）会自动检测变更并无缝重建运行时组件，**无需 GUI 与调度器之间的直接通信**。
 
-### 12.5 Roadmap 定位
+## 12. 配置 GUI 开发方向 (规划)
 
-建议作为 **Phase 6** 交付：
+### 12.1 可行性依据
 
-1. 实现 `SchedulingConfig` 的自动化表单（最简可行产品）。
-2. 扩展到 `TimePolicyConfig` / `WeatherPolicyConfig`。
-3. 实现 `playlists` 的可视化编辑（列表 + 标签权重滑块）。
-4. 整合进系统托盘菜单（「设置...」菜单项打开 GUI）。
+`AppConfig` 已迁移至 Pydantic v2 `BaseModel`，所有配置字段均带有类型注解、`Field(...)` 约束（`ge`, `le`, `gt`, `lt`, `min_length`）以及中文语义化字段名。这使得从模型定义**自动推导 UI 控件**成为可能，无需手写表单布局。
+
+### 12.2 自动表单生成思路
+
+```python
+# 遍历 AppConfig.model_fields 即可得到所有顶层字段的元数据
+for name, field_info in SchedulingConfig.model_fields.items():
+    annotation = field_info.annotation        # int / float / bool / str
+    default    = field_info.default           # 默认值
+    ge, le     = field_info.metadata[...].ge, # 通过 FieldInfo.metadata 取约束
+```
+
+控件映射建议：
+
+| Pydantic 类型 + 约束    | 推荐 UI 控件              |
+| ----------------------- | ------------------------- |
+| `bool`                  | `ttk.Checkbutton`         |
+| `float` / `int` + ge/le | `ttk.Scale` + 数字输入框  |
+| `str` (min_length=1)    | `ttk.Entry`               |
+| `Dict[str, str]`        | 可编辑的键值对列表        |
+| `List[PlaylistConfig]`  | 多行列表 + 展开编辑子面板 |
+
+### 12.3 实现方案选型
+
+| 方案             | 优点                      | 缺点                                  |
+| ---------------- | ------------------------- | ------------------------------------- |
+| **tkinter**      | 零依赖，已在 tray.py 引入 | 原生控件丑陋，布局繁琐                |
+| **webview**      | HTML/CSS 自由布局，美观   | 需引入 `pywebview` 或 `webview2` 依赖 |
+| **ttkbootstrap** | tkinter 超集，现代主题    | 多一个依赖，打包体积略增              |
+
+**推荐路径：** 先用原生 `tkinter` + `ttk` 实现功能完整的原型（与 tray.py 共用同一 tk 根），验证表单生成逻辑后再考虑美化框架。
+
+### 12.4 热重载集成
+
+GUI 保存配置后只需写入 `scheduler_config.json`——调度器的热重载机制（`_hot_reload`，每 tick 检查 `getmtime`）会自动检测变更并无缝重建运行时组件，**无需 GUI 与调度器之间的直接通信**。
+
+### 12.5 技术路线图
+
+#### 阶段一：MVP 配置编辑器（本地 tkinter）
+
+**目标：** 能打开、编辑、保存 `scheduler_config.json`，并给出校验反馈。
+
+**技术选择：** 原生 `tkinter` + `ttk`（零新依赖）
+
+| 子任务                       | 说明                                                                |
+| ---------------------------- | ------------------------------------------------------------------- |
+| `ConfigEditorWindow` 窗口类  | 置于 `core/config_editor.py`；从托盘「设置...」入口打开             |
+| 通用表单生成器 `FormBuilder` | 遍历 `model_fields`，按控件映射表自动生成控件                       |
+| `SchedulingConfig` 面板      | 作为首个具体面板验证 FormBuilder                                    |
+| 策略参数面板                 | `TimePolicyConfig` / `ActivityPolicyConfig` / `WeatherPolicyConfig` |
+| 保存 + 校验                  | `model_validate()` 验证后写 JSON；Pydantic 错误以红字内联显示       |
+
+**不做的事：** playlists 可视化编辑、标签编辑（留下一阶段）。
+
+**入口：** 托盘菜单追加「设置...」(`open_settings`) 菜单项，调用 `ConfigEditorWindow.open()`。
+
+---
+
+#### 阶段二：播放列表与标签编辑
+
+**目标：** 以图形界面管理 `playlists[]` 和 `tags{}`，免手写 JSON。
+
+| 子任务             | 说明                                                      |
+| ------------------ | --------------------------------------------------------- |
+| 播放列表列表视图   | `ttk.Treeview`，支持增删排序                              |
+| 播放列表详情面板   | `name`、`path`、标签权重列表（带滑块）；可内联折叠        |
+| 标签 fallback 编辑 | `tags` 块：每个标签显示其 fallback 链，支持增删 key-value |
+| 实时预览向量       | 输入标签 → 立即显示 Matcher 解析后的展开向量（调试辅助）  |
+
+**依赖阶段一完成。**
+
+---
+
+#### 阶段三（可选）：WebView 前端升级
+
+**目标：** 换用 HTML/CSS/JS 前端，实现更现代的 UI，保持后端不变。
+
+**技术选择：** [`pywebview`](https://pywebview.flowrl.com/) + 轻量前端框架（如 Alpine.js / Vue 3 CDN）
+
+架构：
+
+```
+TrayIcon
+  └─ webview.create_window(url="data:text/html,...")
+       └─ JS ↔ Python Bridge (window.pywebview.api.*)
+              └─ 读写 scheduler_config.json
+```
+
+触发条件：阶段一/二完成且用户有美化需求时再投入。  
+**当前不建议直接跳过阶段一** —— tkinter 原型成本低，可快速验证表单生成逻辑。
+
+---
+
+#### 里程碑一览
+
+| 阶段        | 预期可见成果                                       |
+| ----------- | -------------------------------------------------- |
+| **Phase 1** | 托盘「设置...」打开窗口，可修改调度/策略参数并保存 |
+| **Phase 2** | 可视化管理播放列表和标签 fallback 链               |
+| **Phase 3** | （可选）现代化 WebView 外观                        |

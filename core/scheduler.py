@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Type
 
 from utils.config_loader import ConfigLoader
-from utils.app_context import get_app_root
+from utils.app_context import get_app_root, get_data_dir
 from core.executor import WEExecutor
 from core.sensors import Sensor, WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor, TimeSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
@@ -41,7 +41,7 @@ _SENSOR_REGISTRY: List[Type[Sensor]] = [
     TimeSensor,
 ]
 
-_STATE_FILE = os.path.join(get_app_root(), "state.json")
+_STATE_FILE = os.path.join(get_data_dir(), "state.json")
 
 
 class SchedulerState(BaseModel):
@@ -97,29 +97,25 @@ class WEScheduler:
         self._config_mtime: float = 0.0
 
     def initialize(self) -> bool:
-        """Initializes all components. Returns True if successful."""
-        try:
-            # 1. Load Config
-            self.config_loader = ConfigLoader(self.config_path)
-            config = self.config_loader.load()
-            self._config_mtime = os.path.getmtime(self.config_path)
-            logger.info(f"Loaded {len(config.playlists)} playlists.")
+        """Initializes all components. Returns True if successful, raises on failure."""
+        # 1. Load Config
+        self.config_loader = ConfigLoader(self.config_path)
+        config = self.config_loader.load()
+        self._config_mtime = os.path.getmtime(self.config_path)
+        logger.info(f"Loaded {len(config.playlists)} playlists.")
 
-            # 2. Initialize Executor
-            self.executor = WEExecutor(config.wallpaper_engine_path)
+        # 2. Initialize Executor
+        self.executor = WEExecutor(config.wallpaper_engine_path)
 
-            # 3. Build all runtime components (sensors, policies, matcher, controller, actuator)
-            self._build_runtime_components()
+        # 3. Build all runtime components (sensors, policies, matcher, controller, actuator)
+        self._build_runtime_components()
 
-            # 4. Restore persisted state
-            self._restore_state(SchedulerState.load_state())
+        # 4. Restore persisted state
+        self._restore_state(SchedulerState.load_state())
 
-            logger.info("Scheduler initialized successfully.")
-            self.initialized = True
-            return True
-        except Exception as e:
-            logger.error(f"Initialization failed: {e}")
-            return False
+        logger.info("Scheduler initialized successfully.")
+        self.initialized = True
+        return True
 
     def start(self):
         if self.running:

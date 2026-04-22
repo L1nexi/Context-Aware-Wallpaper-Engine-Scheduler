@@ -7,11 +7,11 @@ from core.executor import WEExecutor
 from core.controller import SchedulingController
 from core.context import Context
 from core.matcher import MatchResult
-from utils.app_context import get_app_root
+from utils.app_context import get_data_dir
 
 logger = logging.getLogger("WEScheduler.Actuator")
 
-_HISTORY_FILE = os.path.join(get_app_root(), "history.jsonl")
+_HISTORY_FILE = os.path.join(get_data_dir(), "history.jsonl")
 
 class Actuator:
     """
