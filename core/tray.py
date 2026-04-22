@@ -149,6 +149,23 @@ class TrayIcon:
         # Let the scheduler notify us when a timed pause auto-expires.
         self.scheduler.on_auto_resume = self._sync_icon
 
+    @staticmethod
+    def show_startup_error(detail: str) -> None:
+        """Show a native error dialog when tray-mode startup fails.
+
+        Only called in tray mode (--no-tray lets the exception surface
+        naturally in the console).
+        """
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            from tkinter import messagebox
+            messagebox.showerror(t("startup_error_title"), t("startup_error_body", detail=detail))
+            root.destroy()
+        except Exception:
+            pass  # tkinter unavailable — error already in log
+
     # ── Helpers ──────────────────────────────────────────────────
 
     def _open_file(self, path: str):
