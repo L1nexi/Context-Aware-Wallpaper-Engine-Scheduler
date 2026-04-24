@@ -47,6 +47,7 @@ import argparse
 import json
 import math
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 
@@ -57,10 +58,10 @@ from typing import Dict, List, Optional, Tuple
 # ======================================================================
 
 POLICY_WEIGHTS = {
-    "time":     0.8,   # TimePolicy     ||v|| is always 0.800
-    "season":   0.6,   # SeasonPolicy   ||v|| is always 0.600
-    "activity": 1.2,   # ActivityPolicy ||v|| = 0 (idle) or 1.200 (active)
-    "weather":  1.5,   # WeatherPolicy  ||v|| = raw_intensity x 1.5
+    "time":     0.8,   # TimePolicy     ||contrib|| = salience * 0.8  (0.4–0.8)
+    "season":   0.6,   # SeasonPolicy   ||contrib|| = salience * 0.6  (0.3–0.6)
+    "activity": 1.2,   # ActivityPolicy ||contrib|| = intensity * 1.2 (0 idle, 1.2 active)
+    "weather":  1.5,   # WeatherPolicy  ||contrib|| = raw_norm * 1.5
 }
 
 
@@ -84,28 +85,46 @@ def _l2(v: Dict[str, float]) -> float:
     return math.sqrt(sum(w * w for w in v.values())) if v else 0.0
 
 
-def _normalize_and_scale(raw: Dict[str, float], ws: float) -> Dict[str, float]:
-    """L2-normalize then multiply by ws, so ||output|| == ws."""
-    n = _l2(raw)
-    return {t: (w / n) * ws for t, w in raw.items()} if n > 1e-6 else {}
+def _l2_normalize(v: Dict[str, float]) -> Dict[str, float]:
+    """L2-normalize a tag vector. Returns empty dict if near-zero."""
+    n = _l2(v)
+    return {t: w / n for t, w in v.items()} if n > 1e-6 else {}
+
+
+@dataclass
+class SimPolicyOutput:
+    """Mirrors core/policies.PolicyOutput for offline simulation."""
+    direction: Dict[str, float]   # L2-normalized
+    salience: float = 1.0         # [0, 1]
+    intensity: float = 1.0        # [0, ∞) — WeatherPolicy can exceed 1.0
+
+
+def _contribute(output: SimPolicyOutput, ws: float) -> Dict[str, float]:
+    """Compute contribution vector: direction * salience * intensity * ws."""
+    scale = output.salience * output.intensity * ws
+    return {t: w * scale for t, w in output.direction.items()}
 
 
 # -- TimePolicy ----------------------------------------------------------
 #  4 peaks evenly distributed on the 24h circle; half-bandwidth H = 6h.
 #  Default day_start=8, night_start=20 gives peaks:
 #    #dawn=8, #day=14, #sunset=20, #night=2
+#
+#  Semantic output: direction = normalized Hann weights,
+#                   salience  = peak Hann value (1.0 at peak, <1 at transitions),
+#                   intensity = 1.0 (time is always present)
 
 def time_output(
     hour: float,
     day_start: int = 8,
     night_start: int = 20,
-    ws: float = POLICY_WEIGHTS["time"],
-) -> Dict[str, float]:
+) -> SimPolicyOutput:
     """
-    Returns the time tag vector for the given hour. ||v|| == ws == 0.8.
+    Returns the time SimPolicyOutput for the given hour.
 
-    day_start  : hour when "daytime" begins (maps to #dawn peak)
-    night_start: hour when "night" begins (maps to #sunset peak)
+    direction : L2-normalized Hann window weights over #dawn/#day/#sunset/#night
+    salience  : peak Hann value — high at period centers, low at transitions
+    intensity : 1.0 (time signal is always present)
     """
     day_span = (night_start - day_start) % 24
     night_span = 24 - day_span
@@ -116,61 +135,82 @@ def time_output(
         "#night":  (night_start + night_span / 2) % 24,
     }
     H = 24 / len(peaks)  # half-bandwidth = 6h
-    raw = {tag: w for tag, peak in peaks.items()
-           if (w := _hann(_circ(hour, peak, 24), H)) > 1e-4}
-    return _normalize_and_scale(raw, ws)
+    raw = {}
+    best_w = 0.0
+    for tag, peak in peaks.items():
+        w = _hann(_circ(hour, peak, 24), H)
+        if w > 1e-4:
+            raw[tag] = w
+            if w > best_w:
+                best_w = w
+    direction = _l2_normalize(raw)
+    return SimPolicyOutput(direction=direction, salience=best_w, intensity=1.0)
 
 
 # -- SeasonPolicy --------------------------------------------------------
 #  4 peaks on the 365d circle; half-bandwidth H ~= 91.25d (one quarter-year).
 #  Peaks: spring=80 (Mar-21), summer=172 (Jun-21),
 #         autumn=265 (Sep-22),  winter=355 (Dec-21)
+#
+#  Semantic output: same pattern as TimePolicy.
 
 _SEASON_PEAKS = {"#spring": 80, "#summer": 172, "#autumn": 265, "#winter": 355}
 
-def season_output(
-    doy: int,
-    ws: float = POLICY_WEIGHTS["season"],
-) -> Dict[str, float]:
+def season_output(doy: int) -> SimPolicyOutput:
     """
-    Returns the season tag vector for day-of-year doy. ||v|| == ws == 0.6.
+    Returns the season SimPolicyOutput for day-of-year doy.
+
+    direction : L2-normalized Hann window weights over #spring/#summer/#autumn/#winter
+    salience  : peak Hann value
+    intensity : 1.0
 
     doy: day of year (1-365).  Quick reference:
          80=Mar-21  95=Apr-05  172=Jun-21  265=Sep-22  355=Dec-21
     """
     H = 365 / len(_SEASON_PEAKS)  # ~91.25d
-    raw = {tag: w for tag, peak in _SEASON_PEAKS.items()
-           if (w := _hann(_circ(doy, peak, 365), H)) > 1e-4}
-    return _normalize_and_scale(raw, ws)
+    raw = {}
+    best_w = 0.0
+    for tag, peak in _SEASON_PEAKS.items():
+        w = _hann(_circ(doy, peak, 365), H)
+        if w > 1e-4:
+            raw[tag] = w
+            if w > best_w:
+                best_w = w
+    direction = _l2_normalize(raw)
+    return SimPolicyOutput(direction=direction, salience=best_w, intensity=1.0)
 
 
 # -- ActivityPolicy ------------------------------------------------------
 #  Assumes EMA has fully converged (steady state).
-#  No L2 normalization: ||v|| = ws when active, 0 when idle.
+#  direction = unit tag, salience = 1.0, intensity = 1.0.
+#  For partial convergence (EMA in transition), set intensity < 1.0.
 
-def activity_output(
-    tag: Optional[str],
-    ws: float = POLICY_WEIGHTS["activity"],
-) -> Dict[str, float]:
+def activity_output(tag: Optional[str]) -> Optional[SimPolicyOutput]:
     """
-    Returns steady-state activity tag vector.
+    Returns steady-state activity SimPolicyOutput.
 
     tag: "#focus" | "#chill" | None (idle)
+    Returns None when idle (no activity signal).
     """
-    return {tag: ws} if tag else {}
+    if not tag:
+        return None
+    return SimPolicyOutput(direction={tag: 1.0}, salience=1.0, intensity=1.0)
 
 
 # -- WeatherPolicy -------------------------------------------------------
-#  Intensity model (no L2 normalization): raw intensity in [0.0, 1.0],
-#  multiplied by ws.  Intensity tiers used in WEATHER_PRESETS below:
-#    T1 (0.25) - barely noticeable  (light drizzle, haze)
-#    T2 (0.50) - ambient / baseline (clear sky, light cloud)
-#    T3 (0.75) - noticeable         (heavy rain, fog, moderate storm)
-#    T4 (1.00) - dominant / extreme (extreme rain, heavy snow, heavy storm)
+#  Semantic decomposition:
+#    direction = L2-normalized tag vector (weather type)
+#    salience  = 1.0 (weather IDs are unambiguous)
+#    intensity = L2 norm of raw vector (physical severity, unclamped)
 #
-#  IMPORTANT: clear sky (#clear) is intentionally capped at T2 (0.50).
-#  Before the v1.1.0 fix it was T4 (1.00), giving effective signal 1.5,
-#  which exceeded Activity max (1.2) and overpowered focus/chill signals.
+#  Intensity tiers visible in raw norms:
+#    T1 (~0.25) - barely noticeable  (light drizzle, haze)
+#    T2 (~0.50) - ambient / baseline (clear sky, light cloud)
+#    T3 (~0.75) - noticeable         (heavy rain, fog, moderate storm)
+#    T4 (~1.00+) - dominant / extreme (extreme rain, heavy snow, heavy storm)
+#
+#  IMPORTANT: clear sky (#clear) is intentionally T2 (raw=0.50, intensity=0.50).
+#  Before the v1.1.0 fix it was T4 (1.00), which overpowered focus/chill signals.
 #  To simulate old behavior: pass clear_intensity=2.0 to weather_output().
 
 WEATHER_PRESETS: Dict[str, Dict[str, float]] = {
@@ -208,20 +248,29 @@ WEATHER_PRESETS: Dict[str, Dict[str, float]] = {
 
 def weather_output(
     preset: str,
-    ws: float = POLICY_WEIGHTS["weather"],
     clear_intensity: float = 1.0,
-) -> Dict[str, float]:
+) -> Optional[SimPolicyOutput]:
     """
-    Returns the weather tag vector (no L2 normalization).
+    Returns the weather SimPolicyOutput.
 
+    direction       : L2-normalized weather type
+    salience        : 1.0 (weather codes are unambiguous)
+    intensity       : L2 norm of raw vector (physical severity, unclamped)
     preset          : key in WEATHER_PRESETS
     clear_intensity : multiplier for all #clear values
                       (1.0 = as-is; 2.0 = restore old T4 behavior)
+    Returns None for "none" or empty presets.
     """
     raw = dict(WEATHER_PRESETS.get(preset, {}))
+    if not raw:
+        return None
     if "#clear" in raw and clear_intensity != 1.0:
         raw["#clear"] = raw["#clear"] * clear_intensity
-    return {t: w * ws for t, w in raw.items()}
+    norm = _l2(raw)
+    if norm < 1e-6:
+        return None
+    direction = {t: w / norm for t, w in raw.items()}
+    return SimPolicyOutput(direction=direction, salience=1.0, intensity=norm)
 
 
 # ======================================================================
@@ -236,8 +285,8 @@ def env_vector(
     clear_intensity: float = 1.0,
 ) -> Dict[str, float]:
     """
-    Sums all four Policy outputs into a single environment vector.
-    Mirrors core/arbiter.py behavior (direct sum, no averaging).
+    Sums all four Policy contributions into a single environment vector.
+    Mirrors core/matcher.py aggregation: direction * salience * intensity * ws.
 
     hour            : current hour (0-23)
     doy             : day of year (1-365)
@@ -246,14 +295,16 @@ def env_vector(
     clear_intensity : multiplier forwarded to weather_output
     """
     v: Dict[str, float] = {}
-    for src in [
-        time_output(hour),
-        season_output(doy),
-        activity_output(activity),
-        weather_output(weather, clear_intensity=clear_intensity),
-    ]:
-        for t, w in src.items():
-            v[t] = v.get(t, 0.0) + w
+    sources = [
+        (time_output(hour),                                    POLICY_WEIGHTS["time"]),
+        (season_output(doy),                                   POLICY_WEIGHTS["season"]),
+        (activity_output(activity),                            POLICY_WEIGHTS["activity"]),
+        (weather_output(weather, clear_intensity=clear_intensity), POLICY_WEIGHTS["weather"]),
+    ]
+    for output, ws in sources:
+        if output is not None:
+            for t, w in _contribute(output, ws).items():
+                v[t] = v.get(t, 0.0) + w
     return v
 
 
@@ -284,15 +335,18 @@ def rank_playlists(
 #
 #  Format: (playlist_name, {tag: weight, ...})
 #
-#  Weight guidelines vs. effective signal magnitudes (after #clear fix):
+#  Weight guidelines vs. effective signal magnitudes:
 #
-#    Signal              Max ||v||
-#    ------------------  ---------
-#    #focus / #chill      1.200   (ActivityPolicy ws=1.2)
-#    #rain  (mod_rain)    0.975   (#rain:0.65 x ws:1.5)
-#    #day   / #night      0.800   (TimePolicy ws=0.8)
-#    #clear (clear sky)   0.750   (#clear:0.50 x ws:1.5, T2-capped)
-#    #spring / ...        0.600   (SeasonPolicy ws=0.6)
+#    Signal              Max ||contrib||    Note
+#    ------------------  ---------------   ------
+#    #focus / #chill      1.200             ActivityPolicy ws=1.2, steady-state
+#    #rain  (mod_rain)    0.975             #rain:0.65 → norm=0.65, × ws:1.5
+#    #day   / #night      0.800             TimePolicy ws=0.8, at period peak (sal=1.0)
+#    #clear (clear sky)   0.750             #clear:0.50 → norm=0.50, × ws:1.5
+#    #spring / ...        0.600             SeasonPolicy ws=0.6, at peak (sal=1.0)
+#
+#  NOTE: Time/Season magnitudes drop at transitions (sal < 1.0).
+#  At transition midpoints, sal ≈ 0.5, so ||contrib|| ≈ half of peak.
 #
 #  Design rules:
 #  1. Never put both #focus and #chill in the same playlist (direction conflict)
@@ -446,37 +500,46 @@ _BUILTIN_V100: List[Tuple[str, Dict[str, float]]] = [
 def show_policy_outputs() -> None:
     """Print per-Policy output vectors at key time/season/weather points."""
 
-    def _fmt(v: Dict[str, float]) -> str:
-        if not v:
-            return "{}  ||v||=0.000"
-        items = ", ".join(f"{t}: {w:.3f}" for t, w in sorted(v.items(), key=lambda x: -x[1]))
-        return f"{{ {items} }}  ||v||={_l2(v):.3f}"
+    def _fmt_output(output: Optional[SimPolicyOutput], ws: float) -> str:
+        if output is None:
+            return "None"
+        dir_str = ", ".join(f"{t}:{w:.2f}" for t, w in
+                            sorted(output.direction.items(), key=lambda x: -x[1]))
+        contrib = _contribute(output, ws)
+        c_norm = _l2(contrib)
+        return (f"dir={{{dir_str}}}  "
+                f"sal={output.salience:.3f}  int={output.intensity:.3f}  "
+                f"||c||={c_norm:.3f}")
 
-    print("\n" + "=" * 72)
-    print("  POLICY OUTPUT DIAGNOSTICS")
-    print("=" * 72)
+    print("\n" + "=" * 80)
+    print("  POLICY OUTPUT DIAGNOSTICS (semantic decomposition)")
+    print("=" * 80)
 
-    print(f"\n-- TimePolicy (ws={POLICY_WEIGHTS['time']}, day_start=8, night_start=20) --")
+    ws_t = POLICY_WEIGHTS['time']
+    print(f"\n-- TimePolicy (ws={ws_t}, day_start=8, night_start=20) --")
     for hour, label in [(8, "08:00 dawn"), (14, "14:00 day"), (17, "17:00 ->sunset"),
                         (20, "20:00 sunset"), (23, "23:00 night"), (2, "02:00 deep night")]:
-        print(f"  {label:<22s} {_fmt(time_output(hour))}")
+        print(f"  {label:<22s} {_fmt_output(time_output(hour), ws_t)}")
 
-    print(f"\n-- SeasonPolicy (ws={POLICY_WEIGHTS['season']}) --")
+    ws_s = POLICY_WEIGHTS['season']
+    print(f"\n-- SeasonPolicy (ws={ws_s}) --")
     for doy, label in [(80, "Mar-21 spring equinox"), (95, "Apr-05 spring"),
                        (127, "May-07 spring->summer"), (172, "Jun-21 summer solstice"),
                        (265, "Sep-22 autumn equinox"), (310, "Nov-06 autumn->winter"),
                        (355, "Dec-21 winter solstice"), (35, "Feb-04 winter->spring")]:
-        print(f"  {label:<28s} {_fmt(season_output(doy))}")
+        print(f"  {label:<28s} {_fmt_output(season_output(doy), ws_s)}")
 
-    print(f"\n-- WeatherPolicy (ws={POLICY_WEIGHTS['weather']}) --")
+    ws_w = POLICY_WEIGHTS['weather']
+    print(f"\n-- WeatherPolicy (ws={ws_w}) --")
     for preset in ["clear", "few_clouds", "scattered", "overcast",
                    "light_drizzle", "drizzle", "mod_rain", "heavy_rain",
                    "light_snow", "heavy_snow", "storm+rain", "fog", "none"]:
-        print(f"  {preset:<18s} {_fmt(weather_output(preset))}")
+        print(f"  {preset:<18s} {_fmt_output(weather_output(preset), ws_w)}")
 
-    print(f"\n-- ActivityPolicy (ws={POLICY_WEIGHTS['activity']}) --")
+    ws_a = POLICY_WEIGHTS['activity']
+    print(f"\n-- ActivityPolicy (ws={ws_a}) --")
     for tag in ["#focus", "#chill", None]:
-        print(f"  tag={str(tag):<10s} {_fmt(activity_output(tag))}")
+        print(f"  tag={str(tag):<10s} {_fmt_output(activity_output(tag), ws_a)}")
 
 
 # ======================================================================

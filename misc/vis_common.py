@@ -25,6 +25,7 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 
 from sim_match import (
     env_vector, rank_playlists, CUSTOM_PLAYLISTS,
+    SimPolicyOutput, _contribute,
     time_output, season_output, activity_output, weather_output,
     POLICY_WEIGHTS, WEATHER_PRESETS,
 )
@@ -120,20 +121,23 @@ def winner_idx_ex(
     """连续 activity 强度版本。
 
     act_strength 取值 [-1, +1]:
-      -1.0 = 完全 #chill  (ws = 1.2)
+      -1.0 = 完全 #chill  (intensity = 1.0)
        0.0 = idle          (无 activity 信号)
-      +1.0 = 完全 #focus  (ws = 1.2)
+      +1.0 = 完全 #focus  (intensity = 1.0)
 
-    中间值表示 EMA 还在爬升 / 衰减过程中的部分信号。
+    中间值映射到 intensity（EMA 收敛程度），而非 weight_scale。
     """
     ev: dict[str, float] = {}
-    _merge(ev, time_output(hour))
-    _merge(ev, season_output(doy))
+    _merge(ev, _contribute(time_output(hour), POLICY_WEIGHTS["time"]))
+    _merge(ev, _contribute(season_output(doy), POLICY_WEIGHTS["season"]))
     if abs(act_strength) > 0.01:
         tag = "#focus" if act_strength > 0 else "#chill"
-        ws = abs(act_strength) * POLICY_WEIGHTS["activity"]
-        _merge(ev, activity_output(tag, ws=ws))
-    _merge(ev, weather_output(weather))
+        output = activity_output(tag)
+        output.intensity = abs(act_strength)
+        _merge(ev, _contribute(output, POLICY_WEIGHTS["activity"]))
+    wx_output = weather_output(weather)
+    if wx_output is not None:
+        _merge(ev, _contribute(wx_output, POLICY_WEIGHTS["weather"]))
     return PLAYLIST_NAMES.index(rank_playlists(CUSTOM_PLAYLISTS, ev)[0][0])
 
 
