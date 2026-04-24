@@ -325,15 +325,17 @@ class WEScheduler:
         decision = result.best_playlist if result is not None else None
         tags = result.aggregated_tags if result is not None else {}
         sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:3]
-        
+
         tag_parts = []
         for tag, weight in sorted_tags:
-            bar_len = int(min(weight, 1.5) * 5) 
+            bar_len = int(min(weight, 1.5) * 5)
             bar = "■" * bar_len
-            tag_parts.append(f"{tag} {weight:.1f} {bar}")
-        
+            tag_parts.append(f"{tag} {weight:.2f} {bar}")
+
         tag_str = " | ".join(tag_parts)
-        self.last_status_line = f"[{decision or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}"
-        # Print to console if not frozen (PyInstaller)
+        gap_str = f" gap={result.similarity_gap:.2f}" if result is not None else ""
+        self.last_status_line = (
+            f"[{decision or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}{gap_str}"
+        )
         if not getattr(sys, 'frozen', False):
-            print(f"\r{self.last_status_line:<100}", end="", flush=True)
+            print(f"\r{self.last_status_line:<110}", end="", flush=True)

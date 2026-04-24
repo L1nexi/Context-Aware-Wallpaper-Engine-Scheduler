@@ -185,33 +185,6 @@ def get_output(self, context: Context) -> Optional[PolicyOutput]:
 
 Fallback（降级/回退）语义（已确认）：**强度沿着 fallback 边以基于权重的衰减方式传输。** 当 `#storm`（强度=1.0） fallback 到 `#rain`（权重=0.8）时，`#rain` 的贡献获得的强度为 0.8。这与暴风雨意味着大雨的物理直觉相一致。
 
-### 4.2 新增：领域分组（Domain Grouping）
-
-```json
-{
-  "#rain": { "domain": "weather", "fallback": { "#chill": 0.2 } },
-  "#storm": { "domain": "weather", "fallback": { "#rain": 0.8 } },
-  "#dawn": { "domain": "time" },
-  "#day": { "domain": "time" },
-  "#focus": { "domain": "activity" }
-}
-```
-
-**领域（Domain）**是一个组织属性，而不是运行时约束。它将标签分为不同的语义家族：
-
-- `weather`: `#rain`, `#snow`, `#storm`, `#fog`, `#clear`, `#cloudy`
-- `time`: `#dawn`, `#day`, `#sunset`, `#night`
-- `season`: `#spring`, `#summer`, `#autumn`, `#winter`
-- `activity`: `#focus`, `#chill`, `#media` 等（用户定义）
-
-**设计约束**：跨不同领域的标签不重叠。每个标签仅属于一个确切的领域。
-
-**验证**：纯粹是一种约定，不进行运行时强制检查。Domain 信息用于文档说明、未来的工具开发以及潜在的未来支持感知 domain 的聚合逻辑。
-
-### 4.3 对立关系（Opposition）
-
-在此版本中未引入。标签之间的对立关系（如 `#clear` vs `#cloudy`）被隐式处理：如果在两个标签之间没有定义 fallback 边，当源标签不存在于播放列表宇宙（playlist universe）中时，能量自然消散。这对于目前的系统来说已经足够了。
-
 ## 5. Matcher / Controller 接口变更
 
 ### 5.1 Matcher（匹配器）
@@ -236,7 +209,9 @@ env_vector = sum(output.direction * output.salience * output.intensity * weight_
 class MatchResult:
     aggregated_tags: Dict[str, float]   # 原始聚合向量（用于日志记录）
     best_playlist: Optional[str]        # 余弦相似度胜出者
-    similarity_gap: float               # sim(第一名) - sim(第二名)，衡量决断力
+    similarity_gap: float               # (可选)sim(第一名) - sim(第二名)，衡量决断力
+                                        # 也可以考虑保留完整的分数列表
+    similarity: float                   # 第一名的相似度，衡量匹配质量
     max_policy_magnitude: float         # 所有策略中最大的 (salience * intensity * ws)
 ```
 
@@ -253,50 +228,26 @@ class MatchResult:
 
 ### 6.1 配置中的 TagSpec
 
-`scheduler_config.json` 中的新顶层部分：
+`scheduler_config.json` 中的新顶层部分： [DONE]
 
 ```json
-{
-  "tag_schema": {
-    "#rain": { "domain": "weather", "fallback": { "#chill": 0.2 } },
-    "#storm": { "domain": "weather", "fallback": { "#rain": 0.8 } },
-    "#snow": { "domain": "weather", "fallback": { "#chill": 0.3 } },
-    "#fog": { "domain": "weather" },
-    "#clear": { "domain": "weather" },
-    "#cloudy": { "domain": "weather" },
-    "#dawn": { "domain": "time" },
-    "#day": { "domain": "time" },
-    "#sunset": { "domain": "time" },
-    "#night": { "domain": "time" },
-    "#spring": { "domain": "season" },
-    "#summer": { "domain": "season" },
-    "#autumn": { "domain": "season" },
-    "#winter": { "domain": "season" },
-    "#focus": { "domain": "activity" },
-    "#chill": { "domain": "activity" },
-    "#media": { "domain": "activity" }
-  }
-}
+  "tags": {
+    "#dawn": { "fallback": { "#day": 0.7, "#chill": 0.3 } },
+    "#sunset": { "fallback": { "#chill": 0.3, "#night": 0.7 } },
+    "#spring": { "fallback": { "#day": 0.5, "#chill": 0.5 } },
+    "#summer": { "fallback": { "#day": 0.7, "#clear": 0.3 } },
+    "#autumn": { "fallback": { "#sunset": 0.6, "#chill": 0.4 } },
+    "#winter": { "fallback": { "#night": 0.5, "#chill": 0.5 } },
+    "#storm": { "fallback": { "#rain": 1 } },
+    "#snow": { "fallback": { "#winter": 0.6, "#rain": 0.6 } },
+    "#fog": { "fallback": { "#rain": 0.4, "#chill": 0.4 } },
+    "#cloudy": { "fallback": { "#clear": 0.5, "#chill": 0.3 } }
+  },
 ```
 
-### 6.2 Pydantic 模型
-
-```python
-class TagSpecConfig(BaseModel):
-    domain: str
-    fallback: Dict[str, float] = Field(default_factory=dict)
-
-# 在 AppConfig 中：
-tag_schema: Dict[str, TagSpecConfig] = Field(default_factory=dict)
-```
-
-### 6.3 weight_scale
+### 6.2 weight_scale
 
 在 `_BasePolicyConfig` 中原样保留。此版本中不重命名。语义在文档中已明确说明：“策略级别的优先级乘数，与强度正交。”
-
-### 6.4 WeatherPolicy 中的子向量配置
-
-`_ID_TAGS` 查找表被重组。条目从 `Dict[int, List[Dict[str, float]]]`（子向量）变为 `Dict[int, Dict[str, float]]`（单个字典）。像 `#clear`/`#cloudy` 这样标签的对立关系处理，由 fallback 图的消散机制来管理，而不是通过子向量隔离。
 
 ## 7. 延期决策
 

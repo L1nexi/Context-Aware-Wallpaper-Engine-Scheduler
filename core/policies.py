@@ -2,6 +2,7 @@ import logging
 import math
 import time as _time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import ClassVar, Dict, Any, List, Optional, Union
 
 from core.context import Context
@@ -17,6 +18,22 @@ from utils.config_loader import (
 logger = logging.getLogger("WEScheduler.Policy")
 
 
+@dataclass
+class PolicyOutput:
+    """Decomposed policy signal with orthogonal semantic dimensions.
+
+    direction: unit L2-normalized tag vector (what kind of signal)
+    salience:  clarity of category membership [0,1]; default 1.0
+    intensity: physical/behavioral magnitude [0,1]; default 1.0
+
+    Effective contribution to the env vector:
+        direction * salience * intensity * weight_scale
+    """
+    direction: Dict[str, float]
+    salience: float = 1.0
+    intensity: float = 1.0
+
+
 def _circular_distance(a: float, b: float, period: float) -> float:
     """Shortest distance between two points on a circle of given *period*."""
     d = abs(a - b) % period
@@ -24,12 +41,7 @@ def _circular_distance(a: float, b: float, period: float) -> float:
 
 
 def _hann(d: float, H: float) -> float:
-    """Hann window: 0.5·(1 + cos(π·d/H)) for d < H, else 0.
-
-    Properties:
-    * w(0) = 1,  w(H) = 0
-    * w'(H) = 0  →  C¹-smooth at the boundary (no kink)
-    """
+    """Hann window: 0.5·(1 + cos(π·d/H)) for d < H, else 0."""
     if d >= H:
         return 0.0
     return 0.5 * (1.0 + math.cos(math.pi * d / H))
@@ -42,7 +54,6 @@ class Policy(ABC):
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        # Skip abstract intermediates that don't (yet) declare config_key.
         if "config_key" not in cls.__dict__:
             return
         valid_keys = set(PoliciesConfig.model_fields.keys())
@@ -59,40 +70,27 @@ class Policy(ABC):
         self.weight_scale = config.weight_scale
 
     @abstractmethod
-    def _compute_tags(self, context: Context) -> Dict[str, float]:
-        """Compute raw tags for the current context."""
-        pass
+    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
+        """Compute raw PolicyOutput; direction need not be normalized."""
+        ...
 
-    def get_tags(self, context: Context) -> Dict[str, float]:
-        """Public interface: returns the tag weight dict for this tick."""
-        return self._compute_tags(context)
-    
-    def _normalize_and_scale(self, tags: Dict[str, float]) -> Dict[str, float]:
-        """
-        Normalizes the tag vector to unit length, then scales by weight_scale.
-        """
-        if not tags:
-            return {}
-            
-        # Calculate L2 norm
-        norm = math.sqrt(sum(w * w for w in tags.values()))
-        
+    def get_output(self, context: Context) -> Optional[PolicyOutput]:
+        """Public interface. Normalizes direction to unit L2; returns None if zero."""
+        output = self._compute_output(context)
+        if output is None:
+            return None
+        norm = math.sqrt(sum(w * w for w in output.direction.values()))
         if norm < 1e-6:
-            return {}
-            
-        # Normalize and scale
-        return {tag: (w / norm) * self.weight_scale for tag, w in tags.items()}
+            return None
+        output.direction = {t: w / norm for t, w in output.direction.items()}
+        return output
 
     def export_state(self) -> Dict[str, Any]:
-        """Export transient runtime state for hot-reload preservation.
-        Default: no state. Override in stateful subclasses.
-        """
         return {}
 
     def import_state(self, state: Dict[str, Any]) -> None:
-        """Restore transient runtime state after a hot reload.
-        Default: no-op. Override in stateful subclasses.
-        """
+        pass
+
 
 class ActivityPolicy(Policy):
     config_key = "activity"
@@ -103,7 +101,6 @@ class ActivityPolicy(Policy):
         self.rules = {k.lower(): v for k, v in config.process_rules.items()}
         self.title_rules = config.title_rules
 
-        # EMA Configuration
         smoothing_window = config.smoothing_window
         # Calculate alpha for EMA: alpha = 2 / (N + 1)
         if smoothing_window <= 1:
@@ -111,86 +108,65 @@ class ActivityPolicy(Policy):
         else:
             self.alpha = 2.0 / (smoothing_window + 1.0)
 
-        self.smoothed_tags: Dict[str, float] = {}
+        # Dual EMA tracks per spec
+        self._dir_ema: Dict[str, float] = {}   # raw (un-normalized) direction EMA
+        self._mag_ema: float = 0.0              # scalar magnitude EMA
 
-    def _compute_tags(self, context: Context) -> Dict[str, float]:
+    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
         if not self.enabled:
-            return {}
+            return None
 
-        instant_tags = self._get_instant_tags(context)
-        
-        # Apply EMA
-        self.smoothed_tags = self._apply_ema(instant_tags)
-        
-        # For ActivityPolicy, we do NOT use L2 normalization.
-        # Because we want the vector magnitude to decay when no rule is matched.
-        return {tag: w * self.weight_scale for tag, w in self.smoothed_tags.items()}
+        instant_dir = self._get_instant_tags(context)
+
+        # Direction EMA: blend raw vectors, base class normalizes on output
+        all_tags = set(self._dir_ema.keys()) | set(instant_dir.keys())
+        new_dir_ema: Dict[str, float] = {}
+        for tag in all_tags:
+            cur = instant_dir.get(tag, 0.0)
+            prev = self._dir_ema.get(tag, 0.0)
+            v = self.alpha * cur + (1.0 - self.alpha) * prev
+            if v >= 1e-6:
+                new_dir_ema[tag] = v
+        self._dir_ema = new_dir_ema
+
+        # Magnitude EMA: 1.0 when matched, 0.0 when not
+        instant_mag = 1.0 if instant_dir else 0.0
+        self._mag_ema = self.alpha * instant_mag + (1.0 - self.alpha) * self._mag_ema
+
+        if not self._dir_ema:
+            return None
+
+        return PolicyOutput(
+            direction=dict(self._dir_ema),  # base class normalizes
+            salience=1.0,
+            intensity=self._mag_ema,
+        )
 
     def _get_instant_tags(self, context: Context) -> Dict[str, float]:
-        process_name = context.window.process
         window_title = context.window.title
-        
-        # 1. Check Title Rules (Higher Priority)
         for keyword, tag in self.title_rules.items():
             if keyword.lower() in window_title.lower():
                 return {tag: 1.0}
-
-        # 2. Check Process Rules (Fallback)
-        tag = self.rules.get(process_name.lower())
+        tag = self.rules.get(context.window.process.lower())
         if tag:
             return {tag: 1.0}
-        
         return {}
 
-    def _apply_ema(self, instant_tags: Dict[str, float]) -> Dict[str, float]:
-        all_tags = set(self.smoothed_tags.keys()) | set(instant_tags.keys())
-        new_smoothed_tags = {}
-        
-        for tag in all_tags:
-            current_weight = instant_tags.get(tag, 0.0)
-            previous_weight = self.smoothed_tags.get(tag, 0.0)
-            
-            new_weight = self.alpha * current_weight + (1.0 - self.alpha) * previous_weight
-            
-            if new_weight >= 0.001:
-                new_smoothed_tags[tag] = new_weight
-        
-        return new_smoothed_tags
-
     def export_state(self) -> Dict[str, Any]:
-        return {"smoothed_tags": self.smoothed_tags.copy()}
+        return {
+            "dir_ema": self._dir_ema.copy(),
+            "mag_ema": self._mag_ema,
+        }
 
     def import_state(self, state: Dict[str, Any]) -> None:
-        self.smoothed_tags = dict(state.get("smoothed_tags", {}))
+        self._dir_ema = dict(state.get("dir_ema", {}))
+        self._mag_ema = float(state.get("mag_ema", 0.0))
+
 
 class TimePolicy(Policy):
-    """
-    Maps the current time-of-day to ``#dawn``, ``#day``, ``#sunset``,
-    ``#night`` tags using **raised-cosine** interpolation on a circular
-    24-hour axis.
+    """Maps time-of-day to #dawn/#day/#sunset/#night via Hann windows.
 
-    Four anchor points (peaks) are placed evenly:
-        dawn_peak   = day_start
-        day_peak    = midpoint(day_start → night_start)
-        sunset_peak = night_start
-        night_peak  = midpoint(night_start → next day_start)  (wraps at 24)
-
-    Each tag uses a **Hann window**:
-
-        w(d) = 0.5 * (1 + cos(π · d / H))  for d ≤ H
-               0                             for d > H
-
-    where *d* is computed in **virtual time** after a piecewise-linear
-    warp that maps the four real peaks to 0 / 6 / 12 / 18 h, and *H* = 6 h
-    is fixed in that virtual domain.  The warp stretches or compresses each
-    real inter-peak arc to exactly 6 virtual hours, giving asymmetric windows
-    in real time that always reach exactly the adjacent peak — regardless of
-    how unequal the actual sunrise/sunset split makes them.  Properties in
-    virtual time (invariant under the warp):
-    * w(0) = 1 at peak, w(6) = 0 at the adjacent peak
-    * First derivative w'(6) = 0  →  smooth, kink-free transitions
-    * Adjacent windows sum to a near-constant, so the L2-normalised
-      direction vector changes smoothly with time.
+    salience = Hann window value (peak clarity); intensity = 1.0 always.
     """
 
     config_key = "time"
@@ -202,7 +178,7 @@ class TimePolicy(Policy):
         self.auto: bool = config.auto
 
         self._peaks: Dict[str, float] = {}
-        self._H: float = 6.0  # constant in virtual time; warp handles real-time distortion
+        self._H: float = 6.0
         self._recompute_peaks(self._day_start, self._night_start)
 
     @staticmethod
@@ -216,33 +192,24 @@ class TimePolicy(Policy):
             "#night":  (ns + night_span / 2) % 24,
         }
 
-    # Canonical tag order (matches _compute_peaks insertion order)
     _TAG_ORDER = ["#dawn", "#day", "#sunset", "#night"]
-    # Corresponding peak positions in virtual (uniformly-spaced) time
     _VIRTUAL_PEAKS = [0.0, 6.0, 12.0, 18.0]
 
     @staticmethod
     def _warp_time(hour: float, peaks: Dict[str, float]) -> float:
         """Piecewise-linear map: real hour → virtual hour in [0, 24).
 
-        The 24-hour circle is divided into four arcs by the actual peak
-        positions.  Each arc is linearly stretched/compressed to fill exactly
-        6 virtual hours, mapping real peaks → virtual 0 / 6 / 12 / 18.
-        After this warp the Hann kernel with H = 6 spans exactly one arc in
-        virtual time, equivalently producing an asymmetric window in real time
-        whose half-width equals the actual inter-peak arc length on each side.
         """
         real = [peaks[t] for t in TimePolicy._TAG_ORDER]
         n = len(real)
         for i in range(n):
             r_a = real[i]
             r_b = real[(i + 1) % n]
-            seg = (r_b - r_a) % 24   # arc length of this real segment
-            pos = (hour - r_a) % 24  # forward distance from r_a to hour
+            seg = (r_b - r_a) % 24
+            pos = (hour - r_a) % 24
             if pos < seg:
                 v_a = TimePolicy._VIRTUAL_PEAKS[i]
                 return (v_a + pos / seg * 6.0) % 24
-        # hour is exactly on the last peak boundary → start of next virtual arc
         return 0.0
 
     def _recompute_peaks(self, ds: float, ns: float) -> None:
@@ -251,62 +218,50 @@ class TimePolicy(Policy):
         self._peaks = self._compute_peaks(ds, ns)
 
     def _update_from_context(self, context: Context) -> None:
-        """Dynamically adjust peaks from OWM sunrise/sunset if available."""
         weather = context.weather
         if weather is None or not weather.sunrise or not weather.sunset:
             return
-
-        sunrise_ts = weather.sunrise
-        sunset_ts = weather.sunset
-
-        # Convert UTC timestamps to local hours
-        sr = _time.localtime(sunrise_ts)
-        ss = _time.localtime(sunset_ts)
+        sr = _time.localtime(weather.sunrise)
+        ss = _time.localtime(weather.sunset)
         ds = sr.tm_hour + sr.tm_min / 60.0
         ns = ss.tm_hour + ss.tm_min / 60.0
-
-        # Only recompute if values actually changed (±1 min tolerance)
-        if (abs(ds - self._day_start) > 1 / 60
-                or abs(ns - self._night_start) > 1 / 60):
+        if abs(ds - self._day_start) > 1 / 60 or abs(ns - self._night_start) > 1 / 60:
             self._recompute_peaks(ds, ns)
-            logger.debug(
-                "TimePolicy peaks updated: day_start=%.2f night_start=%.2f",
-                ds, ns,
-            )
+            logger.debug("TimePolicy peaks updated: day_start=%.2f night_start=%.2f", ds, ns)
 
-    def _compute_tags(self, context: Context) -> Dict[str, float]:
+    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
         if not self.enabled:
-            return {}
+            return None
 
         if self.auto:
             self._update_from_context(context)
 
         current_time = context.time
         hour = current_time.tm_hour + current_time.tm_min / 60.0
-
         t_virtual = self._warp_time(hour, self._peaks)
-        tags: Dict[str, float] = {}
+
+        # Dominant tag determines direction; salience = its Hann value
+        best_tag = None
+        best_w = 0.0
+        raw: Dict[str, float] = {}
         for tag, v_peak in zip(self._TAG_ORDER, self._VIRTUAL_PEAKS):
             d = _circular_distance(t_virtual, v_peak, 24)
-            w = _hann(d, self._H)   # H = 6.0 always in virtual time
+            w = _hann(d, self._H)
             if w > 1e-4:
-                tags[tag] = w
+                raw[tag] = w
+                if w > best_w:
+                    best_w = w
+                    best_tag = tag
 
-        return self._normalize_and_scale(tags)
+        if not raw:
+            return None
+
+        # direction = all Hann weights (base class normalizes); salience = peak Hann
+        return PolicyOutput(direction=raw, salience=best_w, intensity=1.0)
 
 
 class SeasonPolicy(Policy):
-    """
-    Maps the current day-of-year to ``#spring``, ``#summer``, ``#autumn``,
-    ``#winter`` tags using **raised-cosine** interpolation on a circular
-    365-day axis.
-
-    Peak days default to the meteorological mid-season points (Northern
-    Hemisphere) and can be overridden via config:
-        spring_peak, summer_peak, autumn_peak, winter_peak  (day-of-year)
-
-    Same Hann-window interpolation as TimePolicy, on a 365-day circle.
-    """
+    """Maps day-of-year to #spring/#summer/#autumn/#winter via Hann windows."""
 
     config_key = "season"
 
@@ -318,45 +273,42 @@ class SeasonPolicy(Policy):
             "#autumn": config.autumn_peak,
             "#winter": config.winter_peak,
         }
-        # H = full inter-peak distance ≈ 91.25 days for 4 seasons
         self._H = 365 / len(self._peaks)
 
-    def _compute_tags(self, context: Context) -> Dict[str, float]:
+    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
         if not self.enabled:
-            return {}
+            return None
 
-        current_time = context.time
-        doy = current_time.tm_yday
-
-        tags: Dict[str, float] = {}
+        doy = context.time.tm_yday
+        raw: Dict[str, float] = {}
+        best_w = 0.0
         for tag, peak in self._peaks.items():
             d = _circular_distance(doy, peak, 365)
             w = _hann(d, self._H)
             if w > 1e-4:
-                tags[tag] = w
+                raw[tag] = w
+                if w > best_w:
+                    best_w = w
 
-        return self._normalize_and_scale(tags)
+        if not raw:
+            return None
+
+        return PolicyOutput(direction=raw, salience=best_w, intensity=1.0)
 
 
 class WeatherPolicy(Policy):
-    """
-    Maps OpenWeatherMap condition codes to intensity-weighted tag vectors.
+    """Maps OWM condition codes to (direction, intensity) PolicyOutput.
 
-    ── Design principle: output = intensity × unit_direction ──────────────
-
-    Each entry in ``_ID_TAGS`` encodes two orthogonal quantities:
-
-    1. **intensity** ``s`` = L2 norm of the output vector ∈ (0, 1].
+    direction = unit tag vector encoding weather type (#rain, #storm, etc.)
+    intensity = T1-T4 severity level extracted from the raw vector norm
+    salience  = 1.0 (weather IDs are unambiguous)
+        1. **intensity** ``s`` = L2 norm of the output vector ∈ (0, 1].
        Represents "how much this weather overrides other signals":
 
          T1 ≈ 0.25  negligible   mist, haze, dust whirls
          T2 ≈ 0.50  light        drizzle, light rain/snow, sky conditions
          T3 ≈ 0.75  heavy        moderate rain, dense fog
          T4 = 1.00  extreme      very heavy rain, heavy snow, tornado
-
-       Sky conditions (clear / cloudy) are capped at **T2** because they
-       represent a stable ambient state, not an event.  Precipitation and
-       storms use the full T1–T4 range.
 
     2. **unit_direction** = tag composition (Σ component² = 1).
        Encodes "what kind of weather" without changing voting power.
@@ -365,117 +317,89 @@ class WeatherPolicy(Policy):
          2:1 ratio  → (cos 27° ≈ 0.89, sin 27° ≈ 0.45)   primary dominates
          3:1 ratio  → (cos 18° ≈ 0.95, sin 18° ≈ 0.32)   strongly primary
          1:1 ratio  → (cos 45° ≈ 0.71, sin 45° ≈ 0.71)   equal mix
-
-    ── Normalisation policy ──────────────────────────────────────────────
-
-    Unlike Time/Season, this policy does **NOT** L2-normalise its output.
-    The raw tag vector (scaled by ``weight_scale``) is passed directly to
-    the Arbiter sum.  Consequences:
-
-    * Mild weather (T1-T2) contributes a small norm → yields to Activity
-      and Time signals.
-    * Extreme weather (T4) contributes a large norm → dominates direction.
-    * ``weight_scale`` in config is the influence *ceiling* (at s = 1.00).
-      With the default weight_scale = 1.5, extreme weather contributes
-      norm 1.5, comparable to a fully-matched ActivityPolicy (ws = 1.2).
     """
 
-    # ── Weather-ID → tag mapping ─────────────────────────────────────────
-    # Values follow:  component = s × direction_component
-    # Single-tag:  value = s
-    # Two-tag 2:1: primary = s × 0.89,  secondary = s × 0.45
-    # Two-tag 3:1: primary = s × 0.95,  secondary = s × 0.32
-    # Two-tag 1:1: each   = s × 0.71
+    # Raw tag vectors: component = intensity * direction_component (pre-merged)
     _ID_TAGS: Dict[int, Dict[str, float]] = {
-        # 2xx Thunderstorm ────────────────────────────────────────────────
-        # Pure storm: T2→T4 by severity; #rain added as fallback (dry lightning
-        # is meteorologically rare; real thunderstorms almost always have rain)
-        210: {"#storm": 0.50, "#rain": 0.25},   # s≈0.56 light thunderstorm
-        211: {"#storm": 0.75, "#rain": 0.50},   # s≈0.90 thunderstorm
-        212: {"#storm": 1.00, "#rain": 0.60},   # s≈1.17 heavy thunderstorm
-        221: {"#storm": 0.90, "#rain": 0.50},   # s≈1.03 ragged thunderstorm
-        # Storm + rain: s = T3 → T4, direction 2:1 (storm primary)
-        200: {"#storm": 0.67, "#rain": 0.34},    # s=0.75 ts+light rain
-        201: {"#storm": 0.80, "#rain": 0.40},    # s=0.89 ts+rain
-        202: {"#storm": 0.89, "#rain": 0.45},    # s=1.00 ts+heavy rain
-        # Storm + drizzle: direction 3:1 (storm primary)
-        230: {"#storm": 0.62, "#rain": 0.21},    # s=0.65 ts+light drizzle
-        231: {"#storm": 0.71, "#rain": 0.24},    # s=0.75 ts+drizzle
-        232: {"#storm": 0.80, "#rain": 0.36},    # s=0.89 ts+heavy drizzle
-        # 3xx Drizzle ─────────────────────────────────────────────────────
-        300: {"#rain": 0.25},                    # s=T1   light drizzle
-        301: {"#rain": 0.40},                    # s=T2   drizzle
-        302: {"#rain": 0.55},                    # s=T2+  heavy drizzle
-        310: {"#rain": 0.30},                    # s=T1+  light drizzle rain
-        311: {"#rain": 0.50},                    # s=T2   drizzle rain
-        312: {"#rain": 0.60},                    # s=T2+  heavy drizzle rain
-        313: {"#rain": 0.50},                    # s=T2   shower rain+drizzle
-        314: {"#rain": 0.65},                    # s=T2+  heavy shower+drizzle
-        321: {"#rain": 0.50},                    # s=T2   shower drizzle
-        # 5xx Rain ────────────────────────────────────────────────────────
-        500: {"#rain": 0.40},                    # s=T2   light rain
-        501: {"#rain": 0.65},                    # s=T2+  moderate rain
-        502: {"#rain": 0.85},                    # s=T3+  heavy intensity rain
-        503: {"#rain": 1.00},                    # s=T4   very heavy rain
-        504: {"#rain": 1.00},                    # s=T4   extreme rain
-        511: {"#rain": 0.53, "#snow": 0.27},     # s=0.59 freezing rain, 2:1
-        520: {"#rain": 0.45},                    # s=T2   light shower rain
-        521: {"#rain": 0.65},                    # s=T2+  shower rain
-        522: {"#rain": 0.90},                    # s=T3+  heavy shower rain
-        531: {"#rain": 0.70},                    # s=T3   ragged shower rain
-        # 6xx Snow ────────────────────────────────────────────────────────
-        600: {"#snow": 0.40},                    # s=T2   light snow
-        601: {"#snow": 0.70},                    # s=T3   snow
-        602: {"#snow": 1.00},                    # s=T4   heavy snow
-        611: {"#snow": 0.39, "#rain": 0.39},     # s=0.55 sleet, 1:1
-        612: {"#snow": 0.32, "#rain": 0.32},     # s=0.45 light shower sleet, 1:1
-        613: {"#snow": 0.35, "#rain": 0.35},     # s=0.50 shower sleet, 1:1
-        615: {"#rain": 0.35, "#snow": 0.35},     # s=0.50 light rain and snow, 1:1
-        616: {"#rain": 0.42, "#snow": 0.42},     # s=0.60 rain and snow, 1:1
-        620: {"#snow": 0.40},                    # s=T2   light shower snow
-        621: {"#snow": 0.65},                    # s=T2+  shower snow
-        622: {"#snow": 1.00},                    # s=T4   heavy shower snow
-        # 7xx Atmosphere ──────────────────────────────────────────────────
-        701: {"#fog": 0.30},                     # s=T1+  mist
-        711: {"#fog": 0.45},                     # s=T2   smoke
-        721: {"#fog": 0.25},                     # s=T1   haze
-        731: {"#fog": 0.25},                     # s=T1   dust whirls
-        741: {"#fog": 0.75},                     # s=T3   fog
-        751: {"#fog": 0.30},                     # s=T1+  sand
-        761: {"#fog": 0.40},                     # s=T2   dust
-        762: {"#fog": 0.60},                     # s=T2+  volcanic ash
-        771: {"#storm": 0.65},                   # s=T2+  squall
-        781: {"#storm": 1.00},                   # s=T4   tornado
-        # 800 Clear ───────────────────────────────────────────────────────
-        # Sky conditions are ambient states, capped at T2 to avoid
-        # overwhelming Activity / Time signals.
-        800: {"#clear": 0.50},                   # s=T2   clear sky
-        # 80x Clouds (gradual clear→cloudy) ──────────────────────────────
-        # 801-802 centred at T2=0.50; 803 at T2; 804 at T2.
-        # Direction shifts from clear-primary to cloudy-primary.
-        801: {"#clear": 0.47, "#cloudy": 0.16},  # s=0.50, partly cloudy
-        802: {"#clear": 0.35, "#cloudy": 0.35},  # s=0.50, scattered clouds
-        803: {"#cloudy": 0.47, "#clear": 0.16},  # s=0.50, broken clouds
-        804: {"#cloudy": 0.50},                  # s=T2   overcast
+        # 2xx Thunderstorm
+        210: {"#storm": 0.50, "#rain": 0.25},
+        211: {"#storm": 0.75, "#rain": 0.50},
+        212: {"#storm": 1.00, "#rain": 0.60},
+        221: {"#storm": 0.90, "#rain": 0.50},
+        200: {"#storm": 0.67, "#rain": 0.34},
+        201: {"#storm": 0.80, "#rain": 0.40},
+        202: {"#storm": 0.89, "#rain": 0.45},
+        230: {"#storm": 0.62, "#rain": 0.21},
+        231: {"#storm": 0.71, "#rain": 0.24},
+        232: {"#storm": 0.80, "#rain": 0.36},
+        # 3xx Drizzle
+        300: {"#rain": 0.25},
+        301: {"#rain": 0.40},
+        302: {"#rain": 0.55},
+        310: {"#rain": 0.30},
+        311: {"#rain": 0.50},
+        312: {"#rain": 0.60},
+        313: {"#rain": 0.50},
+        314: {"#rain": 0.65},
+        321: {"#rain": 0.50},
+        # 5xx Rain
+        500: {"#rain": 0.40},
+        501: {"#rain": 0.65},
+        502: {"#rain": 0.85},
+        503: {"#rain": 1.00},
+        504: {"#rain": 1.00},
+        511: {"#rain": 0.53, "#snow": 0.27},
+        520: {"#rain": 0.45},
+        521: {"#rain": 0.65},
+        522: {"#rain": 0.90},
+        531: {"#rain": 0.70},
+        # 6xx Snow
+        600: {"#snow": 0.40},
+        601: {"#snow": 0.70},
+        602: {"#snow": 1.00},
+        611: {"#snow": 0.39, "#rain": 0.39},
+        612: {"#snow": 0.32, "#rain": 0.32},
+        613: {"#snow": 0.35, "#rain": 0.35},
+        615: {"#rain": 0.35, "#snow": 0.35},
+        616: {"#rain": 0.42, "#snow": 0.42},
+        620: {"#snow": 0.40},
+        621: {"#snow": 0.65},
+        622: {"#snow": 1.00},
+        # 7xx Atmosphere
+        701: {"#fog": 0.30},
+        711: {"#fog": 0.45},
+        721: {"#fog": 0.25},
+        731: {"#fog": 0.25},
+        741: {"#fog": 0.75},
+        751: {"#fog": 0.30},
+        761: {"#fog": 0.40},
+        762: {"#fog": 0.60},
+        771: {"#storm": 0.65},
+        781: {"#storm": 1.00},
+        # 800 Clear / 80x Clouds
+        800: {"#clear": 0.50},
+        801: {"#clear": 0.47, "#cloudy": 0.16},
+        802: {"#clear": 0.35, "#cloudy": 0.35},
+        803: {"#cloudy": 0.47, "#clear": 0.16},
+        804: {"#cloudy": 0.50},
     }
 
-    # Coarse fallback when id is missing / unrecognised ───────────────────
     _MAIN_FALLBACK: Dict[str, Dict[str, float]] = {
-        "thunderstorm": {"#storm": 0.67, "#rain": 0.34},  # T3 × 2:1
-        "drizzle":      {"#rain": 0.40},                   # T2
-        "rain":         {"#rain": 0.65},                   # T2+
-        "snow":         {"#snow": 0.65},                   # T2+
-        "mist":         {"#fog": 0.30},                    # T1+
-        "smoke":        {"#fog": 0.45},                    # T2
-        "haze":         {"#fog": 0.25},                    # T1
-        "dust":         {"#fog": 0.40},                    # T2
-        "fog":          {"#fog": 0.75},                    # T3
-        "sand":         {"#fog": 0.30},                    # T1+
-        "ash":          {"#fog": 0.55},                    # T2+
-        "squall":       {"#storm": 0.65},                  # T2+
-        "tornado":      {"#storm": 1.00},                  # T4
-        "clear":        {"#clear": 0.50},                  # T2
-        "clouds":       {"#cloudy": 0.50},                 # T2
+        "thunderstorm": {"#storm": 0.67, "#rain": 0.34},
+        "drizzle":      {"#rain": 0.40},
+        "rain":         {"#rain": 0.65},
+        "snow":         {"#snow": 0.65},
+        "mist":         {"#fog": 0.30},
+        "smoke":        {"#fog": 0.45},
+        "haze":         {"#fog": 0.25},
+        "dust":         {"#fog": 0.40},
+        "fog":          {"#fog": 0.75},
+        "sand":         {"#fog": 0.30},
+        "ash":          {"#fog": 0.55},
+        "squall":       {"#storm": 0.65},
+        "tornado":      {"#storm": 1.00},
+        "clear":        {"#clear": 0.50},
+        "clouds":       {"#cloudy": 0.50},
     }
 
     config_key = "weather"
@@ -483,29 +407,29 @@ class WeatherPolicy(Policy):
     def __init__(self, config: WeatherPolicyConfig):
         super().__init__(config)
 
-    def _compute_tags(self, context: Context) -> Dict[str, float]:
+    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
         if not self.enabled:
-            return {}
-
+            return None
         weather = context.weather
         if weather is None:
-            return {}
+            return None
 
-        tags = self._resolve_tags(weather.id, weather.main)
-        if not tags:
-            return {}
+        raw = self._resolve_tags(weather.id, weather.main)
+        if not raw:
+            return None
 
-        # Preserve intensity: do NOT normalise.
-        return {tag: w * self.weight_scale for tag, w in tags.items()}
+        # Extract intensity as L2 norm of raw vector, then normalize direction
+        norm = math.sqrt(sum(w * w for w in raw.values()))
+        if norm < 1e-6:
+            return None
+
+        intensity = norm
+        direction = {t: w / norm for t, w in raw.items()}
+
+        return PolicyOutput(direction=direction, salience=1.0, intensity=intensity)
 
     @classmethod
     def _resolve_tags(cls, weather_id: int, weather_main: str) -> Optional[Dict[str, float]]:
-        """Return the tag dict for a given weather condition, preferring *id*.
-
-        Returns ``None`` when the condition is unrecognised.
-        Unknown tags (e.g. ``#fog``, ``#cloudy``) are resolved to playlist-known
-        tags by the Matcher's TagSpec fallback layer, not here.
-        """
         entry = cls._ID_TAGS.get(weather_id)
         if entry is not None:
             return dict(entry)
