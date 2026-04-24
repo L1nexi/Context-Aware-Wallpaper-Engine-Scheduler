@@ -138,3 +138,23 @@ WE_TAG_MAP = {
 | R2-L1 | 自动 tag 生成·层 1（映射表）   |  ★★☆   | —     | 小（~100 行） |
 | R2-L2 | 自动 tag 生成·层 2（文字嵌入） |  ★☆☆   | —     |      中       |
 | R2-L3 | 自动 tag 生成·层 3（CLIP）     |  ★☆☆   | R2-L1 |      大       |
+
+## R4 - Controller 增强
+
+**基础**：经历 tag 语义化重构后，Policy 返回更多样的结果，同时 MatchResult 返回更多信息。
+
+```python
+@dataclass
+class MatchResult:
+    best_playlist: str
+    similarity: float
+    aggregated_tags: Dict[str, float] = field(default_factory=dict)
+    similarity_gap: float = 0.0        # sim(1st) - sim(2nd); 0 if only one playlist
+    max_policy_magnitude: float = 0.0  # max(salience * intensity * weight_scale) across policies
+```
+
+Controller 可以利用上述信息进行更智能的决策：
+
+### 1. 动态 cooldown
+
+当前 cooldown 是静态策略。未来，Controller 可以根据 MatchResult 中的信息来判断当前决策的"信心度"。如使用 similarity_gap 、 max_policy_magnitude、甚至特定 tag 的 intensity 或 seliance 来动态调整 cooldown。从而实现高信心时快速响应，低信心时谨慎等待。

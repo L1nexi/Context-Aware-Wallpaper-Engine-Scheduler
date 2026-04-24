@@ -122,7 +122,7 @@
     "mood": { "enabled": false, "weight_scale": 2.0 }
   },
   "scheduling": {
-    "startup_delay": 30,
+    "startup_delay": 15,
     "idle_threshold": 20,
     "switch_cooldown": 150,
     "cycle_cooldown": 900,
