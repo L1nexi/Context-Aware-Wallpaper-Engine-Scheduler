@@ -59,7 +59,7 @@ from typing import Dict, List, Optional, Tuple
 
 POLICY_WEIGHTS = {
     "time":     0.8,   # TimePolicy     ||contrib|| = salience * 0.8  (0.4–0.8)
-    "season":   0.6,   # SeasonPolicy   ||contrib|| = salience * 0.6  (0.3–0.6)
+    "season":   0.7,   # SeasonPolicy   ||contrib|| = salience * 0.6  (0.3–0.6)
     "activity": 1.2,   # ActivityPolicy ||contrib|| = intensity * 1.2 (0 idle, 1.2 active)
     "weather":  1.5,   # WeatherPolicy  ||contrib|| = raw_norm * 1.5
 }
