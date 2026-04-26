@@ -1,0 +1,19 @@
+{
+  "title": "WEScheduler Dashboard",
+  "running": "Running",
+  "paused": "Paused",
+  "fullscreen": "Fullscreen",
+  "waiting": "Waiting...",
+  "noData": "No data yet",
+  "similarity": "Similarity",
+  "gap": "Gap",
+  "magnitude": "Magnitude",
+  "topTags": "Top Tags",
+  "context": "Context",
+  "activeWindow": "Active Window",
+  "idle": "Idle",
+  "cpu": "CPU",
+  "connectionLost": "Scheduler connection lost",
+  "closeCountdown": "This window will close in {n} seconds",
+  "currentPlaylist": "Current Playlist"
+}

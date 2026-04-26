@@ -1,0 +1,19 @@
+{
+  "title": "WEScheduler 仪表盘",
+  "running": "运行中",
+  "paused": "已暂停",
+  "fullscreen": "全屏",
+  "waiting": "等待中...",
+  "noData": "暂无数据",
+  "similarity": "相似度",
+  "gap": "差距",
+  "magnitude": "强度",
+  "topTags": "顶级标签",
+  "context": "上下文",
+  "activeWindow": "活动窗口",
+  "idle": "空闲",
+  "cpu": "CPU",
+  "connectionLost": "调度器连接丢失",
+  "closeCountdown": "此窗口将在 {n} 秒后关闭",
+  "currentPlaylist": "当前播放列表"
+}
