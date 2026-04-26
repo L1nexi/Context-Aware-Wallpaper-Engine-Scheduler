@@ -9,6 +9,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.5.0] - 2026-04-26
+
+**数值语义化重构**
+
+此版本对 `tag : value` 的 `value` 进行了全面的语义分解，提供了更明确的标签语义，控制隐式语义的使用，降低开发者心智负担。
+
+### Refactored
+
+- 对于 `playlists` 的的 `tag:value` 配置，明确 `value` 语义为 "亲和度"。
+- 引入 `PolicyOutput` 数据类，用于封装包含方向、显著性和强度的策略输出。每个策略输出三个层面的信息：方向（`direction`）、显著性（`salience`）和强度（`intensity`）
+- 更新 `Policy` 类方法，改为计算并返回 `PolicyOutput` 对象而非原始标签。
+- 重构 `ActivityPolicy`、`TimePolicy`、`SeasonPolicy` 和 `WeatherPolicy` 以适配新的输出结构。
+- 增强 `get_output` 方法，实现方向归一化及强度处理的优化。
+- 调整 `WEScheduler` 的日志记录，在状态输出中包含相似度差距。
+- 清理策略类中未使用的方法和注释，提升代码可读性。
+
+### Added
+
+- `docs/SEMANTIC-REFACTOR-SPEC.md`：新增语义重构设计文档，详细说明了数值语义化处理的设计原则。
+
+### Changed
+
+- `ActivityPolicy` 的行为改变：`ActivityPolicy` 的旧行为是对 `tag:value` 直接做 EMA 平滑。语义重构后，`ActivityPolicy` 对方向 `direction` 和强度 `intensity` 分别应用平滑。具体区别在于，从 `#focus` 应用转到 `#chill` 应用时，旧行为会导致范数经历波谷，而新行为下范数保持不变，方向由 EMA 平滑。
+
+## [0.4.1] - 2026-04-24
+
+### Refactored
+
+- `Matcher` 返回 `MatchResult`， `Actuator` 和 `Scheduler` 接受 `MatchResult` ，增强类型安全。同时为 `Controller` 扩展保留空间。
+- `TagSpec`：新增 `TagSpec` 数据类，替代原来 `Dict[str, float]` 的标签权重对。 `TagSpec` 目前额外携带 `Fallback` 链。
+- `Tag` 的 `Fallback` 处理：放弃语义子向量处理，改为递归解析 `TagSpec.fallback` 链，直到找到一个在播放列表标签中存在的标签或能量消散。
+- 启动错误逻辑由 `main` 移入 `tray`。
+
 ## [0.4.0] — 2026-04-21
 
 **类型化架构重构 (Typed-Interface Refactor)**
