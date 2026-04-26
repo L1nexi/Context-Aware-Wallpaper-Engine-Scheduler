@@ -1,5 +1,7 @@
 import pystray
 import os
+import sys
+import subprocess
 import logging
 import threading
 import tkinter as tk
@@ -9,7 +11,7 @@ from typing import Optional
 from core.scheduler import WEScheduler
 from utils.icon_generator import IconGenerator
 from utils.app_context import get_app_root
-from utils.i18n import t
+from utils.i18n import t, _current_lang
 
 logger = logging.getLogger("WEScheduler.Tray")
 
@@ -142,10 +144,11 @@ class TrayIcon:
     - Via a short Timer for cross-thread callers (custom-dialog confirm).
     """
 
-    def __init__(self, scheduler: WEScheduler):
+    def __init__(self, scheduler: WEScheduler, api_port: Optional[int] = None):
         self.scheduler = scheduler
         self.icon = None
         self._last_paused_state: Optional[bool] = None
+        self._api_port = api_port
         # Let the scheduler notify us when a timed pause auto-expires.
         self.scheduler.on_auto_resume = self._sync_icon
 
@@ -225,6 +228,19 @@ class TrayIcon:
         log_path = os.path.join(get_app_root(), "logs", "scheduler.log")
         self._open_file(log_path)
 
+    def _on_show_dashboard(self, icon, item):
+        if self._api_port is None:
+            return
+        if getattr(sys, 'frozen', False):
+            exe = sys.executable
+            cmd = [exe, '--dashboard', f'--port={self._api_port}', f'--locale={_current_lang}']
+            subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
+        else:
+            exe = sys.executable
+            script = os.path.join(get_app_root(), 'main.py')
+            cmd = [exe, script, '--dashboard', f'--port={self._api_port}', f'--locale={_current_lang}']
+            subprocess.Popen(cmd, creationflags=0)
+
     def _on_exit(self, icon, item):
         self.scheduler.stop()
         icon.stop()
@@ -291,6 +307,8 @@ class TrayIcon:
             ),
             # Pause submenu
             pystray.MenuItem(t("pause"), pystray.Menu(*pause_items)),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(t("dashboard_show"), self._on_show_dashboard),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("open_config"), self._on_open_config),
             pystray.MenuItem(t("open_logs"), self._on_open_logs),

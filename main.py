@@ -2,6 +2,7 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 # ── DPI Awareness ───────────────────────────────────────────────
 # Must be called before any window or UI object is created.
@@ -22,16 +23,31 @@ if not getattr(sys, 'frozen', False):
 from utils.app_context import get_app_root
 from utils.logger import setup_logger
 from core.scheduler import WEScheduler
+from core.dashboard import DashboardHTTPServer
 from core.tray import TrayIcon
 
+logger: logging.Logger = None  # type: ignore[assignment]
+
+
 def main() -> None:
+    global logger
     logger = setup_logger()
     logger.info("Context Aware WE Scheduler starting...")
-    
+
     parser = argparse.ArgumentParser(description="Context Aware Wallpaper Engine Scheduler")
     parser.add_argument("--config", default="scheduler_config.json", help="Path to the configuration file")
     parser.add_argument("--no-tray", action="store_true", help="Run without system tray icon (console mode)")
+    parser.add_argument("--dashboard", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--port", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--locale", default="en", help=argparse.SUPPRESS)
     args = parser.parse_args()
+
+    # ── Dashboard subprocess mode ─────────────────────────────────
+    if args.dashboard:
+        from core.webview import DashboardWindow
+        window = DashboardWindow(args.port, args.locale)
+        window.create_and_block()
+        return
 
     # Resolve config path
     config_path = args.config
@@ -52,7 +68,7 @@ def main() -> None:
 
     # Start Scheduler Loop (in background thread)
     scheduler.start()
-    
+
     if args.no_tray:
         # Console Mode: Keep main thread alive
         try:
@@ -61,10 +77,15 @@ def main() -> None:
         except KeyboardInterrupt:
             scheduler.stop()
     else:
-        # Tray Mode: Blocks main thread
+        # Tray Mode: start HTTP server, wire state store, then block on tray
         logger.info("Starting System Tray...")
-        tray = TrayIcon(scheduler)
+
+        httpd = DashboardHTTPServer(scheduler.state_store)
+        httpd.start()
+
+        tray = TrayIcon(scheduler, api_port=httpd.port)
         tray.run()
+
 
 if __name__ == "__main__":
     main()

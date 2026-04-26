@@ -1,15 +1,20 @@
 from __future__ import annotations
-import time
-import threading
-import logging
+
+import dataclasses
 import json
+import logging
 import os
 import sys
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Type
+
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional, Type
 
 from utils.config_loader import ConfigLoader
 from utils.app_context import get_app_root, get_data_dir
+from utils.i18n import _current_lang
 from core.executor import WEExecutor
 from core.sensors import Sensor, WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor, TimeSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
@@ -17,6 +22,7 @@ from core.context import ContextManager, Context
 from core.matcher import Matcher, MatchResult
 from core.controller import SchedulingController
 from core.actuator import Actuator
+from   core.dashboard import TickState, StateStore, build_tick_state
 
 logger = logging.getLogger("WEScheduler.Core")
 
@@ -40,6 +46,7 @@ _SENSOR_REGISTRY: List[Type[Sensor]] = [
     WeatherSensor,
     TimeSensor,
 ]
+
 
 _STATE_FILE = os.path.join(get_data_dir(), "state.json")
 
@@ -95,6 +102,7 @@ class WEScheduler:
         self.current_playlist: str = ""
         self.last_status_line: str = ""
         self._config_mtime: float = 0.0
+        self.state_store = StateStore()
 
     def initialize(self) -> bool:
         """Initializes all components. Returns True if successful, raises on failure."""
@@ -203,7 +211,10 @@ class WEScheduler:
                 
                 # Status Update (for console/tray)
                 self._update_status(context, result)
-                
+
+                # Dashboard tick push
+                self.state_store.update(build_tick_state(self, context, result))
+
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")
             
