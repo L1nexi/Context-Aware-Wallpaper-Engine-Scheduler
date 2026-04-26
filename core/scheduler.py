@@ -22,7 +22,6 @@ from core.context import ContextManager, Context
 from core.matcher import Matcher, MatchResult
 from core.controller import SchedulingController
 from core.actuator import Actuator
-from   core.dashboard import TickState, StateStore, build_tick_state
 
 logger = logging.getLogger("WEScheduler.Core")
 
@@ -87,22 +86,21 @@ class WEScheduler:
         self.thread: Optional[threading.Thread] = None
         self.stop_event = threading.Event()
 
-        # Hook: called (from the scheduler thread) after an automatic
-        # timed-pause resume.  Allows the tray to sync icon / menu
-        # without polling or guessing timing.
-        self.on_auto_resume = None
-        
+        # Hooks — set externally by the host (main.py) to wire up
+        # cross-cutting concerns without the scheduler owning them.
+        self.on_auto_resume = None   # called when a timed pause expires
+        self.on_tick = None          # called every tick: (scheduler, context, result)
+
         # Components
         self.config_loader: Optional[ConfigLoader] = None
         self.executor: Optional[WEExecutor] = None
         self.context_manager: Optional[ContextManager] = None
         self.matcher: Optional[Matcher] = None
         self.actuator: Optional[Actuator] = None
-        
+
         self.current_playlist: str = ""
         self.last_status_line: str = ""
         self._config_mtime: float = 0.0
-        self.state_store = StateStore()
 
     def initialize(self) -> bool:
         """Initializes all components. Returns True if successful, raises on failure."""
@@ -212,8 +210,11 @@ class WEScheduler:
                 # Status Update (for console/tray)
                 self._update_status(context, result)
 
-                # Dashboard tick push
-                self.state_store.update(build_tick_state(self, context, result))
+                if self.on_tick:
+                    try:
+                        self.on_tick(self, context, result)
+                    except Exception:
+                        logger.exception("on_tick hook failed")
 
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")

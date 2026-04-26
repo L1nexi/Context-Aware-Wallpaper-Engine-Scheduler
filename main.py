@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from core.scheduler import WEScheduler
+    from core.scheduler import WEScheduler, Context, MatchResult
 
 import sys
 import os
@@ -137,7 +137,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     though there's no console window.
     """
     from core.scheduler import WEScheduler
-    from core.dashboard import DashboardHTTPServer
+    from core.dashboard import DashboardHTTPServer, StateStore, build_tick_state
     from core.tray import TrayIcon
 
     scheduler = WEScheduler(config_path)
@@ -151,11 +151,18 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
 
     scheduler.start()
 
-    httpd = DashboardHTTPServer(scheduler.state_store)
+    state_store = StateStore()
+    def _handle_tick(scheduler: WEScheduler, context: Context, result: MatchResult) -> None:
+        state_store.update(build_tick_state(scheduler, context, result))
+    scheduler.on_tick = _handle_tick
+    httpd = DashboardHTTPServer(state_store)
     httpd.start()
 
     tray = TrayIcon(scheduler)
-    tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
+
+    def _on_show_dashboard():
+        _spawn_dashboard_subprocess(httpd.port)
+    tray.on_show_dashboard = _on_show_dashboard
     tray.run()
 
 

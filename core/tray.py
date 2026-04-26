@@ -227,8 +227,7 @@ class TrayIcon:
         self._open_file(log_path)
 
     def _on_show_dashboard(self, icon, item):
-        if self.on_show_dashboard:
-            self.on_show_dashboard()
+        self.on_show_dashboard()
 
     def _on_exit(self, icon, item):
         self.scheduler.stop()
