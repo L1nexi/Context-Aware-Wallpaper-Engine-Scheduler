@@ -56,6 +56,28 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "startup_error_title":     {"en": "Startup Failed",                    "zh": "启动失败"},
     "startup_error_body":      {"en": "Scheduler failed to start.\n\n{detail}\n\nCheck the log for details.",
                                 "zh": "调度器启动失败。\n\n{detail}\n\n请查看日志获取详情。"},
+
+    # -- Dashboard --
+    "dashboard_show":          {"en": "Dashboard",              "zh": "仪表盘"},
+    "dashboard_title":         {"en": "WEScheduler Dashboard",  "zh": "WEScheduler 仪表盘"},
+    "dashboard_running":       {"en": "Running",                "zh": "运行中"},
+    "dashboard_paused":        {"en": "Paused",                 "zh": "已暂停"},
+    "dashboard_fullscreen":    {"en": "Fullscreen",             "zh": "全屏"},
+    "dashboard_waiting":       {"en": "Waiting...",             "zh": "等待中..."},
+    "dashboard_no_data":       {"en": "No data",                "zh": "暂无数据"},
+    "dashboard_loading":       {"en": "Loading...",             "zh": "加载中..."},
+    "dashboard_similarity":    {"en": "Similarity",             "zh": "匹配度"},
+    "dashboard_gap":           {"en": "Confidence Gap",         "zh": "置信度差值"},
+    "dashboard_magnitude":     {"en": "Signal Strength",        "zh": "信号强度"},
+    "dashboard_tags":          {"en": "Top Tags",               "zh": "主要标签"},
+    "dashboard_context":       {"en": "Context",                "zh": "环境信息"},
+    "dashboard_active_window": {"en": "Active Window",          "zh": "活动窗口"},
+    "dashboard_idle":          {"en": "Idle",                   "zh": "空闲"},
+    "dashboard_cpu":           {"en": "CPU",                    "zh": "CPU"},
+    "dashboard_connection_lost": {
+        "en": "Scheduler connection lost. This window will close in {seconds} seconds.",
+        "zh": "调度器连接丢失。窗口将在 {seconds} 秒后关闭。",
+    },
 }
 
 

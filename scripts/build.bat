@@ -25,6 +25,7 @@ pyinstaller --noconsole --onefile --name "WEScheduler" ^
     --hidden-import=win32gui ^
     --hidden-import=win32con ^
     --hidden-import=win32api ^
+    --add-data "dashboard\dist;dashboard\dist" ^
     --clean ^
     main.py
 

@@ -14,10 +14,14 @@ venv/
 .vscode/
 .idea/
 
-#  PyInstaller 
+#  PyInstaller
 build/
-dist/
+/dist/
 *.spec
+
+# Dashboard frontend build — dist is committed so packaging doesn't need Node.js
+node_modules/
+!dashboard/dist/
 
 scheduler_config.json
 temp_playlist.json

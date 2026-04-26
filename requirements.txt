@@ -5,3 +5,5 @@ pystray
 Pillow
 pydantic
 pyinstaller
+pywebview>=4.4,<5.0
+bottle
