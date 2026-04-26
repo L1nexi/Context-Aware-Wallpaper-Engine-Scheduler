@@ -11,27 +11,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [0.5.0] - 2026-04-26
 
-**数值语义化重构**
+**数值语义化重构 (Semantic Value Decomposition)**
 
-此版本对 `tag : value` 的 `value` 进行了全面的语义分解，提供了更明确的标签语义，控制隐式语义的使用，降低开发者心智负担。
+此版本对 `tag: value` 中的 `value` 进行了全面的语义分解。此前，强度、显著性、方向权重三个不同维度的信息被混淆在单一浮点数中，导致隐式归一化契约、开发者认知负担高、以及信号强度信息在余弦相似度匹配中被丢弃等问题。
 
-### Refactored
+核心设计：将每个策略输出拆分为三个正交语义维度：
 
-- 对于 `playlists` 的的 `tag:value` 配置，明确 `value` 语义为 "亲和度"。
-- 引入 `PolicyOutput` 数据类，用于封装包含方向、显著性和强度的策略输出。每个策略输出三个层面的信息：方向（`direction`）、显著性（`salience`）和强度（`intensity`）
-- 更新 `Policy` 类方法，改为计算并返回 `PolicyOutput` 对象而非原始标签。
-- 重构 `ActivityPolicy`、`TimePolicy`、`SeasonPolicy` 和 `WeatherPolicy` 以适配新的输出结构。
-- 增强 `get_output` 方法，实现方向归一化及强度处理的优化。
-- 调整 `WEScheduler` 的日志记录，在状态输出中包含相似度差距。
-- 清理策略类中未使用的方法和注释，提升代码可读性。
+| 维度 | 类型 | 范围 | 含义 |
+|---|---|---|---|
+| `direction` | `Dict[str, float]` | L2 范数 = 1 | 信号的**种类**（是什么） |
+| `salience` | `float` | [0, 1] | 类别归属的**清晰程度**（确定吗） |
+| `intensity` | `float` | [0, 1] | 现象的**强烈程度**（有多强） |
+
+策略对环境向量的贡献：`direction × salience × intensity × weight_scale`
 
 ### Added
 
-- `docs/SEMANTIC-REFACTOR-SPEC.md`：新增语义重构设计文档，详细说明了数值语义化处理的设计原则。
+- **`PolicyOutput` 数据类** (`core/policies.py`): 封装 direction / salience / intensity 三个正交维度，替代原来各策略返回的裸 `Dict[str, float]`。
+- **`MatchResult` 新增字段** (`core/matcher.py`):
+  - `similarity_gap: float` — 最优与次优播放列表的余弦相似度之差，衡量匹配的"决断力"。差距小时说明两个候选接近，控制器可据此采取更保守的策略。
+  - `max_policy_magnitude: float` — 所有策略中最大的 `salience × intensity × weight_scale`，反映最强信号的整体强度。
+- **`docs/SEMANTIC-REFACTOR-SPEC.md`**：完整的语义重构设计文档，包含语义模型定义、各策略映射表、12 项决策记录及迁移指南。
+- **`docs/ROADMAP.md` R4 章节**：Controller 增强路线图，规划基于 `similarity_gap` 和 `max_policy_magnitude` 的动态 cooldown 机制。
 
 ### Changed
 
-- `ActivityPolicy` 的行为改变：`ActivityPolicy` 的旧行为是对 `tag:value` 直接做 EMA 平滑。语义重构后，`ActivityPolicy` 对方向 `direction` 和强度 `intensity` 分别应用平滑。具体区别在于，从 `#focus` 应用转到 `#chill` 应用时，旧行为会导致范数经历波谷，而新行为下范数保持不变，方向由 EMA 平滑。
+- **`Policy` 基类重构**：`_compute_tags()` → `_compute_output()`，子类返回 `PolicyOutput`；基类 `get_output()` 统一对 `direction` 做 L2 归一化，消除各策略自行决定是否归一化的隐式契约。
+- **`ActivityPolicy` 双 EMA 轨道**：方向 EMA（对原始未归一化向量平滑后每 tick 重归一化） + 标量幅度 EMA（有匹配=1.0，无匹配→衰减至 0）。`intensity = magnitude_ema`。解决了旧行为从 `#focus` 切换到 `#chill` 时向量范数经历波谷的问题——新行为下范数保持稳定，方向平滑过渡。
+- **`TimePolicy` / `SeasonPolicy` 语义映射**：`direction` = Hann 窗权重的 L2 归一化向量；`salience` = Hann 窗峰值（时段中心=1.0，过渡边界→0）；`intensity` = 1.0（时间信号始终存在，只有清晰度变化）。
+- **`WeatherPolicy` 语义映射**：`direction` = 天气类型标签的 L2 归一化向量；`salience` = 1.0（天气代码含义明确）；`intensity` = 原始向量的 L2 范数（T1≈0.25 ~ T4≈1.0，直接反映物理严重程度）。
+- **`Matcher` 聚合逻辑**：从简单的 `sum(weight_scale × raw_tags)` 改为 `sum(direction × salience × intensity × weight_scale)`。Fallback 解析在聚合后的 env_vector 上统一执行。
+- **日志输出增强** (`core/scheduler.py`)：状态行新增 `gap=` 字段显示相似度差距；标签权重显示精度从 1 位提升至 2 位小数。
+- **可视化工具同步更新** (`misc/sim_match.py`, `misc/vis_common.py`)：引入 `SimPolicyOutput` 和 `_contribute()` 函数，与生产代码语义保持一致。
+- **配置参数微调**：`season.weight_scale` 0.6 → 0.65；`startup_delay` 30 → 15 秒。
+
+### Removed
+
+- **`docs/TODOS.md`**：已删除。其中的路线内容已合并至 `docs/ROADMAP.md`。
+
+### Design Decisions
+
+详见 `docs/SEMANTIC-REFACTOR-SPEC.md` 第 8 节，共 14 项决策记录，涵盖：播放列表值=亲和度、ActivityPolicy 双 EMA 设计、Fallback 强度传输、保留 `weight_scale` 作为策略优先级、方向由基类统一 L2 归一化、`similarity_gap` 与 `max_policy_magnitude` 传递给 Controller 供未来使用等。
 
 ## [0.4.1] - 2026-04-24
 

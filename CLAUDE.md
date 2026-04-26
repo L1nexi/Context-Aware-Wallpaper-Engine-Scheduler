@@ -38,14 +38,15 @@ Sensors → Context → Policies → Matcher → Controller → Actuator → WEE
 **Sense** (`core/sensors.py`): Each sensor implements `read() -> dict`. Sensors are registered in `_SENSOR_REGISTRY` and instantiated via `create()` class methods (conditional on config).
 
 **Think** (`core/policies.py` + `core/matcher.py`):
-- Each policy converts the context snapshot into a tag weight vector (e.g., `{"#focus": 0.8, "#day": 0.5}`)
-- `ActivityPolicy` uses EMA smoothing over process/window title rules
-- `TimePolicy` and `SeasonPolicy` use Hann window interpolation for smooth transitions between discrete states
-- `WeatherPolicy` uses a 4-tier intensity model (T1=0.2 → T4=1.0) mapped from OWM weather codes
-- `Matcher` aggregates all policy vectors and selects the best playlist via cosine similarity
+- Each policy's `_compute_output()` returns a `PolicyOutput(direction, salience, intensity)` dataclass. The base `Policy.get_output()` L2-normalizes `direction` before returning.
+- Contribution to the env vector: `direction * salience * intensity * weight_scale`
+- `ActivityPolicy`: dual EMA tracks — direction EMA (raw un-normalized vector) + scalar magnitude EMA. `intensity = magnitude_ema`; direction is normalized by base class. Transitions between tags (e.g. `#focus` → `#chill`) smooth the direction without norm dip.
+- `TimePolicy` / `SeasonPolicy`: Hann window over the 24h / 365d cycle. `salience` = Hann peak value (clarity of current period); `intensity` = 1.0 always.
+- `WeatherPolicy`: raw tag vector per OWM code encodes both type and severity. `intensity` = L2 norm of raw vector (T1≈0.25 → T4=1.0); `direction` = normalized; `salience` = 1.0.
+- `Matcher` aggregates all `PolicyOutput`s, applies `TagSpec` fallback on unknown tags, then cosine-matches against pre-normalized playlist vectors. Returns `MatchResult`.
 
 **Act** (`core/controller.py` + `core/actuator.py` + `core/executor.py`):
-- `SchedulingController` is a gate chain: blocks switching if CPU > threshold, fullscreen app active, or cooldown not elapsed
+- `SchedulingController` is a gate chain: blocks switching if CPU > threshold, fullscreen app active, or cooldown not elapsed. Receives `MatchResult`; `similarity_gap` and `max_policy_magnitude` are available for future dynamic cooldown logic.
 - `Actuator` calls `WEExecutor` which wraps `wallpaper64.exe -control openPlaylist -playlist <name>`
 - All events are appended to `history.jsonl`
 
@@ -56,22 +57,40 @@ Sensors → Context → Policies → Matcher → Controller → Actuator → WEE
 
 **Tray UI** (`core/tray.py`): pystray + tkinter dialogs; reads OS locale via `utils/i18n.py` to serve zh/en strings.
 
+## Tag Semantics (v0.5.0)
+
+The `tag: value` system has three distinct semantic roles:
+
+| Context | `value` meaning |
+|---|---|
+| `playlists[].tags` | **Affinity** — aesthetic fit of this playlist for the concept. Only relative ratios matter (vectors are L2-normalized before matching). |
+| `PolicyOutput.direction` | **Direction** — unit L2-normalized; encodes *what kind* of signal, not how strong. |
+| `PolicyOutput.salience` | **Salience** — clarity of category membership [0,1]; e.g. Hann window value for time/season. |
+| `PolicyOutput.intensity` | **Intensity** — physical/behavioral magnitude [0,1]; e.g. weather severity T1–T4. |
+| `tags[tag].fallback` | **Fallback edges** — when a policy emits a tag not in any playlist, energy cascades along fallback edges (weight-attenuated) until a known tag is reached. |
+
+`weight_scale` (per policy) is a **priority multiplier** orthogonal to intensity: "how important is this signal type globally."
+
 ## Configuration
 
 Config is validated by Pydantic models in `utils/config_loader.py`. See `scheduler_config.example.json` for a full reference. Key sections:
 
 - `wallpaper_engine_path`: path to `wallpaper64.exe`
-- `playlists[].tags`: tag weight dict that the matcher scores against (e.g., `{"#focus": 1.0, "#day": 0.9}`)
-- `policies.activity.rules`: list of `{process, title, tags}` match rules
+- `tags`: `TagSpec` fallback graph — defines how policy-emitted tags cascade to playlist tags when there's no direct match (e.g. `"#dawn": {"fallback": {"#day": 0.7, "#chill": 0.3}}`)
+- `playlists[].tags`: affinity weight dict (values are relative; system normalizes)
+- `policies.activity.process_rules` / `title_rules`: `{process_name: "#tag"}` / `{keyword: "#tag"}` match rules
 - `policies.weather.api_key` / `lat` / `lon`: OpenWeatherMap credentials
 - `scheduling`: `idle_threshold`, `switch_cooldown`, `cycle_cooldown`, `force_after`, `cpu_threshold`, `pause_on_fullscreen`
+
+`extra="forbid"` on all Pydantic models means unknown config keys raise a `ValidationError` at startup. `PoliciesConfig` uses `extra="allow"` so unknown policy names are silently ignored (enables future/experimental policies without crashing).
 
 ## Key Design Patterns
 
 - **Registry + Factory**: `_SENSOR_REGISTRY` / `_POLICY_REGISTRY` dicts + `create()` classmethods control which sensors/policies are instantiated based on config.
 - **State export/import**: Policies and controller implement `export_state()` / `import_state()` so hot-reload preserves EMA accumulators and cooldown timestamps.
 - **Gate chain**: `SchedulingController` composes multiple deferral conditions; adding a new gate means adding a method that returns `(allowed: bool, reason: str)`.
-- **Tag vector space**: All playlists and policy outputs live in the same sparse tag space. Adding a new signal means defining new tag keys and updating the relevant policy — no changes to `Matcher`.
+- **Tag vector space**: Playlists, policy directions, and fallback edges share one flat tag namespace (e.g. `#focus`, `#rain`). Adding a new signal means defining new tag keys, updating the relevant policy, and optionally adding `TagSpec` fallback entries — no changes to `Matcher`.
+- **`config_key` validation**: Each `Policy` subclass declares `config_key: ClassVar[str]` matching an attribute on `PoliciesConfig`. `__init_subclass__` validates this at import time; typos raise `TypeError` before the app starts.
 
 ## Runtime Artifacts
 
@@ -80,7 +99,7 @@ Config is validated by Pydantic models in `utils/config_loader.py`. See `schedul
 | `scheduler_config.json` | Main config (hot-reloaded on change) |
 | `state.json` | Persisted pause/playlist state |
 | `logs/scheduler.log` | Rotating log (5 MB × 3 backups) |
-| `history.jsonl` | Append-only event log |
+| `history.jsonl` | Append-only event log (top-5 tags per switch) |
 
 Logger hierarchy: root `WEScheduler` → children `WEScheduler.Core`, `.Policy`, `.Sensor`, `.Tray`, etc. (`utils/logger.py`).
 
