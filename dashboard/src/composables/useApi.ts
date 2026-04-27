@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 export interface TickState {
   ts: number
   current_playlist: string
+  current_playlist_display: string
   similarity: number
   similarity_gap: number
   max_policy_magnitude: number

@@ -15,23 +15,28 @@
   "playlists": [
     {
       "name": "BRIGHT_FLOW",
-      "tags": { "#focus": 1.0, "#day": 0.9, "#dawn": 0.3, "#clear": 0.3 }
+      "tags": { "#focus": 1.0, "#day": 0.9, "#dawn": 0.3, "#clear": 0.3 },
+      "display": "日光流动"
     },
     {
       "name": "CASUAL_ANIME",
-      "tags": { "#chill": 1.0, "#day": 0.9, "#clear": 0.3 }
+      "tags": { "#chill": 1.0, "#day": 0.9, "#clear": 0.3 },
+      "display": "次元日常"
     },
     {
       "name": "SUNSET_GLOW",
-      "tags": { "#sunset": 1.0, "#chill": 0.5, "#clear": 0.3 }
+      "tags": { "#sunset": 1.0, "#chill": 0.5, "#clear": 0.3 },
+      "display": "夕阳余晖"
     },
     {
       "name": "NIGHT_CHILL",
-      "tags": { "#chill": 1.0, "#night": 0.9, "#clear": 0.2 }
+      "tags": { "#chill": 1.0, "#night": 0.9, "#clear": 0.2 },
+      "display": "闲适夜晚"
     },
     {
       "name": "NIGHT_FOCUS",
-      "tags": { "#focus": 1.0, "#night": 0.9, "#clear": 0.2 }
+      "tags": { "#focus": 1.0, "#night": 0.9, "#clear": 0.2 },
+      "display": "深夜专注"
     },
     {
       "name": "RAINY_MOOD",
@@ -41,15 +46,18 @@
         "#day": 0.3,
         "#night": 0.3,
         "#chill": 0.3
-      }
+      },
+      "display": "雨落时分"
     },
     {
       "name": "SPRING_BLOOM",
-      "tags": { "#spring": 1.0, "#day": 0.5, "#clear": 0.3, "#chill": 0.2 }
+      "tags": { "#spring": 1.0, "#day": 0.5, "#clear": 0.3, "#chill": 0.2 },
+      "display": "春日绿意"
     },
     {
       "name": "SUMMER_GLOW",
-      "tags": { "#summer": 1.0, "#day": 0.5, "#clear": 0.4, "#chill": 0.3 }
+      "tags": { "#summer": 1.0, "#day": 0.5, "#clear": 0.4, "#chill": 0.3 },
+      "display": "盛夏之感"
     },
     {
       "name": "AUTUMN_DRIFT",
@@ -59,7 +67,8 @@
         "#day": 0.3,
         "#chill": 0.3,
         "#clear": 0.2
-      }
+      },
+      "display": "秋日私语"
     },
     {
       "name": "WINTER_VIBES",
@@ -69,7 +78,8 @@
         "#snow": 0.5,
         "#chill": 0.3,
         "#clear": 0.3
-      }
+      },
+      "display": "暖冬氛围"
     }
   ],
   "policies": {

@@ -18,6 +18,7 @@ class TagSpec(BaseModel):
 class PlaylistConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1)
+    display: str = ""
     tags: Dict[str, float] = Field(min_length=1)
 
 

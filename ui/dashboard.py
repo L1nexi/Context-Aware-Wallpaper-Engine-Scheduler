@@ -35,6 +35,7 @@ logger = logging.getLogger("WEScheduler.Dashboard")
 class TickState:
     ts: float = 0.0
     current_playlist: str = ""
+    current_playlist_display: str = ""
     similarity: float = 0.0
     similarity_gap: float = 0.0
     max_policy_magnitude: float = 0.0
@@ -78,9 +79,13 @@ def build_tick_state(
     sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:8]
     top_tags = [{"tag": t, "weight": round(w, 4)} for t, w in sorted_tags]
 
+    best = result.best_playlist if result is not None else ""
+    display = scheduler.display_of.get(best, "") if best else ""
+
     return TickState(
         ts=time.time(),
-        current_playlist=result.best_playlist if result is not None else "",
+        current_playlist=best,
+        current_playlist_display=display,
         similarity=round(result.similarity, 4) if result is not None else 0.0,
         similarity_gap=round(result.similarity_gap, 4) if result is not None else 0.0,
         max_policy_magnitude=round(result.max_policy_magnitude, 4) if result is not None else 0.0,

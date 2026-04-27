@@ -250,6 +250,7 @@ class WEScheduler:
         self.context_manager = cm
         self.matcher = Matcher(config.playlists, policies, config.tags)
         self.actuator = Actuator(self.executor, SchedulingController(config.scheduling))
+        self.display_of = {pl.name: pl.display or pl.name for pl in config.playlists}
 
     def _hot_reload(self) -> None:
         """Reload config and rebuild all runtime components.
@@ -331,9 +332,12 @@ class WEScheduler:
     def _update_status(self, context: Context, result: Optional[MatchResult]) -> None:
         process_name = context.window.process or "N/A"
         idle_time = context.idle
-        decision = result.best_playlist if result is not None else None
+        best = result.best_playlist if result is not None else None
         tags = result.aggregated_tags if result is not None else {}
         sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:3]
+
+        # Resolve display name for the active playlist, falling back to internal name
+        label = self.display_of.get(best) if best else None
 
         tag_parts = []
         for tag, weight in sorted_tags:
@@ -344,7 +348,7 @@ class WEScheduler:
         tag_str = " | ".join(tag_parts)
         gap_str = f" gap={result.similarity_gap:.2f}" if result is not None else ""
         self.last_status_line = (
-            f"[{decision or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}{gap_str}"
+            f"[{label or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}{gap_str}"
         )
         if not getattr(sys, 'frozen', False):
             print(f"\r{self.last_status_line:<110}", end="", flush=True)

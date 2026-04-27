@@ -7,7 +7,7 @@ const state = inject<Ref<TickState | null>>('state')!
 const t = inject<(key: string, params?: Record<string, string | number>) => string>('t')!
 const loading = inject<Ref<boolean>>('loading')!
 
-const playlistName = computed(() => state.value?.current_playlist || '')
+const playlistName = computed(() => state.value?.current_playlist_display || state.value?.current_playlist || '')
 const isEmpty = computed(() => !loading.value && !playlistName.value)
 </script>
 
