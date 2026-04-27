@@ -206,6 +206,7 @@
 
 查看 `logs/scheduler.log` 以获取详细的运行日志。
 
-## 详细文档
+## 更多文档
 
-更多设计细节和开发说明请参考 [docs/README_DEV.md](docs/README_DEV.md)。
+- `tag : value` 语义化规范参见：[SEMANTIC-REFACTOR-SPEC](docs/SEMANTIC-REFACTOR-SPEC.md)
+- 未来功能路线图参见：[ROADMAP](docs/ROADMAP.md)
