@@ -113,8 +113,11 @@ def _run_console_mode(config_path: str, logger: logging.Logger) -> None:
     thread with the main thread sleeping until KeyboardInterrupt.
     """
     from core.scheduler import WEScheduler
+    from utils.history_logger import HistoryLogger
+    from utils.app_context import get_data_dir
 
     scheduler = WEScheduler(config_path)
+    scheduler.history_logger = HistoryLogger(get_data_dir())  # BEFORE initialize()
     try:
         scheduler.initialize()
     except Exception as e:
@@ -139,8 +142,11 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     from core.scheduler import WEScheduler
     from ui.dashboard import DashboardHTTPServer, StateStore, build_tick_state
     from ui.tray import TrayIcon
+    from utils.history_logger import HistoryLogger
+    from utils.app_context import get_data_dir
 
     scheduler = WEScheduler(config_path)
+    scheduler.history_logger = HistoryLogger(get_data_dir())  # BEFORE initialize()
     try:
         scheduler.initialize()
     except Exception as e:
@@ -155,7 +161,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     def _handle_tick(scheduler: WEScheduler, context: Context, result: MatchResult) -> None:
         state_store.update(build_tick_state(scheduler, context, result))
     scheduler.on_tick = _handle_tick
-    httpd = DashboardHTTPServer(state_store)
+    httpd = DashboardHTTPServer(state_store, scheduler.history_logger)
     httpd.start()
 
     tray = TrayIcon(scheduler)

@@ -15,8 +15,10 @@ import sys
 import threading
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
+from collections import deque
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
+import json
 import time
 
 import bottle
@@ -47,24 +49,34 @@ class TickState:
     cpu: float = 0.0
     fullscreen: bool = False
     locale: str = "en"
+    last_event_id: int = 0
 
 
 # ── StateStore ─────────────────────────────────────────────────────
 
 class StateStore:
-    """Thread-safe store for the most recent TickState."""
+    """Thread-safe store for TickState snapshots with a ring buffer of recent ticks."""
 
-    def __init__(self):
+    def __init__(self, tick_history: int = 300):
         self._lock = threading.Lock()
         self._state = TickState()
+        self._ticks: deque[TickState] = deque(maxlen=tick_history)
 
     def update(self, state: TickState) -> None:
         with self._lock:
             self._state = state
+            self._ticks.append(state)
 
     def read(self) -> TickState:
         with self._lock:
             return self._state
+
+    def read_recent(self, count: int | None = None) -> list[dict]:
+        with self._lock:
+            items = list(self._ticks)
+        if count is not None:
+            items = items[-count:]
+        return [dataclasses.asdict(s) for s in items]
 
 
 # ── build_tick_state ──────────────────────────────────────────────
@@ -97,6 +109,7 @@ def build_tick_state(
         cpu=round(context.cpu, 1),
         fullscreen=context.fullscreen,
         locale=_current_lang,
+        last_event_id=scheduler.history_logger.last_event_id if scheduler.history_logger else 0,
     )
 
 
@@ -110,7 +123,7 @@ def _resolve_static_root() -> str:
     return os.path.join(get_app_root(), 'dashboard', 'dist')
 
 
-def _build_app(state_store: StateStore) -> bottle.Bottle:
+def _build_app(state_store: StateStore, history_logger=None) -> bottle.Bottle:
     app = bottle.Bottle()
 
     # ── API routes ──────────────────────────────────────────────
@@ -124,6 +137,23 @@ def _build_app(state_store: StateStore) -> bottle.Bottle:
     def api_health():
         bottle.response.content_type = 'application/json; charset=utf-8'
         return {"ok": True}
+
+    @app.route('/api/ticks')
+    def api_ticks():
+        count = int(bottle.request.query.get('count', 300))
+        bottle.response.content_type = 'application/json; charset=utf-8'
+        return json.dumps(state_store.read_recent(count))
+
+    @app.route('/api/history')
+    def api_history():
+        if history_logger is None:
+            bottle.response.content_type = 'application/json; charset=utf-8'
+            return json.dumps({"segments": [], "events": []})
+        limit = int(bottle.request.query.get('limit', 100))
+        from_ts = bottle.request.query.get('from')
+        to_ts = bottle.request.query.get('to')
+        bottle.response.content_type = 'application/json; charset=utf-8'
+        return json.dumps(history_logger.read(limit=limit, from_ts=from_ts, to_ts=to_ts))
 
     # ── Static / SPA routes ─────────────────────────────────────
 
@@ -155,15 +185,16 @@ class DashboardHTTPServer:
     available via ``.port`` after ``start()``.
     """
 
-    def __init__(self, state_store: StateStore):
+    def __init__(self, state_store: StateStore, history_logger=None):
         self._state_store = state_store
+        self._history = history_logger
         self._httpd: _ThreadingWSGIServer | None = None
         self._thread: threading.Thread | None = None
         self.port: int = 0
 
     def start(self) -> None:
         os.makedirs(_resolve_static_root(), exist_ok=True)
-        app = _build_app(self._state_store)
+        app = _build_app(self._state_store, self._history)
 
         self._httpd = make_server("127.0.0.1", 0, app, server_class=_ThreadingWSGIServer)
         self.port = self._httpd.server_address[1]

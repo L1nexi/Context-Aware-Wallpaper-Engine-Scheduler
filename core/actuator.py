@@ -1,87 +1,66 @@
-import json
-import os
 import logging
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Optional
+
 from core.executor import WEExecutor
 from core.controller import SchedulingController
 from core.context import Context
 from core.matcher import MatchResult
-from utils.app_context import get_data_dir
 
 logger = logging.getLogger("WEScheduler.Actuator")
 
-_HISTORY_FILE = os.path.join(get_data_dir(), "history.jsonl")
 
 class Actuator:
-    """
-    The 'Act' component of the Sense-Think-Act loop.
-    Responsible for executing changes in Wallpaper Engine based on the decision
-    from the Matcher and the constraints from the SchedulingController.
-    """
-    def __init__(self, executor: WEExecutor, controller: SchedulingController):
+    def __init__(self, executor: WEExecutor, controller: SchedulingController,
+                 history_logger=None):
         self.executor = executor
         self.controller = controller
+        self._history = history_logger
 
     def act(self, context: Context, result: Optional[MatchResult], current_playlist: str) -> str:
-        """
-        Decides and executes the appropriate action.
-        Returns the new (or unchanged) current_playlist.
-        """
         if result is None:
             return current_playlist
 
         best_playlist = result.best_playlist
         aggregated_tags = result.aggregated_tags
 
-        # Helper to format tags for logging
-        def log_tags():
-            sorted_tags = sorted(aggregated_tags.items(), key=lambda x: x[1], reverse=True)
-            tag_str = ", ".join([f"{k}:{v:.2f}" for k, v in sorted_tags])
+        def _sorted_tags(top: int = 8):
+            return sorted(aggregated_tags.items(), key=lambda x: x[1], reverse=True)[:top]
+
+        def _tag_dict(top: int = 8):
+            return {k: round(v, 4) for k, v in _sorted_tags(top)}
+
+        def _log_tags():
+            tag_str = ", ".join([f"{k}:{v:.2f}" for k, v in _sorted_tags()])
             logger.info(f"Trigger Context: [{tag_str}]")
 
         # Case A: Context suggests a different playlist
         if best_playlist != current_playlist:
             if self.controller.can_switch_playlist(context):
                 logger.info(f"[Action] Switching Playlist from '{current_playlist}' to '{best_playlist}'")
-                log_tags()
+                _log_tags()
                 self.executor.open_playlist(best_playlist)
                 self.controller.notify_playlist_switch()
-                self._write_history("playlist_switch", aggregated_tags,
-                                    playlist_from=current_playlist,
-                                    playlist_to=best_playlist)
+                if self._history:
+                    self._history.write("playlist_switch", {
+                        "playlist_from": current_playlist,
+                        "playlist_to": best_playlist,
+                        "tags": _tag_dict(),
+                        "similarity": round(result.similarity, 4),
+                        "similarity_gap": round(result.similarity_gap, 4),
+                        "max_policy_magnitude": round(result.max_policy_magnitude, 4),
+                    })
                 return best_playlist
-            else:
-                # Intent detected but blocked by controller (cooling down or not idle)
-                pass
-        
+
         # Case B: Context suggests the same playlist (Stable context)
         else:
-            # We might still want to cycle the wallpaper to keep it fresh
             if self.controller.can_cycle_wallpaper(context):
                 logger.info(f"[Action] Cycling Wallpaper in '{current_playlist}'")
                 self.executor.next_wallpaper()
                 self.controller.notify_wallpaper_cycle()
-                self._write_history("wallpaper_cycle", aggregated_tags,
-                                    playlist=current_playlist)
-            else:
-                # Blocked by wallpaper cooling down
-                pass
+                if self._history:
+                    self._history.write("wallpaper_cycle", {
+                        "playlist": current_playlist,
+                        "tags": _tag_dict(),
+                    })
 
         return current_playlist
-
-    @staticmethod
-    def _write_history(event: str, tags: Dict[str, float], **extra: Any) -> None:
-        """Append a single JSON line to history.jsonl."""
-        record = {
-            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "event": event,
-            "tags": {k: round(v, 3) for k, v in
-                     sorted(tags.items(), key=lambda x: x[1], reverse=True)[:5]},
-            **extra,
-        }
-        try:
-            with open(_HISTORY_FILE, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        except Exception:
-            logger.debug("Failed to write history", exc_info=True)

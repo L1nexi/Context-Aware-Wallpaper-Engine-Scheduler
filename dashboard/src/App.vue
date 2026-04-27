@@ -2,18 +2,24 @@
 import { provide } from 'vue'
 import { RouterView } from 'vue-router'
 import { useApi } from '@/composables/useApi'
+import { useHistory } from '@/composables/useHistory'
 import { useI18n } from '@/composables/useI18n'
 import TopBar from '@/components/TopBar.vue'
 
-const { state, error, zombie, loading } = useApi()
+const { state, ticks, error, zombie, loading } = useApi()
 const { t, lang } = useI18n()
+const { segments, events, fetchHistory } = useHistory(state)
 
 provide('state', state)
+provide('ticks', ticks)
 provide('error', error)
 provide('zombie', zombie)
 provide('loading', loading)
 provide('t', t)
 provide('lang', lang)
+provide('segments', segments)
+provide('events', events)
+provide('fetchHistory', fetchHistory)
 </script>
 
 <template>

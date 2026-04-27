@@ -88,6 +88,9 @@ class WEScheduler:
         self.on_auto_resume = None   # called when a timed pause expires
         self.on_tick = None          # called every tick: (scheduler, context, result)
 
+        # Injected services — set externally BEFORE initialize()
+        self.history_logger: object | None = None
+
         # Components
         self.config_loader: Optional[ConfigLoader] = None
         self.executor: Optional[WEExecutor] = None
@@ -131,6 +134,8 @@ class WEScheduler:
 
         self.running = True
         self.stop_event.clear()
+        if self.history_logger:
+            self.history_logger.write("start", {})
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
         logger.info("Scheduler started.")
@@ -143,6 +148,8 @@ class WEScheduler:
         if self.thread:
             self.thread.join(timeout=2)
         SchedulerState.save_state(self._build_state())
+        if self.history_logger:
+            self.history_logger.write("stop", {})
         logger.info("Scheduler stopped.")
 
     def pause(self, seconds: Optional[int] = None):
@@ -158,11 +165,15 @@ class WEScheduler:
             self.pause_until = 0
             logger.info("Scheduler paused (indefinitely).")
         SchedulerState.save_state(self._build_state())
+        if self.history_logger:
+            self.history_logger.write("pause", {"duration": seconds})
 
     def resume(self):
         self.paused = False
         self.pause_until = 0
         logger.info("Scheduler resumed.")
+        if self.history_logger:
+            self.history_logger.write("resume", {})
         SchedulerState.save_state(self._build_state())
 
     def get_pause_remaining(self) -> Optional[float]:
@@ -249,7 +260,8 @@ class WEScheduler:
 
         self.context_manager = cm
         self.matcher = Matcher(config.playlists, policies, config.tags)
-        self.actuator = Actuator(self.executor, SchedulingController(config.scheduling))
+        self.actuator = Actuator(self.executor, SchedulingController(config.scheduling),
+                                 history_logger=self.history_logger)
         self.display_of = {pl.name: pl.display or pl.name for pl in config.playlists}
 
     def _hot_reload(self) -> None:
