@@ -22,7 +22,7 @@ class DashboardWindow:
         self._url = f"http://127.0.0.1:{api_port}?locale={locale}"
 
     def create_and_block(self) -> None:
-        import webview
+        import ui.webview as webview
 
         webview.create_window(
             title=t("dashboard_title"),

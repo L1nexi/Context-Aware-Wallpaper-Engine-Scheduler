@@ -102,7 +102,7 @@ def _run_dashboard(port: int, locale: str) -> None:
     Opens a pywebview window loading the SPA from the host's HTTP server,
     then blocks until the window is closed.
     """
-    from core.webview import DashboardWindow
+    from ui.webview import DashboardWindow
     DashboardWindow(port, locale).create_and_block()
 
 
@@ -137,8 +137,8 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     though there's no console window.
     """
     from core.scheduler import WEScheduler
-    from core.dashboard import DashboardHTTPServer, StateStore, build_tick_state
-    from core.tray import TrayIcon
+    from ui.dashboard import DashboardHTTPServer, StateStore, build_tick_state
+    from ui.tray import TrayIcon
 
     scheduler = WEScheduler(config_path)
     try:
