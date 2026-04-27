@@ -6,41 +6,23 @@
 
 ---
 
-## R1 — 系统状态 Dashboard
+## R1 — 系统状态 Dashboard ✅ 已完成
 
-**动机：** 用户无法直接观察调度器内部状态（当前聚合 tag、各 Policy 贡献、匹配相似度），只能靠日志排查。Dashboard 是用户理解系统"正在想什么"的直接界面。
+**实际实现** (`ui/dashboard.py`, `ui/webview.py`, `dashboard/`, `main.py`):
 
-**可用数据（调度循环每 tick 已产生）：**
-
-- `aggregated_tags: Dict[str, float]` — 按权重排序的 Top-N 标签
-- `similarity: float` — 当前环境向量与最佳 playlist 的余弦相似度
-- `current_playlist: str` — 当前播放列表
-- `last_switch_time` — 上次切换时间戳
-- 调度器暂停状态及剩余时间
-
-**实现方案：Observer hook**
-
-在 `WEScheduler` 上增加 `on_tick_state` callable 属性（与 `on_auto_resume` 同模式），调度循环每 tick 推送一个轻量快照 `TickState`。Dashboard 窗口注册此 hook，仅在窗口可见时消费（否则 no-op）。
-
-```python
-@dataclass
-class TickState:
-    ts: float
-    current_playlist: str
-    similarity: float
-    top_tags: List[Tuple[str, float]]   # top 8, sorted by weight
-    paused: bool
-    pause_until: Optional[float]
-```
+- Hook: `scheduler.on_tick(scheduler, context, result)` — 每 tick 由调度循环调用
+- StateStore: `update(tick_state)` / `read()` with `threading.Lock`
+- HTTP server: Bottle-based, binds `127.0.0.1:0`, serves `/api/state` + `/api/health` + static SPA
+- Frontend: Vue 3 + TypeScript + Element Plus, 1s polling, zombie detection
+- Window: pywebview (WebView2), spawned as subprocess from tray
+- TickState: 13 fields including context data (active_window, idle_time, cpu, fullscreen) beyond the original 6
 
 **集成方式：**
 
-- Phase 1：托盘菜单增加「状态...」(`open_dashboard`) 入口，弹出 tkinter 轻量窗口，1s 刷新。
-- Phase 2：与 history.jsonl 时间轴合并（见 R3）。
+- ✅ Phase 1：托盘菜单「Dashboard」入口 → 独立子进程 + pywebview 窗口
+- Phase 2：与 history.jsonl 时间轴合并（见 R3）
 
-**与现有代码的影响面：** 仅在 `scheduler.py` 的 `_run_loop` 末尾添加 hook 调用；不影响任何现有逻辑。
-
-**优先级：** 中 | 依赖：无
+**优先级：** ✅ 已完成
 
 ---
 
@@ -133,8 +115,8 @@ WE_TAG_MAP = {
 
 | ID    | 功能                           | 优先级 | 依赖  |   估计规模    |
 | ----- | ------------------------------ | :----: | ----- | :-----------: |
-| R1    | Dashboard (状态仪表盘)         |  ★★★   | —     | 中（~300 行） |
-| R3    | history 时间轴（集成进 R1）    |  ★★☆   | R1    |      小       |
+| ~~R1~~ | ~~Dashboard (状态仪表盘)~~     |   ✅   | —     |    已完成    |
+| R3    | history 时间轴（集成进 R1）    |  ★★☆   | ~~R1~~ |      小       |
 | R2-L1 | 自动 tag 生成·层 1（映射表）   |  ★★☆   | —     | 小（~100 行） |
 | R2-L2 | 自动 tag 生成·层 2（文字嵌入） |  ★☆☆   | —     |      中       |
 | R2-L3 | 自动 tag 生成·层 3（CLIP）     |  ★☆☆   | R2-L1 |      大       |

@@ -20,6 +20,10 @@ python main.py --config path/to/config.json
 # Build executable (Windows only)
 .\scripts\build.bat         # outputs dist/WEScheduler.exe
 
+# Frontend (dashboard/)
+cd dashboard && npm run build   # build SPA to dashboard/dist/
+cd dashboard && npm run type-check
+
 # Manual algorithm testing
 python misc/sim_match.py    # matching algorithm simulator
 python misc/vis_explore.py  # visualization tool
@@ -27,15 +31,27 @@ python misc/vis_explore.py  # visualization tool
 
 No formal test framework exists. Use `--no-tray` mode and `misc/sim_match.py` for manual validation.
 
+## Directory Layout
+
+```
+core/       Business logic — scheduler, policies, sensors, matcher, controller, actuator, executor
+ui/         User interface — tray icon, dashboard HTTP server, webview window
+utils/      Infrastructure — config loading, logging, i18n, icon generation, path resolution
+dashboard/  Vue 3 SPA frontend (built to dashboard/dist/, committed to git)
+main.py     Entry point — mode dispatch (dashboard subprocess / console / tray)
+```
+
 ## Architecture: Sense-Think-Act Loop
 
 The scheduler runs a 1-second tick loop in a background thread:
 
 ```
 Sensors → Context → Policies → Matcher → Controller → Actuator → WEExecutor
+                                                       │
+                                                  on_tick(scheduler, context, result)  ← hook
 ```
 
-**Sense** (`core/sensors.py`): Each sensor implements `read() -> dict`. Sensors are registered in `_SENSOR_REGISTRY` and instantiated via `create()` class methods (conditional on config).
+**Sense** (`core/sensors.py`): Each sensor has a `key` class attribute matching a field on `Context`. Sensors are registered in `_SENSOR_REGISTRY` and instantiated via `create()` class methods (returns `None` to skip registration).
 
 **Think** (`core/policies.py` + `core/matcher.py`):
 - Each policy's `_compute_output()` returns a `PolicyOutput(direction, salience, intensity)` dataclass. The base `Policy.get_output()` L2-normalizes `direction` before returning.
@@ -46,16 +62,42 @@ Sensors → Context → Policies → Matcher → Controller → Actuator → WEE
 - `Matcher` aggregates all `PolicyOutput`s, applies `TagSpec` fallback on unknown tags, then cosine-matches against pre-normalized playlist vectors. Returns `MatchResult`.
 
 **Act** (`core/controller.py` + `core/actuator.py` + `core/executor.py`):
-- `SchedulingController` is a gate chain: blocks switching if CPU > threshold, fullscreen app active, or cooldown not elapsed. Receives `MatchResult`; `similarity_gap` and `max_policy_magnitude` are available for future dynamic cooldown logic.
+- `SchedulingController` is a gate chain: blocks switching if CPU > threshold, fullscreen app active, or cooldown not elapsed. `similarity_gap` and `max_policy_magnitude` are available for future dynamic cooldown logic.
 - `Actuator` calls `WEExecutor` which wraps `wallpaper64.exe -control openPlaylist -playlist <name>`
 - All events are appended to `history.jsonl`
 
 **Orchestration** (`core/scheduler.py`):
 - Manages pause/resume state (timed or indefinite), persisted to `state.json`
 - Hot-reloads `scheduler_config.json` on file change; policies/controller export and re-import transient state across reloads
-- Exposes `on_auto_resume` hook for tray sync
+- Exposes hooks set externally: `on_auto_resume` (tray icon sync), `on_tick(scheduler, context, result)` (dashboard push)
 
-**Tray UI** (`core/tray.py`): pystray + tkinter dialogs; reads OS locale via `utils/i18n.py` to serve zh/en strings.
+## Dashboard
+
+Two-process architecture: Tray Host (scheduler + HTTP server) spawns Dashboard Window (pywebview loading Vue SPA) on demand.
+
+```
+Tray Host process                    Dashboard process
+  Bottle HTTP :0  ──HTTP/1s polling──→  pywebview (WebView2)
+  StateStore     ←──on_tick hook────    Vue 3 + Element Plus
+```
+
+- `ui/dashboard.py`: TickState dataclass, StateStore (thread-safe with `threading.Lock`), `build_tick_state()`, Bottle-based HTTP server (`/api/state`, `/api/health`, static SPA with hash-route fallback), binds `127.0.0.1:0` (OS-assigned port)
+- `ui/webview.py`: Thin pywebview wrapper, `create_and_block()`, window close = process exit
+- `dashboard/`: Vue 3 + TypeScript + Element Plus SPA, 1s polling, zombie detection (3 failures → 5s countdown → `window.close()`), `?locale=` URL param for i18n
+
+**Wiring** (in `main.py` tray mode):
+```python
+state_store = StateStore()
+scheduler.on_tick = lambda s, ctx, res: state_store.update(build_tick_state(s, ctx, res))
+httpd = DashboardHTTPServer(state_store)
+httpd.start()
+tray = TrayIcon(scheduler)
+tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
+```
+
+Scheduler does NOT hold `StateStore` — it only calls `on_tick()`. The host (main.py) owns the wiring.
+
+**Tray UI** (`ui/tray.py`): pystray + tkinter dialogs; reads OS locale via `utils/i18n.py` for zh/en strings. Menu callbacks use direct attribute assignment (same pattern as scheduler hooks).
 
 ## Tag Semantics (v0.5.0)
 
@@ -86,9 +128,10 @@ Config is validated by Pydantic models in `utils/config_loader.py`. See `schedul
 
 ## Key Design Patterns
 
-- **Registry + Factory**: `_SENSOR_REGISTRY` / `_POLICY_REGISTRY` dicts + `create()` classmethods control which sensors/policies are instantiated based on config.
+- **Registry + Factory**: `_SENSOR_REGISTRY` / `_POLICY_REGISTRY` + `create()` classmethods control which sensors/policies are instantiated based on config.
+- **Hooks via direct attribute assignment**: `scheduler.on_auto_resume`, `scheduler.on_tick`, `tray.on_show_dashboard` — set externally by the host, called from within. No getters/setters, no constructor injection. Same simple pattern everywhere.
 - **State export/import**: Policies and controller implement `export_state()` / `import_state()` so hot-reload preserves EMA accumulators and cooldown timestamps.
-- **Gate chain**: `SchedulingController` composes multiple deferral conditions; adding a new gate means adding a method that returns `(allowed: bool, reason: str)`.
+- **Gate chain**: `SchedulingController` composes multiple deferral conditions (CPU gate, Fullscreen gate). Each gate is a class with `should_defer(context) -> bool`.
 - **Tag vector space**: Playlists, policy directions, and fallback edges share one flat tag namespace (e.g. `#focus`, `#rain`). Adding a new signal means defining new tag keys, updating the relevant policy, and optionally adding `TagSpec` fallback entries — no changes to `Matcher`.
 - **`config_key` validation**: Each `Policy` subclass declares `config_key: ClassVar[str]` matching an attribute on `PoliciesConfig`. `__init_subclass__` validates this at import time; typos raise `TypeError` before the app starts.
 
@@ -97,14 +140,15 @@ Config is validated by Pydantic models in `utils/config_loader.py`. See `schedul
 | Path | Purpose |
 |------|---------|
 | `scheduler_config.json` | Main config (hot-reloaded on change) |
-| `state.json` | Persisted pause/playlist state |
+| `data/state.json` | Persisted pause/playlist state |
 | `logs/scheduler.log` | Rotating log (5 MB × 3 backups) |
-| `history.jsonl` | Append-only event log (top-5 tags per switch) |
+| `data/history.jsonl` | Append-only event log (top-5 tags per switch) |
 
-Logger hierarchy: root `WEScheduler` → children `WEScheduler.Core`, `.Policy`, `.Sensor`, `.Tray`, etc. (`utils/logger.py`).
+Logger hierarchy: root `WEScheduler` → children `WEScheduler.Core`, `.Policy`, `.Sensor`, `.Tray`, `.Dashboard`, `.WebView`, `.Config`, `.I18n`, `.Matcher`, `.Controller`, `.Actuator`, `.Executor`, `.Context` (`utils/logger.py`).
 
 ## Platform Notes
 
 - Windows-only: uses `win32gui`, `win32process`, `win32api` (pywin32), and DPI awareness APIs in `main.py`.
 - `utils/app_context.py` resolves the app root correctly for both source and PyInstaller bundle (`sys._MEIPASS`).
 - `misc/` scripts are standalone utilities, not part of the packaged app.
+- Dashboard frontend: `dashboard/dist/` is committed to git; `npm run build` is a dev step, not needed at packaging time.
