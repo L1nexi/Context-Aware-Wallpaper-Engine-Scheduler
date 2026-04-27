@@ -9,7 +9,7 @@ import requests
 import psutil
 import logging
 from collections import deque
-from typing import ClassVar, Dict, Any, Optional
+from typing import ClassVar, Any, Optional
 from abc import ABC, abstractmethod
 from core.context import WindowData, WeatherData
 from utils.config_loader import AppConfig, WeatherPolicyConfig

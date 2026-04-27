@@ -1,7 +1,7 @@
 """
 Dashboard HTTP server — Bottle-based, serves static SPA + /api/* endpoints.
 
-StateStore (owned by the scheduler) is passed at construction time.
+StateStore is created by the host (main.py) and passed at construction time.
 Routes are Bottle-decorated; the server runs on a threaded wsgiref backend
 so the tray main thread is never blocked.
 """
@@ -23,7 +23,6 @@ import bottle
 
 from utils.app_context import get_app_root
 from utils.i18n import _current_lang
-from core.scheduler import TickState, StateStore
 from core.scheduler import WEScheduler, Context, MatchResult
 
 logger = logging.getLogger("WEScheduler.Dashboard")

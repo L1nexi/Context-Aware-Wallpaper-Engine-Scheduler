@@ -139,7 +139,6 @@ class TrayIcon:
     **Icon image** is synced via ``_sync_icon()``:
     - Direct call from pystray-thread menu handlers.
     - Via ``scheduler.on_auto_resume`` hook when a timed pause expires.
-    - Via a short Timer for cross-thread callers (custom-dialog confirm).
     """
 
     def __init__(self, scheduler: WEScheduler):
@@ -227,7 +226,8 @@ class TrayIcon:
         self._open_file(log_path)
 
     def _on_show_dashboard(self, icon, item):
-        self.on_show_dashboard()
+        if self.on_show_dashboard:
+            self.on_show_dashboard()
 
     def _on_exit(self, icon, item):
         self.scheduler.stop()

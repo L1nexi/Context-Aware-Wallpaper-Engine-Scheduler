@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-import dataclasses
 import json
 import logging
 import os
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Type
+from typing import Dict, List, Optional, Type
 
 from pydantic import BaseModel
 
 from utils.config_loader import ConfigLoader
-from utils.app_context import get_app_root, get_data_dir
-from utils.i18n import _current_lang
+from utils.app_context import get_data_dir
 from core.executor import WEExecutor
 from core.sensors import Sensor, WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor, TimeSensor
 from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
