@@ -16,6 +16,7 @@ import threading
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 from collections import deque
+from itertools import islice
 from typing import Dict, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 import json
@@ -76,9 +77,11 @@ class StateStore:
 
     def read_recent(self, count: int | None = None) -> list[dict]:
         with self._lock:
-            items = list(self._ticks)
-        if count is not None:
-            items = items[-count:]
+            if count is None:
+                items = list(self._ticks)
+            else:
+                items = list(islice(reversed(self._ticks), count))
+                items.reverse()
         return [dataclasses.asdict(s) for s in items]
 
 

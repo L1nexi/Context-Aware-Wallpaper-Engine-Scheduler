@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from utils.config_loader import ConfigLoader
 from utils.app_context import get_data_dir
-from core.event_logger import EventLogger
+from core.event_logger import EventLogger, EventType
 from core.executor import WEExecutor
 from core.sensors import SENSOR_REGISTRY
 from core.policies import Policy, POLICY_REGISTRY
@@ -112,7 +112,7 @@ class WEScheduler:
 
         self.running = True
         self.stop_event.clear()
-        self.history_logger.write("start", {})
+        self.history_logger.write(EventType.START, {})
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
         logger.info("Scheduler started.")
@@ -125,7 +125,7 @@ class WEScheduler:
         if self.thread:
             self.thread.join(timeout=2)
         SchedulerState.save_state(self._build_state())
-        self.history_logger.write("stop", {})
+        self.history_logger.write(EventType.STOP, {})
         logger.info("Scheduler stopped.")
 
     def pause(self, seconds: Optional[int] = None):
@@ -141,13 +141,13 @@ class WEScheduler:
             self.pause_until = 0
             logger.info("Scheduler paused (indefinitely).")
         SchedulerState.save_state(self._build_state())
-        self.history_logger.write("pause", {"duration": seconds})
+        self.history_logger.write(EventType.PAUSE, {"duration": seconds})
 
     def resume(self):
         self.paused = False
         self.pause_until = 0
         logger.info("Scheduler resumed.")
-        self.history_logger.write("resume", {})
+        self.history_logger.write(EventType.RESUME, {})
         SchedulerState.save_state(self._build_state())
 
     def get_pause_remaining(self) -> Optional[float]:

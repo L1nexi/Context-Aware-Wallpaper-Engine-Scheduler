@@ -1,5 +1,16 @@
 import { ref, watch, type Ref } from 'vue'
 
+export const EventType = {
+  START: 'start',
+  STOP: 'stop',
+  PAUSE: 'pause',
+  RESUME: 'resume',
+  PLAYLIST_SWITCH: 'playlist_switch',
+  WALLPAPER_CYCLE: 'wallpaper_cycle',
+} as const
+
+export type EventType = (typeof EventType)[keyof typeof EventType]
+
 export interface Segment {
   playlist: string | null
   type?: 'pause' | 'dead'
@@ -9,7 +20,7 @@ export interface Segment {
 
 export interface HistoryEvent {
   ts: string
-  type: 'playlist_switch' | 'wallpaper_cycle' | 'pause' | 'resume' | 'start' | 'stop'
+  type: EventType
   data: Record<string, any>
 }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, inject, watch, type Ref } from 'vue'
 import VChart from 'vue-echarts'
-import type { Segment, HistoryEvent } from '@/composables/useHistory'
+import { EventType, type Segment, type HistoryEvent } from '@/composables/useHistory'
 import {
   RefreshRight, VideoPlay, VideoPause, Switch, CircleClose,
   Loading, Timer, Connection,
@@ -107,31 +107,31 @@ const ganttOption = computed(() => {
 })
 
 // ── Event list helpers ──
-function eventIcon(type: string) {
-  const map: Record<string, any> = {
-    playlist_switch: Switch,
-    wallpaper_cycle: RefreshRight,
-    pause: VideoPause,
-    resume: VideoPlay,
-    start: Loading,
-    stop: CircleClose,
+function eventIcon(type: EventType) {
+  const map: Record<EventType, any> = {
+    [EventType.PLAYLIST_SWITCH]: Switch,
+    [EventType.WALLPAPER_CYCLE]: RefreshRight,
+    [EventType.PAUSE]: VideoPause,
+    [EventType.RESUME]: VideoPlay,
+    [EventType.START]: Loading,
+    [EventType.STOP]: CircleClose,
   }
   return map[type] || Timer
 }
 
 function eventDesc(evt: HistoryEvent): string {
   switch (evt.type) {
-    case 'playlist_switch':
+    case EventType.PLAYLIST_SWITCH:
       return `${evt.data.playlist_from || '?'} → ${evt.data.playlist_to || '?'}`
-    case 'wallpaper_cycle':
+    case EventType.WALLPAPER_CYCLE:
       return `${evt.data.playlist || '?'}`
-    case 'pause':
+    case EventType.PAUSE:
       return evt.data.duration != null
         ? `${Math.round(evt.data.duration / 60)}min`
         : t('pause_indefinitely')
-    case 'resume': return t('resume')
-    case 'start': return 'Started'
-    case 'stop': return 'Stopped'
+    case EventType.RESUME: return t('resume')
+    case EventType.START: return 'Started'
+    case EventType.STOP: return 'Stopped'
     default: return evt.type
   }
 }

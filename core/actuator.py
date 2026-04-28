@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-if TYPE_CHECKING:
-    from core.event_logger import EventLogger
+from core.event_logger import EventLogger, EventType
 
 from core.executor import WEExecutor
 from core.controller import SchedulingController
@@ -48,7 +47,7 @@ class Actuator:
                 _log_tags(tags)
                 self.executor.open_playlist(best_playlist)
                 self.controller.notify_playlist_switch()
-                self._history.write("playlist_switch", {
+                self._history.write(EventType.PLAYLIST_SWITCH, {
                     "playlist_from": current_playlist,
                     "playlist_to": best_playlist,
                     "tags": _tag_dict(tags),
@@ -64,7 +63,7 @@ class Actuator:
                 logger.info(f"[Action] Cycling Wallpaper in '{current_playlist}'")
                 self.executor.next_wallpaper()
                 self.controller.notify_wallpaper_cycle()
-                self._history.write("wallpaper_cycle", {
+                self._history.write(EventType.WALLPAPER_CYCLE, {
                     "playlist": current_playlist,
                     "tags": _tag_dict(tags),
                 })

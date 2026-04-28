@@ -1,5 +1,21 @@
 from __future__ import annotations
+from enum import StrEnum
 from typing import Optional, Protocol, runtime_checkable
+
+
+class EventType(StrEnum):
+    """Tagged union discriminant for history events.
+
+    Shared by scheduler, actuator, history_logger, and the frontend
+    TypeScript types.  Adding a new event type only requires adding
+    a member here — all consumers update from this single source.
+    """
+    START = "start"
+    STOP = "stop"
+    PAUSE = "pause"
+    RESUME = "resume"
+    PLAYLIST_SWITCH = "playlist_switch"
+    WALLPAPER_CYCLE = "wallpaper_cycle"
 
 
 @runtime_checkable

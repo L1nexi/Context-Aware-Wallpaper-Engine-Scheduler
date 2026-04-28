@@ -36,12 +36,14 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
+from core.event_logger import EventType
+
 logger = logging.getLogger("WEScheduler.History")
 
 
 # Events that carry playlist affinity — used to resolve the active
 # playlist when the primary seed is a pause/resume/start event.
-_PLAYLIST_EVENTS = frozenset({"playlist_switch", "wallpaper_cycle"})
+_PLAYLIST_EVENTS = frozenset({EventType.PLAYLIST_SWITCH, EventType.WALLPAPER_CYCLE})
 
 
 class HistoryLogger:
@@ -237,22 +239,22 @@ class HistoryLogger:
     # "self"   — the seed event itself carries the playlist.
     # "pl_seed" — look at *playlist_seed* (the last switch/cycle before the window).
     # ""       — no playlist known yet.
-    _SEED_PLAYLIST_SOURCE: dict[str, str] = {
-        "playlist_switch": "self",
-        "wallpaper_cycle": "self",
-        "pause":           "pl_seed",
-        "resume":          "pl_seed",
-        "start":           "",
-        "stop":            "",
+    _SEED_PLAYLIST_SOURCE: dict[EventType, str] = {
+        EventType.PLAYLIST_SWITCH: "self",
+        EventType.WALLPAPER_CYCLE: "self",
+        EventType.PAUSE:           "pl_seed",
+        EventType.RESUME:          "pl_seed",
+        EventType.START:           "",
+        EventType.STOP:            "",
     }
 
-    _SEED_INITIAL_TYPE: dict[str, Optional[str]] = {
-        "playlist_switch": None,
-        "wallpaper_cycle": None,
-        "pause":           "pause",
-        "resume":          None,
-        "start":           None,
-        "stop":            "dead",
+    _SEED_INITIAL_TYPE: dict[EventType, Optional[str]] = {
+        EventType.PLAYLIST_SWITCH: None,
+        EventType.WALLPAPER_CYCLE: None,
+        EventType.PAUSE:           "pause",
+        EventType.RESUME:          None,
+        EventType.START:           None,
+        EventType.STOP:            "dead",
     }
 
     def _build_segments(
@@ -301,25 +303,25 @@ class HistoryLogger:
             etype = evt["type"]
 
             # State-changing events: finalise current block, then update state.
-            if etype in ("playlist_switch", "pause", "resume", "start", "stop"):
+            if etype in (EventType.PLAYLIST_SWITCH, EventType.PAUSE, EventType.RESUME, EventType.START, EventType.STOP):
                 if ets > segment_start:
                     _push(ets)
                 segment_start = ets
 
-            if etype == "playlist_switch":
+            if etype == EventType.PLAYLIST_SWITCH:
                 current_playlist = evt["data"].get("playlist_to", "")
                 current_type = None
-            elif etype == "wallpaper_cycle":
+            elif etype == EventType.WALLPAPER_CYCLE:
                 if current_playlist is None:
                     current_playlist = evt["data"].get("playlist", "")
-            elif etype == "pause":
+            elif etype == EventType.PAUSE:
                 current_type = "pause"
-            elif etype == "resume":
+            elif etype == EventType.RESUME:
                 current_type = None
-            elif etype == "start":
+            elif etype == EventType.START:
                 current_type = None
                 current_playlist = None
-            elif etype == "stop":
+            elif etype == EventType.STOP:
                 current_type = "dead"
                 current_playlist = None
 
@@ -332,6 +334,6 @@ class HistoryLogger:
     @staticmethod
     def _playlist_from_event(event: dict) -> str:
         """Extract the active playlist name from a switch or cycle event."""
-        if event["type"] == "playlist_switch":
+        if event["type"] == EventType.PLAYLIST_SWITCH:
             return event["data"].get("playlist_to", "")
         return event["data"].get("playlist", "")
