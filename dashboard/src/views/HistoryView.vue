@@ -16,7 +16,7 @@ use([GaugeChart, TooltipComponent, GridComponent, CanvasRenderer])
 const segments = inject<Ref<Segment[]>>('segments')!
 const events = inject<Ref<HistoryEvent[]>>('events')!
 const fetchHistory = inject<(params?: Record<string, string>) => Promise<void>>('fetchHistory')!
-const loading = inject<Ref<boolean>>('loading')!
+const loading = inject<Ref<boolean>>('historyLoading')!
 const t = inject<(key: string, params?: Record<string, string | number>) => string>('t')!
 
 const presets = [
@@ -96,8 +96,8 @@ const ganttOption = computed(() => {
     series: [{
       type: 'custom',
       renderItem: (_params: any, api: any) => {
-        const start = api.coord([api.value(0)[0], 0])
-        const end = api.coord([api.value(0)[1], 0])
+        const start = api.coord([api.value(0), 0])
+        const end = api.coord([api.value(1), 0])
         const height = 24
         const y = api.coord([0, 0])[1] - height / 2
         return {
@@ -199,8 +199,8 @@ applyPreset(1)
             <span class="event-time">{{ formatTs(evt.ts) }}</span>
             <span class="event-desc">{{ eventDesc(evt) }}</span>
             <span v-if="evt.data.tags" class="event-tags">
-              <template v-for="(w, tag) in evt.data.tags?.slice(0, 3)" :key="tag">
-                <el-tag size="small" type="info">{{ tag }} {{ (w as number).toFixed(2) }}</el-tag>
+              <template v-for="([tag, w], idx) in Object.entries(evt.data.tags as Record<string, number>).slice(0, 3)" :key="tag">
+                <el-tag size="small" type="info">{{ tag }} {{ w.toFixed(2) }}</el-tag>
               </template>
             </span>
           </div>

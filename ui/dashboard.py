@@ -146,13 +146,13 @@ def _build_app(state_store: StateStore, history_logger=None) -> bottle.Bottle:
 
     @app.route('/api/history')
     def api_history():
+        bottle.response.content_type = 'application/json; charset=utf-8'
         if history_logger is None:
-            bottle.response.content_type = 'application/json; charset=utf-8'
             return json.dumps({"segments": [], "events": []})
         limit = int(bottle.request.query.get('limit', 100))
         from_ts = bottle.request.query.get('from')
         to_ts = bottle.request.query.get('to')
-        bottle.response.content_type = 'application/json; charset=utf-8'
+        
         return json.dumps(history_logger.read(limit=limit, from_ts=from_ts, to_ts=to_ts))
 
     # ── Static / SPA routes ─────────────────────────────────────

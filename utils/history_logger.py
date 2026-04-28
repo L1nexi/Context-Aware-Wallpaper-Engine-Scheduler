@@ -1,17 +1,48 @@
 """
 Thread-safe append-only event log with monthly rotation.
 
-write() is called from multiple threads (scheduler, tray, main) —
-all internal state is guarded by a single threading.Lock.
+Public
+------
+write(type, data)  — append an event, return its incrementing id.
+read(limit, from, to) — return {"segments": [...], "events": [...]}
+                         for the dashboard History tab.
+
+Concurrency
+-----------
+write() is called from scheduler thread, tray thread, and main thread.
+All shared state (_event_id, _current_month, _filepath) is guarded by
+a single ``threading.Lock``.
+
+Timestamp convention
+--------------------
+All timestamps are UTC with +00:00 suffix, e.g.
+"2026-04-28T12:34:56+00:00".  ISO 8601 strings in this format are
+lexicographically ordered, so ``ts < from_ts`` works as a string
+comparison and avoids datetime-parse overhead during file scans.
+
+Event format (tagged union)
+---------------------------
+{"ts": "<ISO 8601>", "type": "...", "data": {...}}
+
+See SPEC.md §1.1 for the per-type data schemas.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
+from collections import deque
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import List, Optional
+
+logger = logging.getLogger("WEScheduler.History")
+
+
+# Events that carry playlist affinity — used to resolve the active
+# playlist when the primary seed is a pause/resume/start event.
+_PLAYLIST_EVENTS = frozenset({"playlist_switch", "wallpaper_cycle"})
 
 
 class HistoryLogger:
@@ -27,18 +58,31 @@ class HistoryLogger:
 
     @property
     def last_event_id(self) -> int:
+        """Monotonically increasing counter, updated on every write().
+
+        Read by the scheduler tick to populate TickState.last_event_id,
+        which the frontend watches for auto-refresh.
+        """
         with self._lock:
             return self._event_id
 
     def write(self, event_type: str, data: dict) -> int:
-        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        record = {"ts": ts, "type": event_type, "data": data}
+        """Append one event.  Thread-safe.  Returns the new event id."""
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "type": event_type,
+            "data": data,
+        }
         line = json.dumps(record, ensure_ascii=False) + "\n"
 
         with self._lock:
             self._event_id += 1
             self._ensure_file()
-            self._append(line)
+            try:
+                with open(self._filepath, "a", encoding="utf-8") as f:
+                    f.write(line)
+            except OSError:
+                logger.warning("Failed to write history event", exc_info=True)
             return self._event_id
 
     def read(
@@ -47,29 +91,37 @@ class HistoryLogger:
         from_ts: Optional[str] = None,
         to_ts: Optional[str] = None,
     ) -> dict:
+        """Return {"segments": [...], "events": [...]} for a time window.
+
+        When *from_ts* and *to_ts* are both None, defaults to the last hour.
+        Segments are continuous time blocks computed by replaying events,
+        so the frontend Gantt chart receives ready-to-render data.
+        """
         if from_ts is None and to_ts is None:
             from_ts = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
 
-        events: list[dict] = []
-        # Collect events from relevant month files
-        months = self._months_in_range(from_ts, to_ts)
-        for month_key in reversed(months):
-            filepath = self._filepath_for(month_key)
-            batch = self._read_file(filepath, from_ts, to_ts)
-            events.extend(batch)
+        all_events, best_seed, best_pl_seed = self._collect_events(from_ts, to_ts)
 
-        events.sort(key=lambda e: e["ts"], reverse=True)
+        all_events.sort(key=lambda e: e["ts"], reverse=True)
+
+        # Build segments from the full event list (oldest-first), then
+        # apply the limit only to the returned event array so the Gantt
+        # chart is always correct regardless of how many events exist.
+        segments = self._build_segments(
+            best_seed, best_pl_seed, list(reversed(all_events)), from_ts, to_ts,
+        )
+
         if limit > 0:
-            events = events[:limit]
+            returned_events = all_events[:limit]
+        else:
+            returned_events = all_events
 
-        seed = self._find_seed(from_ts, months) if from_ts else None
-        segments = self._build_segments(seed, list(reversed(events)), from_ts, to_ts)
+        return {"segments": segments, "events": returned_events}
 
-        return {"segments": segments, "events": events}
-
-    # ── File management ─────────────────────────────────────────────
+    # ── File helpers ────────────────────────────────────────────────
 
     def _ensure_file(self) -> None:
+        """Switch to a new month file when the calendar month changes."""
         month_key = datetime.now().strftime("%Y-%m")
         if month_key != self._current_month:
             self._current_month = month_key
@@ -78,145 +130,159 @@ class HistoryLogger:
     def _filepath_for(self, month_key: str) -> str:
         return os.path.join(self._data_dir, f"history-{month_key}.jsonl")
 
-    def _append(self, line: str) -> None:
-        try:
-            with open(self._filepath, "a", encoding="utf-8") as f:
-                f.write(line)
-        except Exception:
-            pass  # silently drop — log infrastructure may not be ready
-
-    # ── Reading helpers ─────────────────────────────────────────────
+    # ── Event collection ────────────────────────────────────────────
 
     def _months_in_range(
         self, from_ts: Optional[str], to_ts: Optional[str]
     ) -> List[str]:
-        """Return sorted list of month keys that could contain events in range."""
+        """Sorted list of every month key that could intersect [from_ts, to_ts].
+
+        Always includes the current month so brand-new files aren't missed.
+        """
         months: set[str] = set()
+        months.add(datetime.now().strftime("%Y-%m"))
         if from_ts:
             months.add(self._month_key_from_ts(from_ts))
         if to_ts:
-            months.add(self._month_key_from_ts(to_ts))
-        months.add(datetime.now().strftime("%Y-%m"))
-        # Always include current month
+            to_month = self._month_key_from_ts(to_ts)
+            months.add(to_month)
+            if from_ts:
+                from_month = self._month_key_from_ts(from_ts)
+                y, m = int(from_month[:4]), int(from_month[5:])
+                key = f"{y:04d}-{m:02d}"
+                while key < to_month:
+                    m += 1
+                    if m > 12:
+                        m = 1
+                        y += 1
+                    key = f"{y:04d}-{m:02d}"
+                    months.add(key)
         return sorted(months)
 
     @staticmethod
     def _month_key_from_ts(ts: str) -> str:
-        # ts is ISO 8601 like "2026-04-28T00:28:26+08:00" or "2026-04-28T00:28:26Z"
+        """Extract 'YYYY-MM' from an ISO 8601 timestamp string."""
         return ts[:7]
 
-    @staticmethod
-    def _parse_ts(ts: str) -> datetime:
-        """Parse ISO 8601 timestamp to datetime. Handles Z and +HH:MM offsets."""
-        ts = ts.replace("Z", "+00:00")
-        try:
-            return datetime.fromisoformat(ts)
-        except ValueError:
-            # Fallback for older Python
-            if "+" in ts or ts.endswith("Z"):
-                return datetime.strptime(ts[:19], "%Y-%m-%dT%H:%M:%S")
-            return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S")
+    def _collect_events(
+        self, from_ts: Optional[str], to_ts: Optional[str]
+    ) -> tuple[list[dict], Optional[dict], Optional[dict]]:
+        """Scan relevant month files once each.
 
-    def _read_file(
-        self, filepath: str, from_ts: Optional[str], to_ts: Optional[str]
-    ) -> list[dict]:
+        Returns:
+            events      — records whose ts falls in [from_ts, to_ts].
+            seed        — the most recent record *before* from_ts (any type).
+            pl_seed     — the most recent switch/cycle *before* from_ts;
+                          used to know which playlist was active when the
+                          seed is a pause/resume outside the window.
+        """
         events: list[dict] = []
-        if not os.path.exists(filepath):
-            return events
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        record = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    ts = record.get("ts", "")
-                    if from_ts and ts < from_ts:
-                        continue
-                    if to_ts and ts > to_ts:
-                        continue
-                    events.append(record)
-        except Exception:
-            pass
-        return events
+        best_seed: Optional[dict] = None
+        best_seed_ts: str = ""
+        best_pl_seed: Optional[dict] = None
+        best_pl_ts: str = ""
 
-    def _find_seed(
-        self, from_ts: str, months: List[str]
-    ) -> Optional[dict]:
-        """Find the most recent event before from_ts."""
-        best: Optional[dict] = None
-        best_ts: str = ""
-        for month_key in months:
+        months = self._months_in_range(from_ts, to_ts)
+        for month_key in reversed(months):
             filepath = self._filepath_for(month_key)
             if not os.path.exists(filepath):
                 continue
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     for line in f:
-                        line = line.strip()
-                        if not line:
+                        record = self._parse_line(line)
+                        if record is None:
                             continue
-                        try:
-                            record = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        ts = record.get("ts", "")
-                        if ts < from_ts and ts > best_ts:
-                            best_ts = ts
-                            best = record
-            except Exception:
-                pass
-        return best
+                        ts = record["ts"]
 
-    # ── Segment building ────────────────────────────────────────────
+                        # Before the window — track as potential seeds
+                        if from_ts and ts < from_ts:
+                            if ts >= best_seed_ts:
+                                best_seed_ts = ts
+                                best_seed = record
+                            if record["type"] in _PLAYLIST_EVENTS and ts >= best_pl_ts:
+                                best_pl_ts = ts
+                                best_pl_seed = record
+                        # After the window — stop (events are written chronologically)
+                        elif to_ts and ts > to_ts:
+                            continue
+                        # Inside the window
+                        else:
+                            events.append(record)
+            except OSError:
+                logger.warning("Failed to read history file %s", filepath, exc_info=True)
+
+        return events, best_seed, best_pl_seed
+
+    @staticmethod
+    def _parse_line(line: str) -> Optional[dict]:
+        """Parse one JSONL line.  Returns None for blank or corrupt lines."""
+        line = line.strip()
+        if not line:
+            return None
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            return None
+
+    # ── Segment builder ─────────────────────────────────────────────
+
+    # How each seed-event type determines the state at the start of the
+    # query window: (where_to_find_playlist, initial_type).
+    #
+    # "self"   — the seed event itself carries the playlist.
+    # "pl_seed" — look at *playlist_seed* (the last switch/cycle before the window).
+    # ""       — no playlist known yet.
+    _SEED_PLAYLIST_SOURCE: dict[str, str] = {
+        "playlist_switch": "self",
+        "wallpaper_cycle": "self",
+        "pause":           "pl_seed",
+        "resume":          "pl_seed",
+        "start":           "",
+        "stop":            "",
+    }
+
+    _SEED_INITIAL_TYPE: dict[str, Optional[str]] = {
+        "playlist_switch": None,
+        "wallpaper_cycle": None,
+        "pause":           "pause",
+        "resume":          None,
+        "start":           None,
+        "stop":            "dead",
+    }
 
     def _build_segments(
         self,
         seed: Optional[dict],
-        events: list[dict],
+        playlist_seed: Optional[dict],
+        events: list[dict],          # oldest-first
         from_ts: Optional[str],
         to_ts: Optional[str],
     ) -> list[dict]:
-        """Compute continuous timeline segments from events.
+        """Replay events to produce contiguous timeline blocks.
 
-        Events must be sorted oldest-first.
+        Each block = {"playlist": <str|null>, "start": ts, "end": ts}
+        plus an optional "type": "pause" | "dead".
         """
-        # Determine initial state from seed
         current_playlist: Optional[str] = None
-        current_type: Optional[str] = None  # None=active, "pause", "dead"
+        current_type: Optional[str] = None            # None → "active"
 
         if seed is not None:
             stype = seed["type"]
-            if stype == "start":
-                current_playlist = None  # started but no playlist yet
-                current_type = None
-            elif stype == "stop":
-                current_playlist = None
-                current_type = "dead"
-            elif stype == "pause":
-                current_playlist = self._active_playlist_before(seed, events)
-                current_type = "pause"
-            elif stype == "resume":
-                current_playlist = self._active_playlist_before(seed, events)
-                current_type = None
-            elif stype == "playlist_switch":
-                current_playlist = seed["data"].get("playlist_to", "")
-                current_type = None
-            elif stype == "wallpaper_cycle":
-                current_playlist = seed["data"].get("playlist", "")
-                current_type = None
+            source = self._SEED_PLAYLIST_SOURCE.get(stype, "")
+            current_type = self._SEED_INITIAL_TYPE.get(stype)
+            if source == "self":
+                current_playlist = self._playlist_from_event(seed)
+            elif source == "pl_seed" and playlist_seed is not None:
+                current_playlist = self._playlist_from_event(playlist_seed)
 
-        # If no seed and no events, return empty
         if seed is None and not events:
             return []
 
         segment_start = from_ts or (events[0] if events else seed)["ts"]
         segments: list[dict] = []
 
-        def _push_segment(end_ts: str) -> None:
+        def _push(end_ts: str) -> None:
             seg: dict = {
                 "playlist": current_playlist,
                 "start": segment_start,
@@ -229,56 +295,39 @@ class HistoryLogger:
         for evt in events:
             ets = evt["ts"]
             etype = evt["type"]
-            edata = evt.get("data", {})
+
+            # State-changing events: finalise current block, then update state.
+            if etype in ("playlist_switch", "pause", "resume", "start", "stop"):
+                if ets > segment_start:
+                    _push(ets)
+                segment_start = ets
 
             if etype == "playlist_switch":
-                if ets > segment_start:
-                    _push_segment(ets)
-                segment_start = ets
-                current_playlist = edata.get("playlist_to", "")
+                current_playlist = evt["data"].get("playlist_to", "")
                 current_type = None
             elif etype == "wallpaper_cycle":
-                # No state change — update playlist if not yet known
                 if current_playlist is None:
-                    current_playlist = edata.get("playlist", "")
+                    current_playlist = evt["data"].get("playlist", "")
             elif etype == "pause":
-                if ets > segment_start:
-                    _push_segment(ets)
-                segment_start = ets
                 current_type = "pause"
             elif etype == "resume":
-                if ets > segment_start:
-                    _push_segment(ets)
-                segment_start = ets
                 current_type = None
             elif etype == "start":
-                if ets > segment_start:
-                    _push_segment(ets)
-                segment_start = ets
                 current_type = None
                 current_playlist = None
             elif etype == "stop":
-                if ets > segment_start:
-                    _push_segment(ets)
-                segment_start = ets
                 current_type = "dead"
                 current_playlist = None
 
-        # Final segment to end of window
+        # Final block to the end of the window (or "now" if unbounded).
         end_ts = to_ts or datetime.now(timezone.utc).isoformat()
-        _push_segment(end_ts)
+        _push(end_ts)
 
         return segments
 
     @staticmethod
-    def _active_playlist_before(event: dict, events: list[dict]) -> Optional[str]:
-        """Walk backwards from the seed/event to find the active playlist."""
-        # Search in events first (oldest-first), then fallback to seed
-        for e in reversed(events):
-            if e["ts"] >= event["ts"]:
-                continue
-            if e["type"] == "playlist_switch":
-                return e["data"].get("playlist_to", "")
-            if e["type"] == "wallpaper_cycle":
-                return e["data"].get("playlist", "")
-        return None
+    def _playlist_from_event(event: dict) -> str:
+        """Extract the active playlist name from a switch or cycle event."""
+        if event["type"] == "playlist_switch":
+            return event["data"].get("playlist_to", "")
+        return event["data"].get("playlist", "")

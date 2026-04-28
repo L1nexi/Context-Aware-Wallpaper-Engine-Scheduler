@@ -20,6 +20,7 @@ export function useHistory(state: Ref<{ last_event_id: number } | null>) {
   const currentParams = ref<Record<string, string>>({})
 
   async function fetchHistory(params?: Record<string, string>) {
+    loading.value = true
     if (params) currentParams.value = { ...params }
     const query = new URLSearchParams(currentParams.value).toString()
     try {
