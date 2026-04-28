@@ -64,7 +64,7 @@ Sensors → Context → Policies → Matcher → Controller → Actuator → WEE
 **Act** (`core/controller.py` + `core/actuator.py` + `core/executor.py`):
 - `SchedulingController` is a gate chain: blocks switching if CPU > threshold, fullscreen app active, or cooldown not elapsed. `similarity_gap` and `max_policy_magnitude` are available for future dynamic cooldown logic.
 - `Actuator` calls `WEExecutor` which wraps `wallpaper64.exe -control openPlaylist -playlist <name>`
-- All events are appended to `history.jsonl`
+- Events are written to month-partitioned `history-{YYYY}-{MM}.jsonl` via `HistoryLogger.write()`
 
 **Orchestration** (`core/scheduler.py`):
 - Manages pause/resume state (timed or indefinite), persisted to `state.json`
@@ -81,9 +81,15 @@ Tray Host process                    Dashboard process
   StateStore     ←──on_tick hook────    Vue 3 + Element Plus
 ```
 
-- `ui/dashboard.py`: TickState dataclass, StateStore (thread-safe with `threading.Lock`), `build_tick_state()`, Bottle-based HTTP server (`/api/state`, `/api/health`, static SPA with hash-route fallback), binds `127.0.0.1:0` (OS-assigned port)
+- `ui/dashboard.py`: TickState dataclass, StateStore (thread-safe with `threading.Lock`), `build_tick_state()`, Bottle-based HTTP server (`/api/state`, `/api/health`, `/api/ticks?count=N`, `/api/history?limit=N&from=ISO&to=ISO`, static SPA with hash-route fallback), binds `127.0.0.1:0` (OS-assigned port)
+  - `last_event_id` on TickState: monotonic counter incremented per `write()`, frontend watches for auto-refresh.
+  - `display_of` dict (built in `_build_runtime_components()`) maps playlist name → display name for CJK-friendly UI labels.
 - `ui/webview.py`: Thin pywebview wrapper, `create_and_block()`, window close = process exit
-- `dashboard/`: Vue 3 + TypeScript + Element Plus SPA, 1s polling, zombie detection (3 failures → 5s countdown → `window.close()`), `?locale=` URL param for i18n
+- `dashboard/`: Vue 3 + TypeScript + Element Plus SPA, 1s state polling + 5s ticks polling, zombie detection (3 failures → 5s countdown → `window.close()`), `?locale=` URL param for i18n
+  - `src/composables/useHistory.ts` — `segments`, `events`, `fetchHistory(params?)`, auto-refresh via `watch(state.last_event_id)`.
+  - `src/views/HistoryView.vue` — ECharts Gantt (segments) + event list with filter bar (presets + date pickers).
+  - `src/components/ConfidencePanel.vue` — ECharts sparkline from `/api/ticks` data.
+  - `src/views/DashboardView.vue` — `el-tabs` wrapping Live tab (existing grid) and History tab (HistoryView).
 
 **Wiring** (in `main.py` tray mode):
 ```python
@@ -134,6 +140,9 @@ Config is validated by Pydantic models in `utils/config_loader.py`. See `schedul
 - **Gate chain**: `SchedulingController` composes multiple deferral conditions (CPU gate, Fullscreen gate). Each gate is a class with `should_defer(context) -> bool`.
 - **Tag vector space**: Playlists, policy directions, and fallback edges share one flat tag namespace (e.g. `#focus`, `#rain`). Adding a new signal means defining new tag keys, updating the relevant policy, and optionally adding `TagSpec` fallback entries — no changes to `Matcher`.
 - **`config_key` validation**: Each `Policy` subclass declares `config_key: ClassVar[str]` matching an attribute on `PoliciesConfig`. `__init_subclass__` validates this at import time; typos raise `TypeError` before the app starts.
+- **HistoryLogger injection**: `scheduler.history_logger = HistoryLogger(...)` must be set BEFORE `scheduler.initialize()`. The logger is passed through to `Actuator` in `_build_runtime_components()` and to `DashboardHTTPServer` constructor.
+- **Tagged union events**: Six event types — `playlist_switch`, `wallpaper_cycle`, `pause`, `resume`, `start`, `stop`. Each carries type-specific `data` dict. Timestamps are UTC ISO 8601 at second precision (`timespec="seconds"`) for lexicographic ordering.
+- **Segment building**: `_SEED_PLAYLIST_SOURCE` and `_SEED_INITIAL_TYPE` lookup tables resolve pre-window state from seed events. `_build_segments()` replays events oldest-first to produce continuous timeline blocks for the Gantt chart.
 
 ## Runtime Artifacts
 
@@ -142,7 +151,7 @@ Config is validated by Pydantic models in `utils/config_loader.py`. See `schedul
 | `scheduler_config.json` | Main config (hot-reloaded on change) |
 | `data/state.json` | Persisted pause/playlist state |
 | `logs/scheduler.log` | Rotating log (5 MB × 3 backups) |
-| `data/history.jsonl` | Append-only event log (top-5 tags per switch) |
+| `data/history-{YYYY}-{MM}.jsonl` | Append-only event log with monthly rotation (top-8 tags per switch) |
 
 Logger hierarchy: root `WEScheduler` → children `WEScheduler.Core`, `.Policy`, `.Sensor`, `.Tray`, `.Dashboard`, `.WebView`, `.Config`, `.I18n`, `.Matcher`, `.Controller`, `.Actuator`, `.Executor`, `.Context` (`utils/logger.py`).
 
