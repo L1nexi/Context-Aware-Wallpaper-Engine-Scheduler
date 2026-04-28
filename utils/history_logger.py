@@ -33,7 +33,6 @@ import json
 import logging
 import os
 import threading
-from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -82,6 +81,7 @@ class HistoryLogger:
                 with open(self._filepath, "a", encoding="utf-8") as f:
                     f.write(line)
             except OSError:
+                self._event_id -= 1
                 logger.warning("Failed to write history event", exc_info=True)
             return self._event_id
 
@@ -96,9 +96,13 @@ class HistoryLogger:
         When *from_ts* and *to_ts* are both None, defaults to the last hour.
         Segments are continuous time blocks computed by replaying events,
         so the frontend Gantt chart receives ready-to-render data.
+
+        The lock is held only for the snapshot of shared state; file I/O in
+        _collect_events runs outside the lock so writes are not blocked.
         """
-        if from_ts is None and to_ts is None:
-            from_ts = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        with self._lock:
+            if from_ts is None and to_ts is None:
+                from_ts = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
 
         all_events, best_seed, best_pl_seed = self._collect_events(from_ts, to_ts)
 
@@ -122,7 +126,7 @@ class HistoryLogger:
 
     def _ensure_file(self) -> None:
         """Switch to a new month file when the calendar month changes."""
-        month_key = datetime.now().strftime("%Y-%m")
+        month_key = datetime.now(timezone.utc).strftime("%Y-%m")
         if month_key != self._current_month:
             self._current_month = month_key
             self._filepath = self._filepath_for(month_key)
@@ -185,13 +189,13 @@ class HistoryLogger:
         months = self._months_in_range(from_ts, to_ts)
         for month_key in reversed(months):
             filepath = self._filepath_for(month_key)
-            if not os.path.exists(filepath):
-                continue
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     for line in f:
                         record = self._parse_line(line)
                         if record is None:
+                            continue
+                        if "ts" not in record or "type" not in record:
                             continue
                         ts = record["ts"]
 
@@ -203,9 +207,9 @@ class HistoryLogger:
                             if record["type"] in _PLAYLIST_EVENTS and ts >= best_pl_ts:
                                 best_pl_ts = ts
                                 best_pl_seed = record
-                        # After the window — stop (events are written chronologically)
+                        # After the window — remaining events are also past it
                         elif to_ts and ts > to_ts:
-                            continue
+                            break
                         # Inside the window
                         else:
                             events.append(record)
@@ -320,7 +324,7 @@ class HistoryLogger:
                 current_playlist = None
 
         # Final block to the end of the window (or "now" if unbounded).
-        end_ts = to_ts or datetime.now(timezone.utc).isoformat()
+        end_ts = to_ts or datetime.now(timezone.utc).isoformat(timespec="seconds")
         _push(end_ts)
 
         return segments

@@ -148,7 +148,6 @@ function formatTs(ts: string): string {
 }
 
 // Initial load
-watch(() => segments, () => {}, { immediate: false })
 applyPreset(1)
 </script>
 

@@ -19,8 +19,8 @@ export function useHistory(state: Ref<{ last_event_id: number } | null>) {
   const loading = ref(true)
   const currentParams = ref<Record<string, string>>({})
 
-  async function fetchHistory(params?: Record<string, string>) {
-    loading.value = true
+  async function fetchHistory(params?: Record<string, string>, showLoading = true) {
+    if (showLoading) loading.value = true
     if (params) currentParams.value = { ...params }
     const query = new URLSearchParams(currentParams.value).toString()
     try {
@@ -29,15 +29,23 @@ export function useHistory(state: Ref<{ last_event_id: number } | null>) {
       const body = await res.json()
       segments.value = body.segments
       events.value = body.events
-      loading.value = false
-    } catch { /* silent */ }
+    } catch {
+      // Auto-refresh failures are silent (keep stale data visible).
+      // Manual requests show empty state on error.
+      if (showLoading) {
+        segments.value = []
+        events.value = []
+      }
+    } finally {
+      if (showLoading) loading.value = false
+    }
   }
 
   // Auto-refresh on any new event — preserves current filter params
   watch(
     () => state.value?.last_event_id,
     (newId, oldId) => {
-      if (newId && newId !== oldId) fetchHistory()
+      if (newId && newId !== oldId) fetchHistory(undefined, false)
     },
   )
 
