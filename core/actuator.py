@@ -14,6 +14,19 @@ from core.matcher import MatchResult
 logger = logging.getLogger("WEScheduler.Actuator")
 
 
+def _sorted_tags(tags: dict, top: int = 8):
+    return sorted(tags.items(), key=lambda x: x[1], reverse=True)[:top]
+
+
+def _tag_dict(tags: dict, top: int = 8):
+    return {k: round(v, 4) for k, v in _sorted_tags(tags, top)}
+
+
+def _log_tags(tags: dict):
+    tag_str = ", ".join([f"{k}:{v:.2f}" for k, v in _sorted_tags(tags)])
+    logger.info(f"Trigger Context: [{tag_str}]")
+
+
 class Actuator:
     def __init__(self, executor: WEExecutor, controller: SchedulingController,
                  history_logger: EventLogger):
@@ -26,29 +39,19 @@ class Actuator:
             return current_playlist
 
         best_playlist = result.best_playlist
-        aggregated_tags = result.aggregated_tags
-
-        def _sorted_tags(top: int = 8):
-            return sorted(aggregated_tags.items(), key=lambda x: x[1], reverse=True)[:top]
-
-        def _tag_dict(top: int = 8):
-            return {k: round(v, 4) for k, v in _sorted_tags(top)}
-
-        def _log_tags():
-            tag_str = ", ".join([f"{k}:{v:.2f}" for k, v in _sorted_tags()])
-            logger.info(f"Trigger Context: [{tag_str}]")
+        tags = result.aggregated_tags
 
         # Case A: Context suggests a different playlist
         if best_playlist != current_playlist:
             if self.controller.can_switch_playlist(context):
                 logger.info(f"[Action] Switching Playlist from '{current_playlist}' to '{best_playlist}'")
-                _log_tags()
+                _log_tags(tags)
                 self.executor.open_playlist(best_playlist)
                 self.controller.notify_playlist_switch()
                 self._history.write("playlist_switch", {
                     "playlist_from": current_playlist,
                     "playlist_to": best_playlist,
-                    "tags": _tag_dict(),
+                    "tags": _tag_dict(tags),
                     "similarity": round(result.similarity, 4),
                     "similarity_gap": round(result.similarity_gap, 4),
                     "max_policy_magnitude": round(result.max_policy_magnitude, 4),
@@ -63,7 +66,7 @@ class Actuator:
                 self.controller.notify_wallpaper_cycle()
                 self._history.write("wallpaper_cycle", {
                     "playlist": current_playlist,
-                    "tags": _tag_dict(),
+                    "tags": _tag_dict(tags),
                 })
 
         return current_playlist

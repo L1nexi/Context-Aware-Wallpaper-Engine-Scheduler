@@ -1,17 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, inject, watch, type Ref } from 'vue'
 import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { GaugeChart } from 'echarts/charts'
-import { TooltipComponent, GridComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
 import type { Segment, HistoryEvent } from '@/composables/useHistory'
 import {
   RefreshRight, VideoPlay, VideoPause, Switch, CircleClose,
   Loading, Timer, Connection,
 } from '@element-plus/icons-vue'
-
-use([GaugeChart, TooltipComponent, GridComponent, CanvasRenderer])
 
 const segments = inject<Ref<Segment[]>>('segments')!
 const events = inject<Ref<HistoryEvent[]>>('events')!

@@ -1,14 +1,8 @@
 <script setup lang="ts">
 import { inject, computed, type Ref } from 'vue'
 import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { LineChart } from 'echarts/charts'
-import { GridComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
 import type { TickState } from '@/composables/useApi'
 import { TrendCharts } from '@element-plus/icons-vue'
-
-use([LineChart, GridComponent, CanvasRenderer])
 
 const state = inject<Ref<TickState | null>>('state')!
 const ticks = inject<Ref<TickState[]>>('ticks')!

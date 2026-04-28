@@ -55,7 +55,13 @@ export function useApi() {
   async function fetchTicks() {
     try {
       const res = await fetch('/api/ticks?count=120')
-      if (res.ok) ticks.value = await res.json()
+      if (!res.ok) return
+      const data: TickState[] = await res.json()
+      const prev = ticks.value
+      if (prev.length !== data.length
+          || (data.length > 0 && data[0]!.ts !== prev[0]?.ts)) {
+        ticks.value = data
+      }
     } catch { /* silent — ticks are non-critical */ }
   }
 

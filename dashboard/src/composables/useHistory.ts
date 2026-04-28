@@ -49,5 +49,5 @@ export function useHistory(state: Ref<{ last_event_id: number } | null>) {
     },
   )
 
-  return { segments, events, loading, fetchHistory, currentParams }
+  return { segments, events, loading, fetchHistory }
 }
