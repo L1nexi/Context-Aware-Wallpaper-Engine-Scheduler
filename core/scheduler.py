@@ -6,42 +6,22 @@ import os
 import sys
 import threading
 import time
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
 from utils.config_loader import ConfigLoader
 from utils.app_context import get_data_dir
+from core.event_logger import EventLogger
 from core.executor import WEExecutor
-from core.sensors import Sensor, WindowSensor, IdleSensor, CpuSensor, FullscreenSensor, WeatherSensor, TimeSensor
-from core.policies import ActivityPolicy, Policy, TimePolicy, SeasonPolicy, WeatherPolicy
+from core.sensors import SENSOR_REGISTRY
+from core.policies import Policy, POLICY_REGISTRY
 from core.context import ContextManager, Context
 from core.matcher import Matcher, MatchResult
 from core.controller import SchedulingController
 from core.actuator import Actuator
 
 logger = logging.getLogger("WEScheduler.Core")
-
-# Registry of Policy classes in evaluation order.
-# To add a new policy: import its class above and append it here.
-_POLICY_REGISTRY: List[Type[Policy]] = [
-    ActivityPolicy,
-    TimePolicy,
-    SeasonPolicy,
-    WeatherPolicy,
-]
-
-# Registry of Sensor classes.
-# Each sensor carries its own context key (Sensor.key) and activation logic
-# (Sensor.create(config))
-_SENSOR_REGISTRY: List[Type[Sensor]] = [
-    WindowSensor,
-    IdleSensor,
-    CpuSensor,
-    FullscreenSensor,
-    WeatherSensor,
-    TimeSensor,
-]
 
 
 _STATE_FILE = os.path.join(get_data_dir(), "state.json")
@@ -74,8 +54,9 @@ class SchedulerState(BaseModel):
             logger.warning("Failed to write state.json", exc_info=True)
 
 class WEScheduler:
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, history_logger: EventLogger):
         self.config_path = config_path
+        self.history_logger: EventLogger = history_logger
         self.initialized = False
         self.running = False
         self.paused = False
@@ -87,9 +68,6 @@ class WEScheduler:
         # cross-cutting concerns without the scheduler owning them.
         self.on_auto_resume = None   # called when a timed pause expires
         self.on_tick = None          # called every tick: (scheduler, context, result)
-
-        # Injected services — set externally BEFORE initialize()
-        self.history_logger: object | None = None
 
         # Components
         self.config_loader: Optional[ConfigLoader] = None
@@ -134,8 +112,7 @@ class WEScheduler:
 
         self.running = True
         self.stop_event.clear()
-        if self.history_logger:
-            self.history_logger.write("start", {})
+        self.history_logger.write("start", {})
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
         logger.info("Scheduler started.")
@@ -148,8 +125,7 @@ class WEScheduler:
         if self.thread:
             self.thread.join(timeout=2)
         SchedulerState.save_state(self._build_state())
-        if self.history_logger:
-            self.history_logger.write("stop", {})
+        self.history_logger.write("stop", {})
         logger.info("Scheduler stopped.")
 
     def pause(self, seconds: Optional[int] = None):
@@ -165,15 +141,13 @@ class WEScheduler:
             self.pause_until = 0
             logger.info("Scheduler paused (indefinitely).")
         SchedulerState.save_state(self._build_state())
-        if self.history_logger:
-            self.history_logger.write("pause", {"duration": seconds})
+        self.history_logger.write("pause", {"duration": seconds})
 
     def resume(self):
         self.paused = False
         self.pause_until = 0
         logger.info("Scheduler resumed.")
-        if self.history_logger:
-            self.history_logger.write("resume", {})
+        self.history_logger.write("resume", {})
         SchedulerState.save_state(self._build_state())
 
     def get_pause_remaining(self) -> Optional[float]:
@@ -249,12 +223,12 @@ class WEScheduler:
         config = self.config_loader.config
 
         cm = ContextManager()
-        for sensor_cls in _SENSOR_REGISTRY:
+        for sensor_cls in SENSOR_REGISTRY:
             cm.register_sensor(sensor_cls.create(config))
 
         policies: List[Policy] = [
             cls(getattr(config.policies, cls.config_key))
-            for cls in _POLICY_REGISTRY
+            for cls in POLICY_REGISTRY
             if getattr(config.policies, cls.config_key) is not None
         ]
 

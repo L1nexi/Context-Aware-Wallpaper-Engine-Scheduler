@@ -116,8 +116,7 @@ def _run_console_mode(config_path: str, logger: logging.Logger) -> None:
     from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir
 
-    scheduler = WEScheduler(config_path)
-    scheduler.history_logger = HistoryLogger(get_data_dir())  # BEFORE initialize()
+    scheduler = WEScheduler(config_path, HistoryLogger(get_data_dir()))
     try:
         scheduler.initialize()
     except Exception as e:
@@ -145,8 +144,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir
 
-    scheduler = WEScheduler(config_path)
-    scheduler.history_logger = HistoryLogger(get_data_dir())  # BEFORE initialize()
+    scheduler = WEScheduler(config_path, HistoryLogger(get_data_dir()))
     try:
         scheduler.initialize()
     except Exception as e:

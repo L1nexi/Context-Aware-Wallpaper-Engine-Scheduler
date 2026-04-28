@@ -16,7 +16,7 @@ import threading
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 from collections import deque
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 import json
 import time
@@ -26,6 +26,9 @@ import bottle
 from utils.app_context import get_app_root
 from utils.i18n import _current_lang
 from core.scheduler import WEScheduler, Context, MatchResult
+
+if TYPE_CHECKING:
+    from core.event_logger import EventLogger
 
 logger = logging.getLogger("WEScheduler.Dashboard")
 
@@ -123,7 +126,7 @@ def _resolve_static_root() -> str:
     return os.path.join(get_app_root(), 'dashboard', 'dist')
 
 
-def _build_app(state_store: StateStore, history_logger=None) -> bottle.Bottle:
+def _build_app(state_store: StateStore, history_logger: EventLogger | None = None) -> bottle.Bottle:
     app = bottle.Bottle()
 
     # ── API routes ──────────────────────────────────────────────
@@ -185,9 +188,9 @@ class DashboardHTTPServer:
     available via ``.port`` after ``start()``.
     """
 
-    def __init__(self, state_store: StateStore, history_logger=None):
+    def __init__(self, state_store: StateStore, history_logger: EventLogger | None = None):
         self._state_store = state_store
-        self._history = history_logger
+        self._history: EventLogger | None = history_logger
         self._httpd: _ThreadingWSGIServer | None = None
         self._thread: threading.Thread | None = None
         self.port: int = 0

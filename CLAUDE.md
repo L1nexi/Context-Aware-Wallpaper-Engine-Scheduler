@@ -135,12 +135,13 @@ Config is validated by Pydantic models in `utils/config_loader.py`. See `schedul
 ## Key Design Patterns
 
 - **Registry + Factory**: `_SENSOR_REGISTRY` / `_POLICY_REGISTRY` + `create()` classmethods control which sensors/policies are instantiated based on config.
-- **Hooks via direct attribute assignment**: `scheduler.on_auto_resume`, `scheduler.on_tick`, `tray.on_show_dashboard` — set externally by the host, called from within. No getters/setters, no constructor injection. Same simple pattern everywhere.
+- **Hooks via direct attribute assignment**: `scheduler.on_auto_resume`, `scheduler.on_tick`, `tray.on_show_dashboard` — callbacks set externally by the host, called from within. No getters/setters.
+- **Services via constructor injection**: `history_logger: EventLogger` is passed to `WEScheduler.__init__`. Services differ from hooks — they are required dependencies, not optional observers. `EventLogger` is a Protocol in `core/event_logger.py`; `HistoryLogger` (in `utils/`) implements it. Dependency direction: `utils → core`.
 - **State export/import**: Policies and controller implement `export_state()` / `import_state()` so hot-reload preserves EMA accumulators and cooldown timestamps.
 - **Gate chain**: `SchedulingController` composes multiple deferral conditions (CPU gate, Fullscreen gate). Each gate is a class with `should_defer(context) -> bool`.
 - **Tag vector space**: Playlists, policy directions, and fallback edges share one flat tag namespace (e.g. `#focus`, `#rain`). Adding a new signal means defining new tag keys, updating the relevant policy, and optionally adding `TagSpec` fallback entries — no changes to `Matcher`.
 - **`config_key` validation**: Each `Policy` subclass declares `config_key: ClassVar[str]` matching an attribute on `PoliciesConfig`. `__init_subclass__` validates this at import time; typos raise `TypeError` before the app starts.
-- **HistoryLogger injection**: `scheduler.history_logger = HistoryLogger(...)` must be set BEFORE `scheduler.initialize()`. The logger is passed through to `Actuator` in `_build_runtime_components()` and to `DashboardHTTPServer` constructor.
+- **HistoryLogger wiring**: `HistoryLogger(get_data_dir())` is created in `main.py` and passed to `WEScheduler(config_path, history_logger)`. The scheduler passes it through to `Actuator` in `_build_runtime_components()`, and `main.py` passes it to `DashboardHTTPServer`.
 - **Tagged union events**: Six event types — `playlist_switch`, `wallpaper_cycle`, `pause`, `resume`, `start`, `stop`. Each carries type-specific `data` dict. Timestamps are UTC ISO 8601 at second precision (`timespec="seconds"`) for lexicographic ordering.
 - **Segment building**: `_SEED_PLAYLIST_SOURCE` and `_SEED_INITIAL_TYPE` lookup tables resolve pre-window state from seed events. `_build_segments()` replays events oldest-first to produce continuous timeline blocks for the Gantt chart.
 

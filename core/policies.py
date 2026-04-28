@@ -3,7 +3,7 @@ import math
 import time as _time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import ClassVar, Dict, Any, Optional
+from typing import ClassVar, Dict, Any, Optional, Type
 
 from core.context import Context
 from utils.config_loader import (
@@ -434,3 +434,13 @@ class WeatherPolicy(Policy):
         if entry is not None:
             return dict(entry)
         return cls._MAIN_FALLBACK.get(weather_main.lower())
+
+
+# Registry of Policy classes in evaluation order.
+# To add a new policy: import its class above and append it here.
+POLICY_REGISTRY: list[Type[Policy]] = [
+    ActivityPolicy,
+    TimePolicy,
+    SeasonPolicy,
+    WeatherPolicy,
+]

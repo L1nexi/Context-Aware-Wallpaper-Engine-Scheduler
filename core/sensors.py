@@ -9,7 +9,7 @@ import requests
 import psutil
 import logging
 from collections import deque
-from typing import ClassVar, Any, Optional
+from typing import ClassVar, Any, Optional, Type
 from abc import ABC, abstractmethod
 from core.context import WindowData, WeatherData
 from utils.config_loader import AppConfig, WeatherPolicyConfig
@@ -257,3 +257,16 @@ class TimeSensor(Sensor):
     def collect(self) -> time.struct_time:
         """Returns the current local time as a struct_time."""
         return time.localtime()
+
+
+# Registry of Sensor classes.
+# Each sensor carries its own context key (Sensor.key) and activation
+# logic (Sensor.create(config)).
+SENSOR_REGISTRY: list[Type[Sensor]] = [
+    WindowSensor,
+    IdleSensor,
+    CpuSensor,
+    FullscreenSensor,
+    WeatherSensor,
+    TimeSensor,
+]

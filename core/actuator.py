@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from core.event_logger import EventLogger
 
 from core.executor import WEExecutor
 from core.controller import SchedulingController
@@ -11,10 +16,10 @@ logger = logging.getLogger("WEScheduler.Actuator")
 
 class Actuator:
     def __init__(self, executor: WEExecutor, controller: SchedulingController,
-                 history_logger=None):
+                 history_logger: EventLogger):
         self.executor = executor
         self.controller = controller
-        self._history = history_logger
+        self._history: EventLogger = history_logger
 
     def act(self, context: Context, result: Optional[MatchResult], current_playlist: str) -> str:
         if result is None:
@@ -40,15 +45,14 @@ class Actuator:
                 _log_tags()
                 self.executor.open_playlist(best_playlist)
                 self.controller.notify_playlist_switch()
-                if self._history:
-                    self._history.write("playlist_switch", {
-                        "playlist_from": current_playlist,
-                        "playlist_to": best_playlist,
-                        "tags": _tag_dict(),
-                        "similarity": round(result.similarity, 4),
-                        "similarity_gap": round(result.similarity_gap, 4),
-                        "max_policy_magnitude": round(result.max_policy_magnitude, 4),
-                    })
+                self._history.write("playlist_switch", {
+                    "playlist_from": current_playlist,
+                    "playlist_to": best_playlist,
+                    "tags": _tag_dict(),
+                    "similarity": round(result.similarity, 4),
+                    "similarity_gap": round(result.similarity_gap, 4),
+                    "max_policy_magnitude": round(result.max_policy_magnitude, 4),
+                })
                 return best_playlist
 
         # Case B: Context suggests the same playlist (Stable context)
@@ -57,10 +61,9 @@ class Actuator:
                 logger.info(f"[Action] Cycling Wallpaper in '{current_playlist}'")
                 self.executor.next_wallpaper()
                 self.controller.notify_wallpaper_cycle()
-                if self._history:
-                    self._history.write("wallpaper_cycle", {
-                        "playlist": current_playlist,
-                        "tags": _tag_dict(),
-                    })
+                self._history.write("wallpaper_cycle", {
+                    "playlist": current_playlist,
+                    "tags": _tag_dict(),
+                })
 
         return current_playlist
