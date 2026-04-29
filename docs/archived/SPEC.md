@@ -1,4 +1,4 @@
-# History System — Implementation Spec
+# History System — Implementation Spec [DONE]
 
 ## Overview
 
@@ -25,14 +25,14 @@ Dashboard 新增 "History" tab（el-tabs 切换），现有 ConfidencePanel 嵌�
 
 Data schemas:
 
-| type | data fields |
-|------|-------------|
+| type              | data fields                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- |
 | `playlist_switch` | `playlist_from`, `playlist_to`, `tags: {tag: weight}`, `similarity`, `similarity_gap`, `max_policy_magnitude` |
-| `wallpaper_cycle` | `playlist`, `tags: {tag: weight}` |
-| `pause` | `duration: int \| null` (seconds, null = indefinite) |
-| `resume` | `{}` |
-| `start` | `{}` |
-| `stop` | `{}` |
+| `wallpaper_cycle` | `playlist`, `tags: {tag: weight}`                                                                             |
+| `pause`           | `duration: int \| null` (seconds, null = indefinite)                                                          |
+| `resume`          | `{}`                                                                                                          |
+| `start`           | `{}`                                                                                                          |
+| `stop`            | `{}`                                                                                                          |
 
 ts format: ISO 8601 with timezone (`datetime.now(timezone.utc).isoformat()`).
 
@@ -127,6 +127,7 @@ class DashboardHTTPServer:
 `_build_app(state_store, history_logger)` — 新增两个端点:
 
 `GET /api/ticks?count=300`:
+
 ```python
 @app.route('/api/ticks')
 def api_ticks():
@@ -136,6 +137,7 @@ def api_ticks():
 ```
 
 `GET /api/history?limit=100&from=<ISO>&to=<ISO>`:
+
 ```python
 @app.route('/api/history')
 def api_history():
@@ -158,12 +160,12 @@ self.history_logger: HistoryLogger | None = None  # set by main.py BEFORE initia
 
 Event writes:
 
-| Method | Call |
-|--------|------|
-| `start()` | `self.history_logger.write("start", {})` |
-| `stop()` | `self.history_logger.write("stop", {})` |
+| Method           | Call                                                        |
+| ---------------- | ----------------------------------------------------------- |
+| `start()`        | `self.history_logger.write("start", {})`                    |
+| `stop()`         | `self.history_logger.write("stop", {})`                     |
 | `pause(seconds)` | `self.history_logger.write("pause", {"duration": seconds})` |
-| `resume()` | `self.history_logger.write("resume", {})` |
+| `resume()`       | `self.history_logger.write("resume", {})`                   |
 
 `_build_runtime_components()` passes `self.history_logger` to `Actuator(...)`.
 
@@ -181,12 +183,14 @@ def __init__(self, executor, controller, history_logger=None):
 Replace `_write_history()` static method with `self._history.write(...)`.
 
 switch event data:
+
 ```python
 {"playlist_from": ..., "playlist_to": ..., "tags": {...},
  "similarity": ..., "similarity_gap": ..., "max_policy_magnitude": ...}
 ```
 
 cycle event data:
+
 ```python
 {"playlist": ..., "tags": {...}}
 ```
@@ -246,44 +250,59 @@ cd dashboard && npm install echarts vue-echarts
 // Covers all event types (switch, cycle, pause, resume, start, stop).
 
 export function useHistory() {
-  const segments = ref<Segment[]>([])
-  const events = ref<HistoryEvent[]>([])
-  const loading = ref(true)
-  const lastId = ref(0)
+  const segments = ref<Segment[]>([]);
+  const events = ref<HistoryEvent[]>([]);
+  const loading = ref(true);
+  const lastId = ref(0);
 
-  async function fetchHistory(params?: { from?: string; to?: string; limit?: number }) {
-    const query = new URLSearchParams({ limit: '100', ...params }).toString()
-    const res = await fetch(`/api/history?${query}`)
-    const body = await res.json()
-    segments.value = body.segments
-    events.value = body.events
+  async function fetchHistory(params?: {
+    from?: string;
+    to?: string;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams({ limit: "100", ...params }).toString();
+    const res = await fetch(`/api/history?${query}`);
+    const body = await res.json();
+    segments.value = body.segments;
+    events.value = body.events;
   }
 
   // Watch last_event_id — triggers on ANY event type including wallpaper_cycle
-  watch(() => state.value?.last_event_id, (newId, oldId) => {
-    if (newId && newId !== oldId) fetchHistory({ limit: 5 })
-  })
+  watch(
+    () => state.value?.last_event_id,
+    (newId, oldId) => {
+      if (newId && newId !== oldId) fetchHistory({ limit: 5 });
+    },
+  );
 
-  return { segments, events, loading, fetchHistory }
+  return { segments, events, loading, fetchHistory };
 }
 ```
 
 `Segment` type:
+
 ```typescript
 interface Segment {
-  playlist: string | null
-  type?: 'pause' | 'dead'
-  start: string
-  end: string
+  playlist: string | null;
+  type?: "pause" | "dead";
+  start: string;
+  end: string;
 }
 ```
 
 `HistoryEvent` type mirrors the tagged union from backend:
+
 ```typescript
 interface HistoryEvent {
-  ts: string
-  type: 'playlist_switch' | 'wallpaper_cycle' | 'pause' | 'resume' | 'start' | 'stop'
-  data: Record<string, any>
+  ts: string;
+  type:
+    | "playlist_switch"
+    | "wallpaper_cycle"
+    | "pause"
+    | "resume"
+    | "start"
+    | "stop";
+  data: Record<string, any>;
 }
 ```
 
@@ -292,13 +311,13 @@ interface HistoryEvent {
 现有 1s poll 不变。新增 `useTicks()` 或直接在 `useApi` 中加 5s 间隔的 `/api/ticks` fetch:
 
 ```typescript
-const ticks = ref<TickState[]>([])
+const ticks = ref<TickState[]>([]);
 
 // Poll every 5s for sparkline data
 setInterval(async () => {
-  const res = await fetch('/api/ticks?count=120')
-  ticks.value = await res.json()
-}, 5000)
+  const res = await fetch("/api/ticks?count=120");
+  ticks.value = await res.json();
+}, 5000);
 ```
 
 ### B4. Tabs structure: `DashboardView.vue`
@@ -343,6 +362,7 @@ Provide/inject: `events`, `fetchHistory`, `ticks` 注入到子组件。
 ```
 
 **Gantt chart (ECharts):**
+
 - X 轴：时间（自适应分辨率：1h 视图显示分钟，24h 视图显示小时）
 - Y 轴：单行色块（所有 playlist 共享同一行）
 - 颜色：每个 playlist 分配固定颜色（ECharts 调色板 + 固定映射），Pause 区间灰色
@@ -350,6 +370,7 @@ Provide/inject: `events`, `fetchHistory`, `ticks` 注入到子组件。
 - Hover tooltip：显示 playlist 名 + 精确时间范围
 
 **Event list:**
+
 - 图标区分事件类型（switch=交换箭头，cycle=刷新，pause=暂停，resume=播放，start/stop=电源）
 - 每条显示：时间 + 事件描述 + tags（如有）
 - switch 事件展开显示 from→to + top-3 tags
@@ -391,14 +412,23 @@ Playlists 是动态配置的，颜色需要自动分配：
 
 ```typescript
 // ECharts 默认调色板循环分配
-const PALETTE = ['#5470c6','#91cc75','#fac858','#ee6666','#73c0de','#3ba272','#fc8452','#9a60b4']
+const PALETTE = [
+  "#5470c6",
+  "#91cc75",
+  "#fac858",
+  "#ee6666",
+  "#73c0de",
+  "#3ba272",
+  "#fc8452",
+  "#9a60b4",
+];
 
 function playlistColor(name: string): string {
   // 首次遇到新 playlist 时分配下一个颜色，缓存在 map 中
   if (!colorMap.has(name)) {
-    colorMap.set(name, PALETTE[colorMap.size % PALETTE.length])
+    colorMap.set(name, PALETTE[colorMap.size % PALETTE.length]);
   }
-  return colorMap.get(name)!
+  return colorMap.get(name)!;
 }
 ```
 
@@ -406,21 +436,21 @@ Pause 固定 `#909399`（Element Plus 灰色），stop gap 固定 `#C0C4CC` 虚�
 
 ### B9. Files summary
 
-| File | Action |
-|------|--------|
-| `utils/history_logger.py` | **New** |
-| `core/scheduler.py` | Modify — history_logger attr + event writes |
-| `core/actuator.py` | Modify — HistoryLogger injection, remove _write_history |
-| `ui/dashboard.py` | Modify — StateStore ring buffer, DashboardHTTPServer params, /api/ticks, /api/history |
-| `main.py` | Modify — create + wire HistoryLogger |
-| `dashboard/` | |
-| `package.json` | Modify — add echarts, vue-echarts |
-| `src/composables/useHistory.ts` | **New** — state-change-driven history fetching |
-| `src/composables/useApi.ts` | Modify — add /api/ticks polling |
-| `src/views/DashboardView.vue` | Modify — el-tabs wrapper |
-| `src/views/HistoryView.vue` | **New** — Gantt + event list |
-| `src/components/ConfidencePanel.vue` | Modify — add sparkline |
-| `src/composables/useApi.ts` | Modify — TickState interface + current_playlist_display |
+| File                                 | Action                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `utils/history_logger.py`            | **New**                                                                               |
+| `core/scheduler.py`                  | Modify — history_logger attr + event writes                                           |
+| `core/actuator.py`                   | Modify — HistoryLogger injection, remove \_write_history                              |
+| `ui/dashboard.py`                    | Modify — StateStore ring buffer, DashboardHTTPServer params, /api/ticks, /api/history |
+| `main.py`                            | Modify — create + wire HistoryLogger                                                  |
+| `dashboard/`                         |                                                                                       |
+| `package.json`                       | Modify — add echarts, vue-echarts                                                     |
+| `src/composables/useHistory.ts`      | **New** — state-change-driven history fetching                                        |
+| `src/composables/useApi.ts`          | Modify — add /api/ticks polling                                                       |
+| `src/views/DashboardView.vue`        | Modify — el-tabs wrapper                                                              |
+| `src/views/HistoryView.vue`          | **New** — Gantt + event list                                                          |
+| `src/components/ConfidencePanel.vue` | Modify — add sparkline                                                                |
+| `src/composables/useApi.ts`          | Modify — TickState interface + current_playlist_display                               |
 
 ### B10. Verification
 

@@ -9,6 +9,68 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.0] — 2026-04-29
+
+**History R3 + DIP Architecture**
+
+此版本实现了完整的历史事件日志系统与 Dashboard History 标签页，并对核心架构进行了依赖注入重构。
+
+### Added
+
+- **`HistoryLogger`** (`utils/history_logger.py`): 线程安全的追加型事件日志，按月分片为 `history-{YYYY}-{MM}.jsonl`。UTC 时间戳、秒精度、字典序可比较。六种事件类型 tagged union：`start` / `stop` / `pause` / `resume` / `playlist_switch` / `wallpaper_cycle`。
+- **`/api/history`** 端点: 返回 `{segments, events}`，后端计算连续时间线区块（Gantt-ready）。支持 `limit` / `from` / `to` 查询参数。
+- **`/api/ticks`** 端点: 返回最近 N 个 `TickState` 快照的环形缓冲区（默认 300，5s 轮询）。
+- **`HistoryView.vue`**: ECharts Gantt 时间线 + 事件列表，支持预设时长过滤（1h/6h/24h/7d）与自定义日期范围。自动刷新通过 `last_event_id` 驱动。
+- **`ConfidencePanel.vue`** 新增 sparkline: 基于 `/api/ticks` 数据的 48px 趋势线。
+- **`DashboardView.vue`**: `el-tabs` 切换 Live / History 标签页。
+- **`EventLogger` Protocol** (`core/event_logger.py`): 定义 `write()` / `read()` / `last_event_id` 接口，方向 `utils → core`。
+- **`EventType` StrEnum**: `PLAYLIST_SWITCH` / `WALLPAPER_CYCLE` / `START` / `STOP` / `PAUSE` / `RESUME` — 全链路共享的事件类型枚举，消除 5 处字符串重复。
+- **`display` 字段**: `PlaylistConfig` 新增可选 `display` 名（用于 CJK 显示名），scheduler 通过 `display_of` dict 解析。
+
+### Changed
+
+- **`WEScheduler.__init__`** 接受 `history_logger: EventLogger`（构造器注入替代属性赋值），消除 "set BEFORE initialize()" 时序依赖。
+- **Registry 提取**: `POLICY_REGISTRY` 移至 `core/policies.py`，`SENSOR_REGISTRY` 移至 `core/sensors.py`。scheduler.py 不再持有注册表。
+- **`Actuator`** 接受必需的 `history_logger`，inner functions (`_sorted_tags` / `_tag_dict`) 提升为模块级函数。
+- **ECharts 注册**集中至 `src/plugins/echarts.ts`，消除组件间重复 `use()` 调用。
+- **`read_recent()`** 使用 `itertools.islice(reversed(deque))` 实现 O(count) 拷贝。
+- **`_months_in_range`** 生成区间内所有月份，修复跨月查询数据丢失。
+- **`_build_segments`** 使用完整事件列表构建 Gantt 区块，limit 仅作用于返回数组。
+- **`StateStore`** 支持 `read_recent(count)` 环形缓冲区读取。
+
+### Fixed
+
+- Gantt 图 `renderItem` 坐标提取错误（字符串索引 → 完整时间戳）。
+- `evt.data.tags` 为 Object 而非 Array 导致的 `.slice()` TypeError。
+- History 加载状态未在 HTTP 错误时重置（添加 `finally` 块）。
+- `_ensure_file` 使用本地时间而非 UTC 计算月份。
+- `fetchTicks` 无条件赋值导致不必要的 Vue 重渲染（添加变更检测）。
+- `last_event_id` 自动刷新时的骨架屏闪烁（跳过 `showLoading`）。
+
+---
+
+## [0.5.1] — 2026-04-28
+
+**Dashboard R1 完成**
+
+### Added
+
+- **Dashboard HTTP 服务器** (`ui/dashboard.py`): Bottle-based, `127.0.0.1:0`。端点: `/api/state` / `/api/health` / 静态 SPA。
+- **Vue 3 SPA 前端** (`dashboard/`): TypeScript + Element Plus，1s 状态轮询，僵尸检测（3 次失败 → 5s 倒计时关闭），`?locale=` i18n 参数。
+- **pywebview 窗口** (`ui/webview.py`): 从托盘独立子进程启动，WebView2 渲染。
+- **`on_tick` hook**: `scheduler.on_tick(scheduler, context, result)` — 由 main.py 设置，每 tick 推送 `TickState` 至 `StateStore`。
+- **`StateStore`**: 线程安全（`threading.Lock`），`update()` / `read()` API。
+- **`TickState`** 数据类: 17 字段实时快照（playlist, similarity, gap, magnitude, top_tags, context 数据）。
+- **`display` 名解析**: `display_of` dict 映射 playlist name → display name。
+- **`last_event_id`**: TickState 携带的单调递增事件计数器，前端据此自动刷新。
+
+### Changed
+
+- **Tray refactor**: `on_show_dashboard` 回调通过属性赋值（无构造器注入）。
+- 导入清理、目录结构整理、文档同步。
+
+---
+
 ## [0.5.0] - 2026-04-26
 
 **数值语义化重构 (Semantic Value Decomposition)**
@@ -242,7 +304,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-[Unreleased]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.5.0...v0.5.1
 [0.4.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.3.1...v0.3.2

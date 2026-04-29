@@ -19,10 +19,8 @@
 
 **集成方式：**
 
-- ✅ Phase 1：托盘菜单「Dashboard」入口 → 独立子进程 + pywebview 窗口
-- Phase 2：与 history.jsonl 时间轴合并（见 R3）
-
-**优先级：** ✅ 已完成
+- ✅ 托盘菜单「Dashboard」入口 → 独立子进程 + pywebview 窗口
+- ✅ 与 History 时间轴合并（R3 已完成）
 
 ---
 
@@ -81,33 +79,27 @@ WE_TAG_MAP = {
 
 ---
 
-## R3 — history.jsonl 消费
+## R3 — History 事件日志与消费 ✅ 已完成
 
-**动机：** `data/history.jsonl` 记录了每次播放列表切换和壁纸循环事件，是调优和理解系统行为的宝贵数据，当前完全未被消费。
+**实际实现** (`utils/history_logger.py`, `ui/dashboard.py`, `core/actuator.py`, `dashboard/src/views/HistoryView.vue`):
 
-**三层价值：**
+- `HistoryLogger`: 线程安全、按月分片 (`history-{YYYY}-{MM}.jsonl`)、UTC 秒精度时间戳
+- 六种 tagged union 事件: `start` / `stop` / `pause` / `resume` / `playlist_switch` / `wallpaper_cycle`
+- `EventType` StrEnum + `EventLogger` Protocol — 消除字符串重复，依赖方向 `utils → core`
+- `/api/history?limit=&from=&to=` — 返回 `{segments, events}`，后端计算 Gantt 连续区块
+- `HistoryView.vue` — ECharts Gantt 时间线 + 事件列表，含过滤器和自动刷新
+- `last_event_id` 单调计数器 — 前端通过 watch 实现增量自动刷新
+- 事件携带 top-8 标签快照 + similarity/gap/magnitude 供调优分析
 
-### 层 1 — 时间轴可视化
+**优先级：** ✅ 已完成
 
-将切换事件渲染为时间轴，直观显示：
+---
 
-- 哪个时间段系统频繁切换（可能说明配置 threshold 太低）
-- 各 playlist 的实际占用时长分布
+## R3.1 — 历史高级消费（层 3：回放与审计）
 
-实现：轻量 HTML 输出（纯 Python 生成，无前端构建依赖）或直接集成进 Dashboard（R1）。
+给定时间戳，重建当时的 `aggregated_tags` 快照，回答"为什么那时切换到了 X"。当前事件已记录 top-8 tags 和 similarity/magnitude 元数据，大部分审计需求已可满足。完整的向量快照回放需要额外的存储/查询支持。
 
-### 层 2 — 调优辅助
-
-- 标注每次切换时的 `similarity` 值——持续低相似度 → playlist 标签需要调整
-- 显示 top tags 演变曲线 → 理解 Policy 贡献趋势
-
-### 层 3 — 回放与审计
-
-给定时间戳，重建当时的 `aggregated_tags` 快照，回答"为什么那时切换到了 X"。需要在 history.jsonl 中记录更完整的快照（当前只记录 top5 tags）。
-
-**集成建议：** 层 1+2 合并进 Dashboard（R1）的"历史"标签页，共用 `on_tick_state` 数据流；层 3 按需单独实现。
-
-**优先级：** 中（依赖 R1 先行）| 与 R1 共用 UI 入口
+**优先级：** 低 | 依赖：R3
 
 ---
 
@@ -116,7 +108,7 @@ WE_TAG_MAP = {
 | ID    | 功能                           | 优先级 | 依赖  |   估计规模    |
 | ----- | ------------------------------ | :----: | ----- | :-----------: |
 | ~~R1~~ | ~~Dashboard (状态仪表盘)~~     |   ✅   | —     |    已完成    |
-| R3    | history 时间轴（集成进 R1）    |  ★★☆   | ~~R1~~ |      小       |
+| ~~R3~~ | ~~History 事件日志与消费~~      |   ✅   | ~~R1~~ |    已完成    |
 | R2-L1 | 自动 tag 生成·层 1（映射表）   |  ★★☆   | —     | 小（~100 行） |
 | R2-L2 | 自动 tag 生成·层 2（文字嵌入） |  ★☆☆   | —     |      中       |
 | R2-L3 | 自动 tag 生成·层 3（CLIP）     |  ★☆☆   | R2-L1 |      大       |
