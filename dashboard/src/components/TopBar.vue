@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { inject } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 
-const { t, lang } = useI18n()
+const { lang } = useI18n()
 </script>
 
 <template>
   <div class="top-bar">
-    <span class="top-bar-title">{{ t('title') }}</span>
+    <div></div>
     <el-tag size="small" type="info">{{ lang.toUpperCase() }}</el-tag>
   </div>
 </template>
@@ -16,16 +15,10 @@ const { t, lang } = useI18n()
 .top-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  justify-content: flex-end;
+  padding: 6px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--el-border-color, #e4e7ed);
   flex-shrink: 0;
-  -webkit-app-region: drag;
-}
-.top-bar-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
 }
 </style>

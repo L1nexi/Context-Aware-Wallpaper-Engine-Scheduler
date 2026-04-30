@@ -6,7 +6,7 @@ import { useHistory } from '@/composables/useHistory'
 import { useI18n } from '@/composables/useI18n'
 import TopBar from '@/components/TopBar.vue'
 
-const { state, ticks, error, zombie, loading } = useApi()
+const { state, ticks, error, zombie, loading, countdown } = useApi()
 const { t, lang } = useI18n()
 const { segments, events, fetchHistory, loading: historyLoading } = useHistory(state)
 
@@ -29,7 +29,8 @@ provide('historyLoading', historyLoading)
   <div v-if="zombie" class="zombie-overlay">
     <div class="zombie-content">
       <h2>{{ t('connectionLost') }}</h2>
-      <p>{{ t('closeCountdown', { n: 5 }) }}</p>
+      <p v-if="countdown > 0">{{ t('closeCountdown', { n: countdown }) }}</p>
+      <p v-else>{{ t('closing') }}</p>
     </div>
   </div>
 </template>

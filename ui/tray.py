@@ -218,9 +218,6 @@ class TrayIcon:
             CustomPauseDialog(on_confirm).show()
         threading.Thread(target=_show, daemon=True).start()
 
-    def _on_open_config(self, icon, item):
-        self._open_file(self.scheduler.config_path)
-
     def _on_open_logs(self, icon, item):
         log_path = os.path.join(get_app_root(), "logs", "scheduler.log")
         self._open_file(log_path)
@@ -301,7 +298,6 @@ class TrayIcon:
                 visible=lambda item: self.on_show_dashboard is not None,
             ),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(t("open_config"), self._on_open_config),
             pystray.MenuItem(t("open_logs"), self._on_open_logs),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("exit"), self._on_exit),
