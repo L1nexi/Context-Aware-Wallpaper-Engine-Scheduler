@@ -61,5 +61,6 @@
   "sched_cpu_sample_window": "cpu sample window",
   "sched_cpu_sample_window_tip": "CPU averaging window duration",
   "sched_pause_on_fullscreen": "pause on fullscreen",
-  "sched_pause_on_fullscreen_tip": "Pause switching when a fullscreen or presentation app is active"
+  "sched_pause_on_fullscreen_tip": "Pause switching when a fullscreen or presentation app is active",
+  "topMatches": "Top Matches"
 }

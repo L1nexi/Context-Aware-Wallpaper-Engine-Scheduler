@@ -61,5 +61,6 @@
   "sched_cpu_sample_window": "CPU 采样窗口",
   "sched_cpu_sample_window_tip": "CPU 取平均值的时间窗口",
   "sched_pause_on_fullscreen": "全屏暂停",
-  "sched_pause_on_fullscreen_tip": "全屏或演示模式时暂停切换"
+  "sched_pause_on_fullscreen_tip": "全屏或演示模式时暂停切换",
+  "topMatches": "最优匹配"
 }

@@ -16,6 +16,7 @@ export interface TickState {
   fullscreen: boolean;
   locale: string;
   last_event_id: number;
+  top_matches: [string, number][];
 }
 
 const MAX_FAILURES = 1;

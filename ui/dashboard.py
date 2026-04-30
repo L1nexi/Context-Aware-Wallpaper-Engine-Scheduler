@@ -16,7 +16,6 @@ import threading
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 from collections import deque
-from itertools import islice
 from typing import Dict, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 import json
@@ -56,6 +55,7 @@ class TickState:
     fullscreen: bool = False
     locale: str = "en"
     last_event_id: int = 0
+    top_matches: list = field(default_factory=list)  # [(name, score), ...] top 5
 
 
 # ── StateStore ─────────────────────────────────────────────────────
@@ -79,11 +79,9 @@ class StateStore:
 
     def read_recent(self, count: int | None = None) -> list[dict]:
         with self._lock:
-            if count is None:
-                items = list(self._ticks)
-            else:
-                items = list(islice(reversed(self._ticks), count))
-                items.reverse()
+            items = list(self._ticks)
+            if count is not None:
+                items = items[-count:]
         return [dataclasses.asdict(s) for s in items]
 
 
@@ -118,6 +116,10 @@ def build_tick_state(
         fullscreen=context.fullscreen,
         locale=_current_lang,
         last_event_id=scheduler.history_logger.last_event_id if scheduler.history_logger else 0,
+        top_matches=[
+            (scheduler.display_of.get(name, name), round(score, 4))
+            for name, score in (result.top_matches if result else [])
+        ] if result else [],
     )
 
 

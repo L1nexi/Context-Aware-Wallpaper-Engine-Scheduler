@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, inject } from 'vue'
-import CurrentPlaylist from '@/components/CurrentPlaylist.vue'
 import ConfidencePanel from '@/components/ConfidencePanel.vue'
+import TopMatches from '@/components/TopMatches.vue'
 import TagChart from '@/components/TagChart.vue'
 import ContextPanel from '@/components/ContextPanel.vue'
 import HistoryView from '@/views/HistoryView.vue'
@@ -16,9 +16,9 @@ const t = inject<(key: string, params?: Record<string, string | number>) => stri
     <el-tabs v-model="activeTab" class="main-tabs">
       <el-tab-pane :label="t('dashboard_live')" name="live">
         <div class="dashboard-grid">
-          <CurrentPlaylist />
           <ConfidencePanel />
           <TagChart />
+          <TopMatches />
           <ContextPanel />
         </div>
       </el-tab-pane>

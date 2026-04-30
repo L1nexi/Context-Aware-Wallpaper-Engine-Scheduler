@@ -26,6 +26,7 @@ class MatchResult:
     aggregated_tags: Dict[str, float] = field(default_factory=dict)
     similarity_gap: float = 0.0        # sim(1st) - sim(2nd); 0 if only one playlist
     max_policy_magnitude: float = 0.0  # max(salience * intensity * weight_scale) across policies
+    top_matches: list[tuple[str, float]] = field(default_factory=list)
 
 
 class Matcher:
@@ -122,6 +123,7 @@ class Matcher:
             return None
 
         gap = best_score - scores[1][0] if len(scores) > 1 else best_score
+        top_matches = [(name, round(score, 4)) for score, name in scores[:5]]
 
         return MatchResult(
             best_playlist=best_playlist,
@@ -129,6 +131,7 @@ class Matcher:
             aggregated_tags=aggregated_tags,
             similarity_gap=gap,
             max_policy_magnitude=max_magnitude,
+            top_matches=top_matches,
         )
 
     # ── TagSpec fallback helpers ──────────────────────────────────────────────
