@@ -27,6 +27,8 @@ import bottle
 from utils.app_context import get_app_root
 from utils.i18n import _current_lang
 from core.scheduler import WEScheduler, Context, MatchResult
+import getpass
+from utils.config_loader import AppConfig
 
 if TYPE_CHECKING:
     from core.event_logger import EventLogger
@@ -119,6 +121,17 @@ def build_tick_state(
     )
 
 
+def _flatten_errors(exc) -> list[dict]:
+    """Flatten Pydantic ValidationError to [{field, message}]."""
+    if not hasattr(exc, "errors"):
+        return [{"field": "", "message": str(exc)}]
+    errors: list[dict] = []
+    for err in exc.errors():
+        loc = ".".join(str(p) for p in err["loc"])
+        errors.append({"field": loc, "message": err["msg"]})
+    return errors
+
+
 class _ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
     daemon_threads = True
 
@@ -129,7 +142,11 @@ def _resolve_static_root() -> str:
     return os.path.join(get_app_root(), 'dashboard', 'dist')
 
 
-def _build_app(state_store: StateStore, history_logger: EventLogger | None = None) -> bottle.Bottle:
+def _build_app(
+    state_store: StateStore,
+    history_logger: EventLogger | None = None,
+    config_path: str = "",
+) -> bottle.Bottle:
     app = bottle.Bottle()
 
     # ── API routes ──────────────────────────────────────────────
@@ -161,6 +178,93 @@ def _build_app(state_store: StateStore, history_logger: EventLogger | None = Non
         
         return json.dumps(history_logger.read(limit=limit, from_ts=from_ts, to_ts=to_ts))
 
+    # ── Config API routes ──────────────────────────────────────
+
+    @app.route('/api/config')
+    def api_config():
+        bottle.response.content_type = 'application/json; charset=utf-8'
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                raw = json.load(f)
+            AppConfig.model_validate(raw)
+        except FileNotFoundError:
+            bottle.response.status = 404
+            return json.dumps({"error": "config_not_found"})
+        except ValueError as e:
+            bottle.response.status = 500
+            return json.dumps({"error": "invalid_config", "details": str(e)})
+        return json.dumps(raw)
+
+    @app.route('/api/config', method='POST')
+    def api_config_save():
+        bottle.response.content_type = 'application/json; charset=utf-8'
+        data = bottle.request.json
+        if data is None:
+            bottle.response.status = 400
+            return json.dumps({"error": "no_json_body"})
+        try:
+            AppConfig.model_validate(data)
+        except ValueError as e:
+            bottle.response.status = 422
+            return json.dumps({
+                "error": "validation_failed",
+                "details": _flatten_errors(e),
+            })
+
+        tmp = config_path + '.tmp'
+        try:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, config_path)
+        except OSError as e:
+            bottle.response.status = 500
+            return json.dumps({"error": "write_failed", "details": str(e)})
+        logger.info("Config saved via API")
+        return json.dumps({"ok": True})
+
+    @app.route('/api/tags/presets')
+    def api_tags_presets():
+        bottle.response.content_type = 'application/json; charset=utf-8'
+        from core.policies import KNOWN_TAGS
+        return json.dumps(KNOWN_TAGS)
+
+    @app.route('/api/playlists/scan')
+    def api_playlists_scan():
+        bottle.response.content_type = 'application/json; charset=utf-8'
+        wallpaper_engine_path = ""
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                raw = json.load(f)
+            wallpaper_engine_path = raw.get("wallpaper_engine_path", "")
+        except Exception as exc:
+            logger.warning("Failed to read config for playlist scan: %s", exc)
+
+        from utils.we_path import find_we_config_json
+        we_config = find_we_config_json(wallpaper_engine_path)
+        if we_config is None:
+            return json.dumps({"playlists": [], "error": "we_config_not_found"})
+
+        try:
+            with open(we_config, 'r', encoding='utf-8') as f:
+                we_data = json.load(f)
+        except Exception:
+            return json.dumps({"playlists": [], "error": "we_config_read_failed"})
+
+        if not isinstance(we_data, dict):
+            return json.dumps({"playlists": [], "error": "unexpected_we_config_format"})
+        username = getpass.getuser()
+        user_entry = we_data.get(username)
+        if isinstance(user_entry, dict):
+            general = user_entry.get("general", {})
+            if isinstance(general, dict):
+                playlists = general.get("playlists", [])
+            else:
+                playlists = []
+        else:
+            playlists = []
+        names = [p["name"] for p in playlists if isinstance(p, dict) and "name" in p]
+        return json.dumps({"playlists": names})
+
     # ── Static / SPA routes ─────────────────────────────────────
 
     static_root = _resolve_static_root()
@@ -191,16 +295,22 @@ class DashboardHTTPServer:
     available via ``.port`` after ``start()``.
     """
 
-    def __init__(self, state_store: StateStore, history_logger: EventLogger | None = None):
+    def __init__(
+        self,
+        state_store: StateStore,
+        history_logger: EventLogger | None = None,
+        config_path: str = "",
+    ):
         self._state_store = state_store
         self._history: EventLogger | None = history_logger
+        self._config_path = config_path
         self._httpd: _ThreadingWSGIServer | None = None
         self._thread: threading.Thread | None = None
         self.port: int = 0
 
     def start(self) -> None:
         os.makedirs(_resolve_static_root(), exist_ok=True)
-        app = _build_app(self._state_store, self._history)
+        app = _build_app(self._state_store, self._history, self._config_path)
 
         self._httpd = make_server("127.0.0.1", 0, app, server_class=_ThreadingWSGIServer)
         self.port = self._httpd.server_address[1]

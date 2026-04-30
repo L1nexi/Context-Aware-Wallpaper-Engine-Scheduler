@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import math
 import time as _time
@@ -435,6 +437,22 @@ class WeatherPolicy(Policy):
             return dict(entry)
         return cls._MAIN_FALLBACK.get(weather_main.lower())
 
+
+# ── Known Tags ─────────────────────────────────────────────────────
+# Central vocabulary of all tags that policies may emit.
+# Drive the UI tag palette via GET /api/tags/presets.
+# When adding a new policy output tag, add it here.
+
+KNOWN_TAGS: list[str] = sorted({
+    # ActivityPolicy
+    "#focus", "#chill",
+    # TimePolicy
+    "#dawn", "#day", "#sunset", "#night",
+    # SeasonPolicy
+    "#spring", "#summer", "#autumn", "#winter",
+    # WeatherPolicy
+    "#clear", "#cloudy", "#rain", "#storm", "#snow", "#fog",
+})
 
 # Registry of Policy classes in evaluation order.
 # To add a new policy: import its class above and append it here.

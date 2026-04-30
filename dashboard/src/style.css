@@ -1,21 +1,3 @@
-:root {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-card: #1f2b47;
-  --bg-card-hover: #253352;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0b8;
-  --text-muted: #6c6c80;
-  --accent: #409eff;
-  --accent-dim: #2d6cb5;
-  --success: #67c23a;
-  --warning: #e6a23c;
-  --danger: #f56c6c;
-  --border: #2a3a5c;
-  --radius: 8px;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
 * {
   margin: 0;
   padding: 0;
@@ -24,8 +6,8 @@
 
 html, body {
   height: 100%;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: #f5f7fa;
+  color: #303133;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   overflow: hidden;
@@ -38,36 +20,10 @@ html, body {
   flex-direction: column;
 }
 
-/* Element Plus dark overrides */
-:root {
-  --el-bg-color: var(--bg-primary);
-  --el-bg-color-overlay: var(--bg-card);
-  --el-text-color-primary: var(--text-primary);
-  --el-text-color-regular: var(--text-secondary);
-  --el-border-color: var(--border);
-  --el-fill-color-blank: var(--bg-card);
-  --el-color-primary: var(--accent);
-}
-
-.el-progress-bar__outer {
-  background: var(--bg-secondary) !important;
-}
-
-.el-tag {
-  border: none !important;
-}
-
 /* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
-}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #e9ecef; }
+::-webkit-scrollbar-thumb { background: #c0c4cc; border-radius: 3px; }
 
 /* Dashboard layout */
 .dashboard-container {
@@ -93,10 +49,10 @@ html, body {
 }
 
 .panel {
-  background: var(--bg-card);
-  border-radius: var(--radius);
+  background: #ffffff;
+  border-radius: 8px;
   padding: 16px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -109,7 +65,7 @@ html, body {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: #606266;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
@@ -117,7 +73,7 @@ html, body {
 
 .panel-header .el-icon {
   font-size: 16px;
-  color: var(--accent);
+  color: var(--el-color-primary);
 }
 
 .panel-body {
@@ -132,7 +88,7 @@ html, body {
 .playlist-name {
   font-size: 28px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #303133;
   text-align: center;
   word-break: break-word;
 }
@@ -154,21 +110,21 @@ html, body {
   width: 80px;
   text-align: right;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: #606266;
   flex-shrink: 0;
 }
 
 .tag-bar-bg {
   flex: 1;
   height: 18px;
-  background: var(--bg-secondary);
+  background: #ebeef5;
   border-radius: 4px;
   overflow: hidden;
 }
 
 .tag-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  background: linear-gradient(90deg, var(--el-color-primary-light-3), var(--el-color-primary));
   border-radius: 4px;
   transition: width 0.6s ease;
 }
@@ -176,7 +132,7 @@ html, body {
 .tag-weight {
   width: 56px;
   font-size: 12px;
-  color: var(--text-muted);
+  color: #909399;
   text-align: right;
   flex-shrink: 0;
 }
@@ -198,14 +154,14 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-secondary);
+  color: #606266;
   font-size: 13px;
 }
 
 .context-value {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #303133;
   font-variant-numeric: tabular-nums;
 }
 
@@ -231,13 +187,13 @@ html, body {
 
 .confidence-label {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: #606266;
 }
 
 .confidence-number {
   font-size: 16px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #303133;
   font-variant-numeric: tabular-nums;
 }
 
@@ -245,7 +201,7 @@ html, body {
 .zombie-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(26, 26, 46, 0.95);
+  background: rgba(245, 247, 250, 0.95);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -254,16 +210,16 @@ html, body {
 
 .zombie-content {
   text-align: center;
-  color: var(--text-primary);
+  color: #303133;
 }
 
 .zombie-content h2 {
   font-size: 22px;
   margin-bottom: 8px;
-  color: var(--warning);
+  color: var(--el-color-warning);
 }
 
 .zombie-content p {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: #606266;
 }

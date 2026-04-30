@@ -159,7 +159,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     def _handle_tick(scheduler: WEScheduler, context: Context, result: MatchResult) -> None:
         state_store.update(build_tick_state(scheduler, context, result))
     scheduler.on_tick = _handle_tick
-    httpd = DashboardHTTPServer(state_store, scheduler.history_logger)
+    httpd = DashboardHTTPServer(state_store, scheduler.history_logger, config_path)
     httpd.start()
 
     tray = TrayIcon(scheduler)
