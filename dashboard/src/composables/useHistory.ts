@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from 'vue'
+import { ref, computed, watch, type Ref } from 'vue'
 
 export const EventType = {
   START: 'start',
@@ -24,11 +24,23 @@ export interface HistoryEvent {
   data: Record<string, any>
 }
 
+const NOTABLE_EVENT_TYPES = new Set<string>([
+  EventType.PLAYLIST_SWITCH,
+  EventType.PAUSE,
+  EventType.RESUME,
+  EventType.START,
+  EventType.STOP,
+])
+
 export function useHistory(state: Ref<{ last_event_id: number } | null>) {
   const segments = ref<Segment[]>([])
   const events = ref<HistoryEvent[]>([])
   const loading = ref(true)
   const currentParams = ref<Record<string, string>>({})
+
+  const filteredEvents = computed(() =>
+    events.value.filter(e => NOTABLE_EVENT_TYPES.has(e.type))
+  )
 
   async function fetchHistory(params?: Record<string, string>, showLoading = true) {
     if (showLoading) loading.value = true
@@ -60,5 +72,5 @@ export function useHistory(state: Ref<{ last_event_id: number } | null>) {
     },
   )
 
-  return { segments, events, loading, fetchHistory }
+  return { segments, filteredEvents, loading, fetchHistory }
 }

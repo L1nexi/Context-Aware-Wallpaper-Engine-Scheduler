@@ -8,7 +8,7 @@ import TopBar from '@/components/TopBar.vue'
 
 const { state, ticks, error, zombie, loading, countdown } = useApi()
 const { t, lang } = useI18n()
-const { segments, events, fetchHistory, loading: historyLoading } = useHistory(state)
+const { segments, filteredEvents, fetchHistory, loading: historyLoading } = useHistory(state)
 
 provide('state', state)
 provide('ticks', ticks)
@@ -18,7 +18,7 @@ provide('loading', loading)
 provide('t', t)
 provide('lang', lang)
 provide('segments', segments)
-provide('events', events)
+provide('filteredEvents', filteredEvents)
 provide('fetchHistory', fetchHistory)
 provide('historyLoading', historyLoading)
 </script>
