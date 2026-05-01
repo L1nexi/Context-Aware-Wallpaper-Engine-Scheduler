@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, provide, inject, onMounted } from 'vue'
+import { ref, provide, inject, onMounted, onBeforeUnmount, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Edit, Delete, InfoFilled } from '@element-plus/icons-vue'
-import { useConfig, type PlaylistConfig, type AppConfig } from '@/composables/useConfig'
+import { useConfig, type PlaylistConfig, type SchedulingConfig, type AppConfig } from '@/composables/useConfig'
 import PlaylistEditor from '@/components/PlaylistEditor.vue'
 import SchedulingForm from '@/components/SchedulingForm.vue'
-import type { SchedulingConfig } from '@/composables/useConfig'
+import PolicyEditor from '@/components/PolicyEditor.vue'
+import TagEditor from '@/components/TagEditor.vue'
 
 const {
-  config, loading, saveError, saving,
+  config, loading, saveError, saving, isDirty,
   tagPresets, wePlaylists,
   fetchConfig, saveConfig, fetchTagPresets, scanPlaylists,
 } = useConfig()
@@ -17,8 +18,9 @@ const t = inject<(key: string, params?: Record<string, string | number>) => stri
 
 provide('tagPresets', tagPresets)
 provide('wePlaylists', wePlaylists)
+provide('config', config)
 
-const activeSubTab = ref('playlists')
+const activeTab = ref('playlists')
 const showEditor = ref(false)
 const editingPlaylist = ref<PlaylistConfig | null>(null)
 let editingOriginalName: string | null = null
@@ -36,12 +38,33 @@ const wallpaperEnginePath = ref('')
 
 provide('editingScheduling', editingScheduling)
 
+watch(editingScheduling, (val) => {
+  if (config.value) config.value.scheduling = val
+}, { deep: true })
+
+watch(wallpaperEnginePath, (val) => {
+  if (config.value) config.value.wallpaper_engine_path = val
+})
+
+function onBeforeUnload(e: BeforeUnloadEvent) {
+  if (isDirty.value) {
+    e.preventDefault()
+    e.returnValue = t('config_unsaved_changes')
+    return t('config_unsaved_changes')
+  }
+}
+
 onMounted(async () => {
   await Promise.all([fetchConfig(), fetchTagPresets(), scanPlaylists()])
   if (config.value) {
     wallpaperEnginePath.value = config.value.wallpaper_engine_path || ''
     editingScheduling.value = { ...config.value.scheduling }
   }
+  window.addEventListener('beforeunload', onBeforeUnload)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
 })
 
 function openNewPlaylist() {
@@ -88,10 +111,19 @@ async function handleSave() {
     wallpaper_engine_path: wallpaperEnginePath.value,
     scheduling: { ...editingScheduling.value },
   }
+  for (const key of Object.keys(data.tags)) {
+    const fb = data.tags[key]?.fallback
+    if (fb && '' in fb) delete fb['']
+  }
   const result = await saveConfig(data)
   if (result.ok) {
     ElMessage.success(t('config_saved'))
   }
+}
+
+async function autoDetectWePath() {
+  const detected = await (window as any).pywebview?.api?.we_path?.()
+  if (detected) wallpaperEnginePath.value = detected
 }
 </script>
 
@@ -110,16 +142,18 @@ async function handleSave() {
         <el-button style="margin-top: 12px; display: block; margin-left: auto; margin-right: auto;" type="primary" @click="handleRetry">{{ t('config_retry') }}</el-button>
       </div>
 
-      <template v-else-if="config">
-        <!-- WE Path (always visible) -->
-        <div class="config-section">
-          <div class="section-title">{{ t('config_we_path') }}</div>
-          <el-input v-model="wallpaperEnginePath" :placeholder="t('config_we_placeholder')" />
+      <template v-else>
+        <!-- WE Path bar -->
+        <div class="we-bar">
+          <span class="we-bar-label">{{ t('config_we_path') }}</span>
+          <el-input v-model="wallpaperEnginePath" :placeholder="t('config_we_placeholder')" size="small" style="flex: 1" />
+          <el-button size="small" @click="autoDetectWePath">{{ t('config_auto_detect') }}</el-button>
         </div>
 
-        <!-- Sub-tabs -->
-        <el-tabs v-model="activeSubTab">
+        <!-- Tabs -->
+        <el-tabs v-model="activeTab">
           <el-tab-pane :label="t('config_playlists')" name="playlists">
+            <p class="tab-intro">{{ t('config_playlists_intro') }}</p>
             <div class="playlist-list">
               <div
                 v-for="(pl, idx) in config.playlists" :key="pl.name"
@@ -148,20 +182,25 @@ async function handleSave() {
             </div>
           </el-tab-pane>
 
-          <el-tab-pane :label="t('config_scheduling')" name="scheduling">
-            <SchedulingForm />
+          <el-tab-pane :label="t('config_policies')" name="policies" lazy>
+            <p class="tab-intro">{{ t('config_policies_intro') }}</p>
+            <PolicyEditor />
           </el-tab-pane>
 
-          <el-tab-pane :label="t('config_advanced')" name="advanced">
-            <div class="placeholder-tab">
-              <p>{{ t('config_advanced_placeholder') }}</p>
-              <p>{{ t('config_advanced_placeholder2') }} <code>scheduler_config.json</code>.</p>
-            </div>
+          <el-tab-pane :label="t('config_tags_tab')" name="tags" lazy>
+            <p class="tab-intro">{{ t('config_tags_intro') }}</p>
+            <TagEditor />
+          </el-tab-pane>
+
+          <el-tab-pane :label="t('config_scheduling')" name="scheduling">
+            <p class="tab-intro">{{ t('config_scheduling_intro') }}</p>
+            <SchedulingForm />
           </el-tab-pane>
         </el-tabs>
 
         <!-- Save bar -->
         <div class="save-bar">
+          <span v-if="isDirty" style="font-size: 12px; color: #e6a23c">● {{ t('config_unsaved_indicator') }}</span>
           <el-alert v-if="saveError" :title="saveError" type="error" show-icon closable @close="saveError = null" />
           <el-button type="primary" :loading="saving" @click="handleSave">
             {{ t('config_save') }}
@@ -180,14 +219,21 @@ async function handleSave() {
 
 <style scoped>
 .config-body { padding: 16px; overflow-y: auto; }
-.config-section {
-  padding: 12px 0; border-bottom: 1px solid var(--el-border-color, #e4e7ed);
-  margin-bottom: 12px;
+
+/* WE path bar */
+.we-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: var(--el-fill-color-light, #f5f7fa);
+  border-radius: 6px; margin-bottom: 12px;
 }
-.section-title {
-  font-size: 13px; color: #606266;
-  margin-bottom: 8px;
+.we-bar-label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+
+/* Tab intro text */
+.tab-intro {
+  font-size: 12px; color: #909399; margin: 0 0 12px 0; line-height: 1.5;
 }
+
+/* Playlist cards (unchanged) */
 .playlist-list { display: flex; flex-direction: column; gap: 8px; }
 .playlist-card {
   display: flex; align-items: center; gap: 16px;
@@ -199,13 +245,15 @@ async function handleSave() {
 .pl-display { font-size: 12px; color: #909399; display: block; }
 .pl-tags { flex: 1; display: flex; gap: 4px; flex-wrap: wrap; }
 .pl-actions { display: flex; gap: 4px; }
-.placeholder-tab { padding: 24px; text-align: center; color: #909399; }
-.placeholder-tab code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; }
+
+/* Save bar */
 .save-bar {
   margin-top: 16px; padding-top: 16px;
   border-top: 1px solid var(--el-border-color, #e4e7ed);
   display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
 }
+
+/* Error state */
 .config-error {
   padding: 24px; text-align: center;
 }

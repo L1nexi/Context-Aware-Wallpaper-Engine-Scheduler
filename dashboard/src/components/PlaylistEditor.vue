@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, watch, inject } from 'vue'
+import { ref, reactive, computed, watch, inject } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import type { PlaylistConfig } from '@/composables/useConfig'
@@ -14,9 +14,7 @@ const emit = defineEmits<{
   (e: 'save', playlist: PlaylistConfig): void
 }>()
 
-// These are provided by the parent ConfigView
 const tagPresets = inject<string[]>('tagPresets')!
-const wePlaylists = inject<string[]>('wePlaylists')!
 const t = inject<(key: string, params?: Record<string, string | number>) => string>('t')!
 
 interface TagRow {
@@ -31,6 +29,19 @@ const form = reactive({
   display: '',
   tags: [] as TagRow[],
 })
+
+const batchTags = ref<string[]>([])
+const batchWeight = ref(1.0)
+
+function applyBatch() {
+  for (const tag of batchTags.value) {
+    const trimmed = tag.trim()
+    if (!trimmed) continue
+    if (form.tags.some(r => r.tag === trimmed)) continue
+    form.tags.push({ key: Date.now() + Math.random(), tag: trimmed, weight: batchWeight.value })
+  }
+  batchTags.value = []
+}
 
 const rules: FormRules = {
   name: [{ required: true, message: t('config_playlist_name_required'), trigger: 'blur' }],
@@ -91,9 +102,10 @@ function handleSave() {
   })
 }
 
-const dialogVisible = ref(props.modelValue)
-watch(() => props.modelValue, (val) => { dialogVisible.value = val })
-watch(dialogVisible, (val) => { emit('update:modelValue', val) })
+const dialogVisible = computed({
+  get: () => props.modelValue,
+  set: (val) => emit('update:modelValue', val),
+})
 </script>
 
 <template>
@@ -155,6 +167,30 @@ watch(dialogVisible, (val) => { emit('update:modelValue', val) })
         <el-button size="small" :icon="Plus" style="margin-top: 8px" @click="addTag">
           {{ t('config_add_tag') }}
         </el-button>
+
+        <div class="batch-add">
+          <div class="batch-add-label">{{ t('config_batch_add_tags') }}</div>
+          <div class="batch-add-row">
+            <el-select
+              v-model="batchTags"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              :placeholder="t('config_tags')"
+              style="flex: 1"
+            >
+              <el-option v-for="t in tagPresets" :key="t" :label="t" :value="t" />
+            </el-select>
+            <el-input-number
+              v-model="batchWeight"
+              :min="0" :max="2" :step="0.1"
+              :precision="1"
+              style="width: 100px"
+            />
+            <el-button size="small" type="primary" @click="applyBatch">Add</el-button>
+          </div>
+        </div>
       </el-form-item>
     </el-form>
 
@@ -164,3 +200,9 @@ watch(dialogVisible, (val) => { emit('update:modelValue', val) })
     </template>
   </el-dialog>
 </template>
+
+<style scoped>
+.batch-add { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--el-border-color, #e4e7ed); }
+.batch-add-label { font-size: 12px; color: #909399; margin-bottom: 4px; }
+.batch-add-row { display: flex; gap: 8px; align-items: center; }
+</style>

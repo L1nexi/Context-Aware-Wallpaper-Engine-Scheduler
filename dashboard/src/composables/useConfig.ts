@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export interface PlaylistConfig {
   name: string
@@ -50,12 +50,20 @@ export function useConfig() {
   const tagPresets = ref<string[]>([])
   const wePlaylists = ref<string[]>([])
 
+  let savedSnapshot = ''
+
+  const isDirty = computed(() => {
+    if (!config.value) return false
+    return JSON.stringify(config.value) !== savedSnapshot
+  })
+
   async function fetchConfig(): Promise<void> {
     loading.value = true
     try {
       const res = await fetch('/api/config')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       config.value = await res.json()
+      savedSnapshot = JSON.stringify(config.value)
     } catch (e) {
       saveError.value = e instanceof Error ? e.message : String(e)
     } finally {
@@ -78,6 +86,7 @@ export function useConfig() {
         return { ok: false, errors: result.details, message: result.error }
       }
       config.value = data
+      savedSnapshot = JSON.stringify(data)
       return { ok: true }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -92,7 +101,9 @@ export function useConfig() {
     try {
       const res = await fetch('/api/tags/presets')
       if (res.ok) tagPresets.value = await res.json()
-    } catch { /* silent */ }
+    } catch {
+      // Presets are optional; failure is non-critical.
+    }
   }
 
   async function scanPlaylists(): Promise<void> {
@@ -102,11 +113,13 @@ export function useConfig() {
         const data: ScanResult = await res.json()
         wePlaylists.value = data.playlists || []
       }
-    } catch { /* silent */ }
+    } catch {
+      // Scan is best-effort; failure is non-critical.
+    }
   }
 
   return {
-    config, loading, saveError, saving,
+    config, loading, saveError, saving, isDirty,
     tagPresets, wePlaylists,
     fetchConfig, saveConfig, fetchTagPresets, scanPlaylists,
   }
