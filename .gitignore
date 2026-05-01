@@ -32,3 +32,9 @@ data/
 
 # misc/ 工具生成的输出文件（图片、临时文本）
 .claude/settings.local.json
+
+# Worktrees
+.worktrees/
+.superpowers/
+
+docs/superpowers/

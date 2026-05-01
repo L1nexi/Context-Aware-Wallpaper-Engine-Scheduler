@@ -32,7 +32,6 @@ def _resolve_icon_path() -> str:
 
 
 def _set_window_icon() -> None:
-    """Poll for the native window handle and set its icon via Win32 API."""
     import webview
 
     icon_path = _resolve_icon_path()
@@ -40,27 +39,22 @@ def _set_window_icon() -> None:
         logger.warning("Icon not found: %s", icon_path)
         return
 
-    # Poll until the window is created and has a native handle
-    for _ in range(50):  # up to 5 seconds
-        time.sleep(0.1)
-        try:
-            if webview.windows:
-                hwnd = webview.windows[0].native.Handle
-                if hwnd:
-                    hicon = ctypes.windll.user32.LoadImageW(
-                        0, icon_path, 1, 0, 0, 0x00000010,
-                    )
-                    if hicon:
-                        ctypes.windll.user32.SendMessageW(
-                            hwnd, WM_SETICON, ICON_BIG, hicon,
-                        )
-                        ctypes.windll.user32.SendMessageW(
-                            hwnd, WM_SETICON, ICON_SMALL, hicon,
-                        )
-                    return
-        except Exception:
-            pass
-    logger.warning("Could not set window icon — timed out")
+    try:
+        title = webview.windows[0].title          # 取当前窗口标题
+        hwnd = ctypes.windll.user32.FindWindowW(None, title)
+        if not hwnd:
+            logger.warning("FindWindowW returned NULL for title: %r", title)
+            return
+
+        hicon = ctypes.windll.user32.LoadImageW(
+            0, icon_path, 1, 0, 0,
+            0x00000010 | 0x00000040   # LR_LOADFROMFILE | LR_DEFAULTSIZE
+        )
+        if hicon:
+            ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon)
+            ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon)
+    except Exception:
+        logger.exception("Failed to set window icon")
 
 
 class _DashboardAPI:
@@ -80,6 +74,7 @@ class DashboardWindow:
     def __init__(self, api_port: int, locale: str):
         self._url = f"http://127.0.0.1:{api_port}?locale={locale}"
 
+
     def create_and_block(self) -> None:
         import webview
 
@@ -93,6 +88,5 @@ class DashboardWindow:
             js_api=_DashboardAPI(),
         )
 
-        threading.Thread(target=_set_window_icon, daemon=True).start()
-        webview.start(gui="edgechromium")
-        # Returns when window is closed — process exits
+        # ↓ func= 在 GUI 主循环启动后、窗口可见前执行，无需轮询
+        webview.start(gui="edgechromium", func=_set_window_icon)

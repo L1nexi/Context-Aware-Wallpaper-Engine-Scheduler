@@ -215,6 +215,8 @@ class HistoryLogger:
                         # Inside the window
                         else:
                             events.append(record)
+            except FileNotFoundError:
+                pass  # normal — no events written for this month yet
             except OSError:
                 logger.warning("Failed to read history file %s", filepath, exc_info=True)
 
