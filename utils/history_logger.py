@@ -97,7 +97,7 @@ class HistoryLogger:
 
         When *from_ts* and *to_ts* are both None, defaults to the last hour.
         Segments are continuous time blocks computed by replaying events,
-        so the frontend Gantt chart receives ready-to-render data.
+        so the frontend history timeline receives ready-to-render data.
 
         The lock is held only for the snapshot of shared state; file I/O in
         _collect_events runs outside the lock so writes are not blocked.
@@ -111,8 +111,8 @@ class HistoryLogger:
         all_events.sort(key=lambda e: e["ts"], reverse=True)
 
         # Build segments from the full event list (oldest-first), then
-        # apply the limit only to the returned event array so the Gantt
-        # chart is always correct regardless of how many events exist.
+        # apply the limit only to the returned event array so the
+        # timeline is always correct regardless of how many events exist.
         segments = self._build_segments(
             best_seed, best_pl_seed, list(reversed(all_events)), from_ts, to_ts,
         )

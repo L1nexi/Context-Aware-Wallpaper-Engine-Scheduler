@@ -204,7 +204,7 @@ Config is validated by Pydantic models in `utils/config_loader.py`. See `schedul
 - **`config_key` validation**: Each `Policy` subclass declares `config_key: ClassVar[str]` matching an attribute on `PoliciesConfig`. `__init_subclass__` validates this at import time; typos raise `TypeError` before the app starts.
 - **HistoryLogger wiring**: `HistoryLogger(get_data_dir())` is created in `main.py` and passed to `WEScheduler(config_path, history_logger)`. The scheduler passes it through to `Actuator` in `_build_runtime_components()`, and `main.py` passes it to `DashboardHTTPServer`.
 - **Tagged union events**: Six event types — `playlist_switch`, `wallpaper_cycle`, `pause`, `resume`, `start`, `stop`. Each carries type-specific `data` dict. Timestamps are UTC ISO 8601 at second precision (`timespec="seconds"`) for lexicographic ordering.
-- **Segment building**: `_SEED_PLAYLIST_SOURCE` and `_SEED_INITIAL_TYPE` lookup tables resolve pre-window state from seed events. `_build_segments()` replays events oldest-first to produce continuous timeline blocks for the Gantt chart.
+- **Segment building**: `_SEED_PLAYLIST_SOURCE` and `_SEED_INITIAL_TYPE` lookup tables resolve pre-window state from seed events. `_build_segments()` replays events oldest-first to produce continuous timeline blocks for the history timeline.
 
 ## Runtime Artifacts
 
