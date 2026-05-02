@@ -171,14 +171,37 @@ def _build_app(
 
     @app.route('/api/history')
     def api_history():
+        """Events in [from, to], newest first, with has_more for pagination.
+
+        Query: from=<ISO>  to=<ISO>  limit=<int, default 100, 0=unlimited>
+        Response: {"events": [...], "has_more": bool}
+        """
         bottle.response.content_type = 'application/json; charset=utf-8'
         if history_logger is None:
-            return json.dumps({"segments": [], "events": []})
+            return json.dumps({"events": [], "has_more": False})
         limit = int(bottle.request.query.get('limit', 100))
         from_ts = bottle.request.query.get('from')
         to_ts = bottle.request.query.get('to')
-        
+
         return json.dumps(history_logger.read(limit=limit, from_ts=from_ts, to_ts=to_ts))
+
+    @app.route('/api/history/aggregate')
+    def api_history_aggregate():
+        """Aggregated playlist duration ratios per time bucket.
+
+        Query: from=<ISO>  to=<ISO>  bucket=<minutes, default 60>
+        Response: {"buckets": [...], "total_seconds": int}
+        """
+        bottle.response.content_type = 'application/json; charset=utf-8'
+        if history_logger is None:
+            return json.dumps({"buckets": [], "total_seconds": 0})
+        from_ts = bottle.request.query.get('from')
+        to_ts = bottle.request.query.get('to')
+        bucket_minutes = int(bottle.request.query.get('bucket', 60))
+
+        return json.dumps(history_logger.aggregate(
+            from_ts=from_ts, to_ts=to_ts, bucket_minutes=bucket_minutes,
+        ))
 
     # ── Config API routes ──────────────────────────────────────
 

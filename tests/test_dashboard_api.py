@@ -177,7 +177,7 @@ def test_api_history_no_logger(state_store, config_path):
     app = _build_app(state_store, None, config_path)
     status, body = wsgi_get(app, "/api/history")
     assert "200" in status
-    assert body == {"segments": [], "events": []}
+    assert body == {"events": [], "has_more": False}
 
 
 def test_api_history_with_data(app, history_logger):
@@ -185,7 +185,7 @@ def test_api_history_with_data(app, history_logger):
     status, body = wsgi_get(app, "/api/history")
     assert "200" in status
     assert len(body["events"]) >= 1
-    assert "segments" in body
+    assert "has_more" in body
 
 
 def test_api_history_with_params(app, history_logger):
@@ -195,6 +195,35 @@ def test_api_history_with_params(app, history_logger):
 
     status, body = wsgi_request(app, "GET", "/api/history", query=f"limit=5&from={first_ts}")
     assert "200" in status
+
+
+# ── GET /api/history/aggregate ──────────────────────────────────────
+
+def test_api_history_aggregate_no_logger(state_store, config_path):
+    app = _build_app(state_store, None, config_path)
+    status, body = wsgi_get(app, "/api/history/aggregate")
+    assert "200" in status
+    assert body == {"buckets": [], "total_seconds": 0}
+
+
+def test_api_history_aggregate_with_data(app, history_logger):
+    history_logger.write(EventType.START, {"playlist": "A"})
+    history_logger.write(EventType.PLAYLIST_SWITCH,
+                         {"playlist_from": "", "playlist_to": "FOCUS"})
+    status, body = wsgi_get(app, "/api/history/aggregate")
+    assert "200" in status
+    assert "buckets" in body
+    assert "total_seconds" in body
+    assert isinstance(body["total_seconds"], int)
+
+
+def test_api_history_aggregate_with_bucket_param(app, history_logger):
+    history_logger.write(EventType.START, {"playlist": "A"})
+    status, body = wsgi_request(
+        app, "GET", "/api/history/aggregate", query="bucket=30",
+    )
+    assert "200" in status
+    assert "buckets" in body
 
 
 # ── GET /api/config ─────────────────────────────────────────────────

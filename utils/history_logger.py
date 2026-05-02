@@ -3,9 +3,11 @@ Thread-safe append-only event log with monthly rotation.
 
 Public
 ------
-write(type, data)  — append an event, return its incrementing id.
-read(limit, from, to) — return {"segments": [...], "events": [...]}
-                         for the dashboard History tab.
+write(type, data)       — append an event, return its incrementing id.
+read(limit, from, to)   — return {"events": [...], "has_more": bool}
+                           for the dashboard History vertical timeline.
+aggregate(from, to, bucket) — return {"buckets": [...], "total_seconds": int}
+                                for the macro stacked area chart.
 
 Concurrency
 -----------
@@ -39,11 +41,6 @@ from typing import List, Optional
 from core.event_logger import EventType
 
 logger = logging.getLogger("WEScheduler.History")
-
-
-# Events that carry playlist affinity — used to resolve the active
-# playlist when the primary seed is a pause/resume/start event.
-_PLAYLIST_EVENTS = frozenset({EventType.PLAYLIST_SWITCH, EventType.WALLPAPER_CYCLE})
 
 
 class HistoryLogger:
@@ -93,36 +90,26 @@ class HistoryLogger:
         from_ts: Optional[str] = None,
         to_ts: Optional[str] = None,
     ) -> dict:
-        """Return {"segments": [...], "events": [...]} for a time window.
+        """Return events in [from_ts, to_ts], newest first.
 
         When *from_ts* and *to_ts* are both None, defaults to the last hour.
-        Segments are continuous time blocks computed by replaying events,
-        so the frontend history timeline receives ready-to-render data.
+        Returns ``{"events": [...], "has_more": bool}``.
 
-        The lock is held only for the snapshot of shared state; file I/O in
-        _collect_events runs outside the lock so writes are not blocked.
+        *has_more* is True when there are more events before the oldest
+        returned event — the client can pass ``to=<oldest_ts>`` to page
+        further back.
         """
         with self._lock:
             if from_ts is None and to_ts is None:
                 from_ts = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
 
-        all_events, best_seed, best_pl_seed = self._collect_events(from_ts, to_ts)
-
+        all_events, _, _ = self._collect_events(from_ts, to_ts)
         all_events.sort(key=lambda e: e["ts"], reverse=True)
 
-        # Build segments from the full event list (oldest-first), then
-        # apply the limit only to the returned event array so the
-        # timeline is always correct regardless of how many events exist.
-        segments = self._build_segments(
-            best_seed, best_pl_seed, list(reversed(all_events)), from_ts, to_ts,
-        )
+        has_more = limit > 0 and len(all_events) > limit
+        returned = all_events[:limit] if limit > 0 else all_events
 
-        if limit > 0:
-            returned_events = all_events[:limit]
-        else:
-            returned_events = all_events
-
-        return {"segments": segments, "events": returned_events}
+        return {"events": returned, "has_more": has_more}
 
     # ── File helpers ────────────────────────────────────────────────
 
@@ -206,7 +193,7 @@ class HistoryLogger:
                             if ts >= best_seed_ts:
                                 best_seed_ts = ts
                                 best_seed = record
-                            if record["type"] in _PLAYLIST_EVENTS and ts >= best_pl_ts:
+                            if record["type"] in (EventType.PLAYLIST_SWITCH, EventType.WALLPAPER_CYCLE) and ts >= best_pl_ts:
                                 best_pl_ts = ts
                                 best_pl_seed = record
                         # After the window — remaining events are also past it
@@ -233,109 +220,162 @@ class HistoryLogger:
         except json.JSONDecodeError:
             return None
 
-    # ── Segment builder ─────────────────────────────────────────────
-
-    # How each seed-event type determines the state at the start of the
-    # query window: (where_to_find_playlist, initial_type).
-    #
-    # "self"   — the seed event itself carries the playlist.
-    # "pl_seed" — look at *playlist_seed* (the last switch/cycle before the window).
-    # ""       — no playlist known yet.
-    _SEED_PLAYLIST_SOURCE: dict[EventType, str] = {
-        EventType.PLAYLIST_SWITCH: "self",
-        EventType.WALLPAPER_CYCLE: "self",
-        EventType.PAUSE:           "pl_seed",
-        EventType.RESUME:          "pl_seed",
-        EventType.START:           "",
-        EventType.STOP:            "",
-    }
-
-    _SEED_INITIAL_TYPE: dict[EventType, Optional[str]] = {
-        EventType.PLAYLIST_SWITCH: None,
-        EventType.WALLPAPER_CYCLE: None,
-        EventType.PAUSE:           "pause",
-        EventType.RESUME:          None,
-        EventType.START:           None,
-        EventType.STOP:            "dead",
-    }
-
-    def _build_segments(
-        self,
-        seed: Optional[dict],
-        playlist_seed: Optional[dict],
-        events: list[dict],          # oldest-first
-        from_ts: Optional[str],
-        to_ts: Optional[str],
-    ) -> list[dict]:
-        """Replay events to produce contiguous timeline blocks.
-
-        Each block = {"playlist": <str|null>, "start": ts, "end": ts}
-        plus an optional "type": "pause" | "dead".
-        """
-        current_playlist: Optional[str] = None
-        current_type: Optional[str] = None            # None → "active"
-
-        if seed is not None:
-            stype = seed["type"]
-            source = self._SEED_PLAYLIST_SOURCE.get(stype, "")
-            current_type = self._SEED_INITIAL_TYPE.get(stype)
-            if source == "self":
-                current_playlist = self._playlist_from_event(seed)
-            elif source == "pl_seed" and playlist_seed is not None:
-                current_playlist = self._playlist_from_event(playlist_seed)
-
-        if seed is None and not events:
-            return []
-
-        segment_start = from_ts or (events[0] if events else seed)["ts"]
-        segments: list[dict] = []
-
-        def _push(end_ts: str) -> None:
-            seg: dict = {
-                "playlist": current_playlist,
-                "start": segment_start,
-                "end": end_ts,
-            }
-            if current_type:
-                seg["type"] = current_type
-            segments.append(seg)
-
-        for evt in events:
-            ets = evt["ts"]
-            etype = evt["type"]
-
-            # State-changing events: finalise current block, then update state.
-            if etype in (EventType.PLAYLIST_SWITCH, EventType.PAUSE, EventType.RESUME, EventType.START, EventType.STOP):
-                if ets > segment_start:
-                    _push(ets)
-                segment_start = ets
-
-            if etype == EventType.PLAYLIST_SWITCH:
-                current_playlist = evt["data"].get("playlist_to", "")
-                current_type = None
-            elif etype == EventType.WALLPAPER_CYCLE:
-                if current_playlist is None:
-                    current_playlist = evt["data"].get("playlist", "")
-            elif etype == EventType.PAUSE:
-                current_type = "pause"
-            elif etype == EventType.RESUME:
-                current_type = None
-            elif etype == EventType.START:
-                current_type = None
-                current_playlist = None
-            elif etype == EventType.STOP:
-                current_type = "dead"
-                current_playlist = None
-
-        # Final block to the end of the window (or "now" if unbounded).
-        end_ts = to_ts or datetime.now(timezone.utc).isoformat(timespec="seconds")
-        _push(end_ts)
-
-        return segments
+    # ── Aggregation ───────────────────────────────────────────────────
 
     @staticmethod
-    def _playlist_from_event(event: dict) -> str:
-        """Extract the active playlist name from a switch or cycle event."""
+    def _parse_ts(ts: str) -> float:
+        """Parse ISO 8601 UTC timestamp to Unix seconds."""
+        return datetime.fromisoformat(ts).timestamp()
+
+    @staticmethod
+    def _pl_from(event: dict) -> str:
+        """Extract the active playlist from a switch or cycle event."""
         if event["type"] == EventType.PLAYLIST_SWITCH:
             return event["data"].get("playlist_to", "")
         return event["data"].get("playlist", "")
+
+    def aggregate(
+        self,
+        from_ts: Optional[str] = None,
+        to_ts: Optional[str] = None,
+        bucket_minutes: int = 60,
+    ) -> dict:
+        """Aggregate playlist duration ratios per time bucket.
+
+        Replays events within the window to compute per-playlist seconds
+        in each bucket.  Seed resolution (determining the initial state
+        from the last event before the window) is inlined here — this
+        does NOT reuse any old segment-building logic.
+
+        Returns::
+
+          {"buckets": [{"start": ts, "end": ts,
+                        "playlists": {"Name": seconds, ...},
+                        "playlists_ratio": {"Name": ratio, ...}}, ...],
+           "total_seconds": int}
+        """
+        with self._lock:
+            if from_ts is None and to_ts is None:
+                to_ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                from_ts = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
+            elif to_ts is None:
+                to_ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            elif from_ts is None:
+                from_ts = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
+
+        all_events, seed, pl_seed = self._collect_events(from_ts, to_ts)
+        all_events.sort(key=lambda e: e["ts"])  # oldest first
+
+        # ── Resolve initial state from seed ──
+        current_playlist: Optional[str] = None
+        # current_type not stored — we only need to know whether a playlist
+        # is active.  pause/dead → current_playlist is None.
+
+        if seed is not None:
+            st = seed["type"]
+            if st == EventType.PLAYLIST_SWITCH:
+                current_playlist = seed["data"].get("playlist_to", "")
+            elif st == EventType.WALLPAPER_CYCLE:
+                current_playlist = seed["data"].get("playlist", "")
+            elif st == EventType.PAUSE:
+                current_playlist = None  # paused → no active playlist
+            elif st == EventType.RESUME:
+                if pl_seed is not None:
+                    current_playlist = self._pl_from(pl_seed)
+            elif st in (EventType.START, EventType.STOP):
+                current_playlist = None
+
+        f_sec = self._parse_ts(from_ts)
+        t_sec = self._parse_ts(to_ts)
+        bucket_seconds = bucket_minutes * 60
+        first_bucket = f_sec - (f_sec % bucket_seconds)
+
+        # ── Build bucket list with precomputed second boundaries ──
+        buckets: list[dict] = []
+        b_sec_list: list[tuple[float, float]] = []  # (start_sec, end_sec)
+        pos = first_bucket
+        while pos < t_sec:
+            b_end = min(pos + bucket_seconds, t_sec)
+            buckets.append({
+                "start": datetime.fromtimestamp(pos, tz=timezone.utc).isoformat(
+                    timespec="seconds"),
+                "end": datetime.fromtimestamp(b_end, tz=timezone.utc).isoformat(
+                    timespec="seconds"),
+                "playlists": {},
+            })
+            b_sec_list.append((pos, b_end))
+            pos += bucket_seconds
+
+        # ── Walk events, tracking state and distributing durations ──
+        seg_start = f_sec
+        paused_playlist: Optional[str] = None
+        # Preserved playlist across a pause/resume pair.  When PAUSE
+        # fires, we save the current playlist here; when RESUME fires
+        # we restore it, so the gap between resume and the next switch
+        # is correctly attributed.
+
+        for evt in all_events:
+            ets = evt["ts"]
+            etype = evt["type"]
+            e_sec = self._parse_ts(ets)
+
+            _STATE_CHANGE = (
+                EventType.PLAYLIST_SWITCH, EventType.PAUSE,
+                EventType.RESUME, EventType.START, EventType.STOP,
+            )
+            if etype in _STATE_CHANGE:
+                if e_sec > seg_start and current_playlist:
+                    self._fill_buckets(
+                        buckets, b_sec_list, seg_start, e_sec, current_playlist,
+                    )
+                seg_start = e_sec
+
+                if etype == EventType.PLAYLIST_SWITCH:
+                    current_playlist = evt["data"].get("playlist_to", "")
+                    paused_playlist = None
+                elif etype == EventType.PAUSE:
+                    paused_playlist = current_playlist
+                    current_playlist = None
+                elif etype == EventType.RESUME:
+                    current_playlist = paused_playlist
+                    paused_playlist = None
+                elif etype == EventType.START:
+                    current_playlist = None
+                    paused_playlist = None
+                elif etype == EventType.STOP:
+                    current_playlist = None
+                    paused_playlist = None
+
+        # ── Final segment ──
+        if t_sec > seg_start and current_playlist:
+            self._fill_buckets(
+                buckets, b_sec_list, seg_start, t_sec, current_playlist,
+            )
+
+        # ── Compute ratios ──
+        for i, bucket in enumerate(buckets):
+            b_dur = b_sec_list[i][1] - b_sec_list[i][0]
+            pl = bucket["playlists"]
+            bucket["playlists_ratio"] = {
+                k: round(v / b_dur, 6) for k, v in pl.items()
+            } if b_dur > 0 else {}
+
+        return {"buckets": buckets, "total_seconds": int(t_sec - f_sec)}
+
+    @staticmethod
+    def _fill_buckets(
+        buckets: list[dict],
+        b_sec_list: list[tuple[float, float]],
+        seg_start: float,
+        seg_end: float,
+        playlist: str,
+    ) -> None:
+        """Add segment duration to overlapping buckets."""
+        for i, (b_start, b_end) in enumerate(b_sec_list):
+            if seg_end <= b_start or seg_start >= b_end:
+                continue
+            overlap = min(seg_end, b_end) - max(seg_start, b_start)
+            if overlap > 0:
+                buckets[i]["playlists"][playlist] = (
+                    buckets[i]["playlists"].get(playlist, 0.0) + overlap
+                )
