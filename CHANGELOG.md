@@ -9,43 +9,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.6.0] — 2026-04-29
+## [0.6.2] - 2026-05-02
 
-**History R3 + DIP Architecture**
+**Config 可视化编辑器**
 
-此版本实现了完整的历史事件日志系统与 Dashboard History 标签页，并对核心架构进行了依赖注入重构。
+首个完整的 GUI 配置编辑界面，用户无需再手动编辑 JSON 文件。所有配置块均支持可视化编辑、前端校验与保存，并与后端热重载机制无缝衔接。
 
 ### Added
 
-- **`HistoryLogger`** (`utils/history_logger.py`): 线程安全的追加型事件日志，按月分片为 `history-{YYYY}-{MM}.jsonl`。UTC 时间戳、秒精度、字典序可比较。六种事件类型 tagged union：`start` / `stop` / `pause` / `resume` / `playlist_switch` / `wallpaper_cycle`。
-- **`/api/history`** 端点: 返回 `{segments, events}`，后端计算连续时间线区块（Gantt-ready）。支持 `limit` / `from` / `to` 查询参数。
-- **`/api/ticks`** 端点: 返回最近 N 个 `TickState` 快照的环形缓冲区（默认 300，5s 轮询）。
-- **`HistoryView.vue`**: ECharts Gantt 时间线 + 事件列表，支持预设时长过滤（1h/6h/24h/7d）与自定义日期范围。自动刷新通过 `last_event_id` 驱动。
-- **`ConfidencePanel.vue`** 新增 sparkline: 基于 `/api/ticks` 数据的 48px 趋势线。
-- **`DashboardView.vue`**: `el-tabs` 切换 Live / History 标签页。
-- **`EventLogger` Protocol** (`core/event_logger.py`): 定义 `write()` / `read()` / `last_event_id` 接口，方向 `utils → core`。
-- **`EventType` StrEnum**: `PLAYLIST_SWITCH` / `WALLPAPER_CYCLE` / `START` / `STOP` / `PAUSE` / `RESUME` — 全链路共享的事件类型枚举，消除 5 处字符串重复。
-- **`display` 字段**: `PlaylistConfig` 新增可选 `display` 名（用于 CJK 显示名），scheduler 通过 `display_of` dict 解析。
+- **策略编辑器**（PolicyEditor）：四类策略（活动/时间/季节/天气）的完整可视化配置。每项策略含启用开关、权重比例及专属参数——进程-标签映射规则、昼/夜起始时间、四季峰值日、天气 API 密钥与坐标。
+- **标签回退图编辑器**（TagEditor）：选择标签 → 添加回退边（目标标签 + 权重），构建 fallback 层级图。标签名以 `#` 前缀自动校验。
+- **播放列表编辑器增强**：批量添加标签（支持多选 + 统一权重），从预设标签库自动补全。
+- **未保存变更保护**：`isDirty` 脏状态追踪 + 关闭窗口前 `beforeunload` 确认提示 + 保存栏黄色指示器。
+- **WE 路径自动检测**：一键扫描本机 Wallpaper Engine 安装路径，无需手动查找。
 
 ### Changed
 
-- **`WEScheduler.__init__`** 接受 `history_logger: EventLogger`（构造器注入替代属性赋值），消除 "set BEFORE initialize()" 时序依赖。
-- **Registry 提取**: `POLICY_REGISTRY` 移至 `core/policies.py`，`SENSOR_REGISTRY` 移至 `core/sensors.py`。scheduler.py 不再持有注册表。
-- **`Actuator`** 接受必需的 `history_logger`，inner functions (`_sorted_tags` / `_tag_dict`) 提升为模块级函数。
-- **ECharts 注册**集中至 `src/plugins/echarts.ts`，消除组件间重复 `use()` 调用。
-- **`read_recent()`** 使用 `itertools.islice(reversed(deque))` 实现 O(count) 拷贝。
-- **`_months_in_range`** 生成区间内所有月份，修复跨月查询数据丢失。
-- **`_build_segments`** 使用完整事件列表构建 Gantt 区块，limit 仅作用于返回数组。
-- **`StateStore`** 支持 `read_recent(count)` 环形缓冲区读取。
+- **ConfigView 重构**：旧 "高级（即将推出）" 占位标签页替换为可用的策略与标签编辑标签页。总标签页：播放列表 / 策略 / 标签 / 调度参数。每页附说明文字。
+- **WebView 图标设置优化**：从 50 次轮询改为 `webview.start(func=...)` 回调，启动更快且无竞态。
+- **i18n 扩展**：60+ 条新翻译键覆盖全部新 UI（zh/en），含字段级校验错误信息。
 
 ### Fixed
 
-- Gantt 图 `renderItem` 坐标提取错误（字符串索引 → 完整时间戳）。
-- `evt.data.tags` 为 Object 而非 Array 导致的 `.slice()` TypeError。
-- History 加载状态未在 HTTP 错误时重置（添加 `finally` 块）。
-- `_ensure_file` 使用本地时间而非 UTC 计算月份。
-- `fetchTicks` 无条件赋值导致不必要的 Vue 重渲染（添加变更检测）。
-- `last_event_id` 自动刷新时的骨架屏闪烁（跳过 `showLoading`）。
+- 历史查询在目标月份无事件文件时抛出 `FileNotFoundError` 导致崩溃。
+
+## [0.6.0] — 2026-04-29
+
+**History 日志与 Dashboard 完善**
+
+此版本引入了完整的历史事件日志系统与 Dashboard History 标签页，用户可回溯任意时段的壁纸切换记录。同时对核心架构进行了依赖注入清理。
+
+### Added
+
+- **事件日志系统**：六种事件类型（启动/停止/暂停/恢复/切换播放列表/轮播壁纸），按月分片为 `history-{YYYY}-{MM}.jsonl`，UTC 时间戳、线程安全。
+- **Dashboard History 标签页**：ECharts Gantt 时间线 + 事件列表，支持预设时长过滤（1h/6h/24h/7d）与自定义日期范围。
+- **Confidence 趋势 sparkline**：基于 tick 历史数据的 48px 迷你趋势线，直观展示匹配置信度变化。
+- **`/api/history` + `/api/ticks`** 端点：分别提供分段历史事件与环形缓冲区快照查询。
+- **`EventLogger` Protocol** + **`EventType` 枚举**：统一事件写入接口与事件类型定义，消除全链路字符串重复。
+- **播放列表显示名 (`display`)**：支持为播放列表配置单独的展示名称（如 CJK 友好名），与内部 key 解耦。
+
+### Changed
+
+- **依赖注入重构**：`WEScheduler` 构造器接受 `EventLogger`，消除 "先 set 再 initialize" 的时序耦合。`Actuator` 同步接受 `history_logger` 注入。
+- **注册表内聚**：`POLICY_REGISTRY` / `SENSOR_REGISTRY` 移入各自所属模块，scheduler 不再持有。
+- **前端工程化**：ECharts 注册集中管理；`StateStore` 支持环形缓冲区读取；Vue 重渲染优化。
+
+### Fixed
+
+- Gantt 图坐标提取与标签数据类型错误。
+- 跨月历史查询数据丢失（UTC 月份计算修正）。
+- 自动刷新时的骨架屏闪烁与 HTTP 错误后加载状态残留。
 
 ---
 
@@ -53,21 +66,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 **Dashboard R1 完成**
 
+首个实时监控仪表盘，可从系统托盘一键打开独立窗口查看调度状态、匹配详情与环境数据。
+
 ### Added
 
-- **Dashboard HTTP 服务器** (`ui/dashboard.py`): Bottle-based, `127.0.0.1:0`。端点: `/api/state` / `/api/health` / 静态 SPA。
-- **Vue 3 SPA 前端** (`dashboard/`): TypeScript + Element Plus，1s 状态轮询，僵尸检测（3 次失败 → 5s 倒计时关闭），`?locale=` i18n 参数。
-- **pywebview 窗口** (`ui/webview.py`): 从托盘独立子进程启动，WebView2 渲染。
-- **`on_tick` hook**: `scheduler.on_tick(scheduler, context, result)` — 由 main.py 设置，每 tick 推送 `TickState` 至 `StateStore`。
-- **`StateStore`**: 线程安全（`threading.Lock`），`update()` / `read()` API。
-- **`TickState`** 数据类: 17 字段实时快照（playlist, similarity, gap, magnitude, top_tags, context 数据）。
-- **`display` 名解析**: `display_of` dict 映射 playlist name → display name。
-- **`last_event_id`**: TickState 携带的单调递增事件计数器，前端据此自动刷新。
+- **Dashboard HTTP 服务 + Vue 3 SPA**：Bottle 后端 + TypeScript/Element Plus 前端，1s 状态轮询与僵尸检测自动关闭。
+- **独立 pywebview 窗口**：WebView2 渲染，从托盘子进程启动，与调度主进程隔离。
+- **实时状态推送**：`on_tick` hook + `StateStore`（线程安全），每 tick 推送 17 字段快照至前端。
+- **`last_event_id` 自动刷新**：TickState 携带单调递增事件计数器，前端据此检测新事件并自动更新。
 
 ### Changed
 
-- **Tray refactor**: `on_show_dashboard` 回调通过属性赋值（无构造器注入）。
-- 导入清理、目录结构整理、文档同步。
+- **Tray 集成**：`on_show_dashboard` 回调通过属性赋值挂载，菜单新增 "Show Dashboard" 入口。
 
 ---
 
@@ -79,11 +89,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 核心设计：将每个策略输出拆分为三个正交语义维度：
 
-| 维度 | 类型 | 范围 | 含义 |
-|---|---|---|---|
-| `direction` | `Dict[str, float]` | L2 范数 = 1 | 信号的**种类**（是什么） |
-| `salience` | `float` | [0, 1] | 类别归属的**清晰程度**（确定吗） |
-| `intensity` | `float` | [0, 1] | 现象的**强烈程度**（有多强） |
+| 维度        | 类型               | 范围        | 含义                             |
+| ----------- | ------------------ | ----------- | -------------------------------- |
+| `direction` | `Dict[str, float]` | L2 范数 = 1 | 信号的**种类**（是什么）         |
+| `salience`  | `float`            | [0, 1]      | 类别归属的**清晰程度**（确定吗） |
+| `intensity` | `float`            | [0, 1]      | 现象的**强烈程度**（有多强）     |
 
 策略对环境向量的贡献：`direction × salience × intensity × weight_scale`
 

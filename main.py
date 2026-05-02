@@ -148,10 +148,8 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     try:
         scheduler.initialize()
     except Exception as e:
-        msg = str(e)
-        logger.critical("Failed to initialize scheduler: %s", msg)
-        TrayIcon.show_startup_error(msg)
-        sys.exit(1)
+        logger.critical("Failed to initialize scheduler: %s", e)
+        TrayIcon.show_startup_error(str(e))
 
     scheduler.start()
 

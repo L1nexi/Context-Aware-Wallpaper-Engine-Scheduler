@@ -267,6 +267,21 @@ def _build_app(
         names = [p["name"] for p in playlists if isinstance(p, dict) and "name" in p]
         return json.dumps({"playlists": names})
 
+    @app.route('/api/we-path')
+    def api_we_path():
+        """Auto-detect Wallpaper Engine executable path."""
+        bottle.response.content_type = 'application/json; charset=utf-8'
+        wallpaper_engine_path = ""
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                raw = json.load(f)
+            wallpaper_engine_path = raw.get("wallpaper_engine_path", "")
+        except Exception:
+            pass
+        from utils.we_path import find_wallpaper_engine
+        detected = find_wallpaper_engine(wallpaper_engine_path)
+        return json.dumps({"path": detected, "valid": bool(detected)})
+
     # ── Static / SPA routes ─────────────────────────────────────
 
     static_root = _resolve_static_root()

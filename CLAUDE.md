@@ -9,27 +9,35 @@ Context-Aware Wallpaper Engine Scheduler — a Windows-only Python app (packaged
 ## Commands
 
 ```bash
-# Install dependencies
+# Python dependencies
 pip install -r requirements.txt
 
 # Run from source
-python main.py              # tray mode
-python main.py --no-tray    # console mode (useful for debugging)
+python main.py                 # tray host: scheduler + HTTP server + tray entrypoint
+python main.py --no-tray       # console-only scheduler loop for debugging
 python main.py --config path/to/config.json
 
-# Build executable (Windows only)
-.\scripts\build.bat         # outputs dist/WEScheduler.exe
-
 # Frontend (dashboard/)
-cd dashboard && npm run build   # build SPA to dashboard/dist/
+cd dashboard && npm install
+cd dashboard && npm run dev        # Vite dev server for SPA-only iteration
 cd dashboard && npm run type-check
+cd dashboard && npm run build      # runs type-check, outputs dashboard/dist/
+cd dashboard && npm run preview
 
-# Manual algorithm testing
-python misc/sim_match.py    # matching algorithm simulator
-python misc/vis_explore.py  # visualization tool
+# Packaging (Windows only)
+.\scripts\build.bat              # PyInstaller bundle; embeds dashboard/dist/
+
+# Manual validation / simulation
+python misc/sim_match.py
+python misc/vis_explore.py
+
+# Testing (pytest)
+pip install pytest
+pytest tests/ -v                          # all tests
+pytest tests/test_dashboard_api.py -v     # HTTP server / API endpoint tests
 ```
 
-No formal test framework exists. Use `--no-tray` mode and `misc/sim_match.py` for manual validation.
+There is no formal Python test suite yet (tests directory exists but no test source files are committed). For backend validation, run `python main.py --no-tray`; for matcher behavior, use `python misc/sim_match.py`.
 
 ## Directory Layout
 
@@ -73,37 +81,90 @@ Sensors → Context → Policies → Matcher → Controller → Actuator → WEE
 
 ## Dashboard
 
-Two-process architecture: Tray Host (scheduler + HTTP server) spawns Dashboard Window (pywebview loading Vue SPA) on demand.
+### FRONTEND REWRITE — 推倒重写
+
+**The current Vue 3 + Element Plus + ECharts frontend (`dashboard/`) is being completely rewritten from scratch.** The existing SPA code is deprecated. Do NOT spend time fixing or polishing it — the rewrite will replace everything.
+
+What IS stable and must NOT be broken:
+
+- **`ui/dashboard.py` HTTP API** — the contract between backend and any future frontend. All `/api/*` endpoints, response schemas, and `TickState` shape are the authoritative interface.
+- **Production build path** — whatever SPA is built into `dashboard/dist/` must be served by Bottle (`ui/dashboard.py`) and run inside pywebview (`ui/webview.py`).
+- **`vite.config.ts`** must keep `base: './'` (files served from a local host process, not a CDN).
+- **Router** must use hash history (`createWebHashHistory`) — no server-side route awareness.
+- **Locale** comes from the dashboard URL query (`?locale=`) set by the host process before spawning the window.
+- **Three user-facing surfaces** must still be covered: live tick view, history timeline, config editor.
+
+Two-process architecture (unchanged):
 
 ```
-Tray Host process                    Dashboard process
-  Bottle HTTP :0  ──HTTP/1s polling──→  pywebview (WebView2)
-  StateStore     ←──on_tick hook────    Vue 3 + Element Plus
+Tray host process                     Dashboard process
+  scheduler.on_tick ───────┐          pywebview (Edge/WebView2)
+                            v                 │
+  StateStore -> Bottle /api/* -> http://127.0.0.1:{port}?locale=xx
 ```
 
-- `ui/dashboard.py`: TickState dataclass, StateStore (thread-safe with `threading.Lock`), `build_tick_state()`, Bottle-based HTTP server (`/api/state`, `/api/health`, `/api/ticks?count=N`, `/api/history?limit=N&from=ISO&to=ISO`, static SPA with hash-route fallback), binds `127.0.0.1:0` (OS-assigned port)
-  - `last_event_id` on TickState: monotonic counter incremented per `write()`, frontend watches for auto-refresh.
-  - `display_of` dict (built in `_build_runtime_components()`) maps playlist name → display name for CJK-friendly UI labels.
-- `ui/webview.py`: Thin pywebview wrapper, `create_and_block()`, window close = process exit
-- `dashboard/`: Vue 3 + TypeScript + Element Plus SPA, 1s state polling + 5s ticks polling, zombie detection (3 failures → 5s countdown → `window.close()`), `?locale=` URL param for i18n
-  - `src/composables/useHistory.ts` — `segments`, `events`, `fetchHistory(params?)`, auto-refresh via `watch(state.last_event_id)`.
-  - `src/views/HistoryView.vue` — ECharts Gantt (segments) + event list with filter bar (presets + date pickers).
-  - `src/components/ConfidencePanel.vue` — ECharts sparkline from `/api/ticks` data.
-  - `src/views/DashboardView.vue` — `el-tabs` wrapping Live tab (existing grid) and History tab (HistoryView).
+- `main.py` tray mode is the composition root: creates `WEScheduler`, `StateStore`, wires `scheduler.on_tick = state_store.update(build_tick_state(...))`, starts `DashboardHTTPServer`, passes the port to the dashboard subprocess.
+- `ui/dashboard.py` exposes `/api/state`, `/api/ticks`, `/api/history`, `/api/config`, `/api/tags/presets`, `/api/playlists/scan`, `/api/we-path`. `TickState` is the live-state schema. `last_event_id` triggers history auto-refresh.
+- `ui/webview.py` creates a pywebview window pointing at the local HTTP server; closing the window exits only the dashboard process.
 
-**Wiring** (in `main.py` tray mode):
-```python
-state_store = StateStore()
-scheduler.on_tick = lambda s, ctx, res: state_store.update(build_tick_state(s, ctx, res))
-httpd = DashboardHTTPServer(state_store)
-httpd.start()
-tray = TrayIcon(scheduler)
-tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
-```
+**Tray UI** (`ui/tray.py`): pystray + tkinter dialogs; reads OS locale via `utils/i18n.py` for zh/en strings. Menu callbacks use direct attribute assignment.
 
-Scheduler does NOT hold `StateStore` — it only calls `on_tick()`. The host (main.py) owns the wiring.
+## Testing (Backend)
 
-**Tray UI** (`ui/tray.py`): pystray + tkinter dialogs; reads OS locale via `utils/i18n.py` for zh/en strings. Menu callbacks use direct attribute assignment (same pattern as scheduler hooks).
+The scheduler core (`core/scheduler.py`, `core/policies.py`, `core/matcher.py`) is considered stable — tests for it follow later. First priority is the HTTP/data backend, which must stay reliable during the frontend rewrite.
+
+### Test framework
+
+pytest. No plugins required. Tests live in `tests/`.
+
+### `ui/dashboard.py` — HTTP API routes
+
+`_build_app(state_store, history_logger, config_path)` is the pure injection point: it returns a fully wired `bottle.Bottle` instance. Test routes directly via WSGI (`bottle.Bottle` is a WSGI callable) without starting a real server.
+
+| Route | What to test |
+|-------|-------------|
+| `GET /api/state` | Populate `StateStore`, assert JSON matches `dataclasses.asdict(TickState)` fields |
+| `GET /api/health` | Assert `{"ok": true}` |
+| `GET /api/ticks?count=N` | Write N+1 ticks, assert ring buffer caps at `count` |
+| `GET /api/history?limit=N&from=ts&to=ts` | Pass mock `EventLogger` or `HistoryLogger(tmp_path)`; assert segments + events shape |
+| `GET /api/config` | Temp config file → assert returned JSON; missing file → 404 |
+| `POST /api/config` | Valid payload → 200 + atomic write to file. Invalid payload → 422 with `_flatten_errors` details. No body → 400 |
+| `GET /api/tags/presets` | Assert returns `KNOWN_TAGS` list from `core.policies` |
+| `GET /api/playlists/scan` | Mock `we_path.find_we_config_json` → temp WE config.json; assert playlist names extracted by username |
+| `GET /api/we-path` | Mock `we_path.find_wallpaper_engine`; assert `{"path": ..., "valid": ...}` |
+| Static files | Assert `index.html` served at `/`, SPA fallback for unknown paths, 403 for path traversal attempts |
+
+`StateStore` needs no mocking — it's a plain thread-safe wrapper, use it directly.
+
+### `utils/history_logger.py` — `HistoryLogger`
+
+Pass `tmp_path` as `data_dir`. Key behaviors to test:
+
+- `write(type, data)` → returns monotonically incrementing int; `last_event_id` matches
+- `read(limit, from_ts, to_ts)` → `{"segments": [...], "events": [...]}`
+- Segment building: seed events correctly resolve pre-window playlist state for all 6 `EventType` seeds (verify `_SEED_PLAYLIST_SOURCE` / `_SEED_INITIAL_TYPE` tables)
+- Monthly file rotation: `_months_in_range` covers month boundaries; `_ensure_file` switches filepath on month change
+- Edge cases: empty history → empty result; corrupt JSONL lines → silently skipped; `from_ts`/`to_ts` both `None` → defaults to last 1 hour; no matching month files → empty result; event exactly at boundary timestamps
+- Thread safety: concurrent `write()` calls from multiple threads → correct IDs, no data loss
+
+### `utils/we_path.py` — `find_wallpaper_engine` / `find_we_config_json`
+
+- 3-tier resolution: configured path (exists) → Steam registry search → `None`
+- `_steam_install_path()`: non-Windows → `None`; Windows → reads `winreg` HKLM / HKCU
+- `_parse_library_folders()`: parses `libraryfolders.vdf` `"path"` entries
+- Mock `winreg` and `os.path.isfile` for cross-platform testability; on Windows, integration-test against real registry
+
+### `utils/config_loader.py` — Pydantic validation
+
+- Valid minimal config (1 playlist, 1 tag) → `AppConfig.model_validate()` succeeds
+- `extra="forbid"` on `AppConfig`: unknown top-level key → `ValidationError`
+- `extra="allow"` on `PoliciesConfig`: unknown policy name → silently accepted
+- `ConfigLoader.load()`: file not found → `FileNotFoundError`; invalid JSON → `ValueError`
+
+### `core/event_logger.py` — Protocol conformance
+
+- `EventType` enum has exactly 6 members matching the tagged union
+- `HistoryLogger` structurally satisfies `EventLogger` Protocol (`isinstance(h, EventLogger)`)
 
 ## Tag Semantics (v0.5.0)
 
