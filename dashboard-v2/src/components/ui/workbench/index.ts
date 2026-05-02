@@ -1,0 +1,8 @@
+export { default as WorkbenchHeader } from "./WorkbenchHeader.vue"
+export { default as WorkbenchMain } from "./WorkbenchMain.vue"
+export { default as WorkbenchPanel } from "./WorkbenchPanel.vue"
+export { default as WorkbenchShell } from "./WorkbenchShell.vue"
+export { default as WorkbenchSidebar } from "./WorkbenchSidebar.vue"
+export { default as WorkbenchWorkspace } from "./WorkbenchWorkspace.vue"
+export { workbenchPanelVariants } from "./workbench"
+export type { WorkbenchPanelVariants } from "./workbench"
