@@ -1,0 +1,76 @@
+import { ref, computed, watch, type Ref } from 'vue'
+
+export const EventType = {
+  START: 'start',
+  STOP: 'stop',
+  PAUSE: 'pause',
+  RESUME: 'resume',
+  PLAYLIST_SWITCH: 'playlist_switch',
+  WALLPAPER_CYCLE: 'wallpaper_cycle',
+} as const
+
+export type EventType = (typeof EventType)[keyof typeof EventType]
+
+export interface Segment {
+  playlist: string | null
+  type?: 'pause' | 'dead'
+  start: string
+  end: string
+}
+
+export interface HistoryEvent {
+  ts: string
+  type: EventType
+  data: Record<string, any>
+}
+
+const NOTABLE_EVENT_TYPES = new Set<string>([
+  EventType.PLAYLIST_SWITCH,
+  EventType.PAUSE,
+  EventType.RESUME,
+  EventType.START,
+  EventType.STOP,
+])
+
+export function useHistory(state: Ref<{ last_event_id: number } | null>) {
+  const segments = ref<Segment[]>([])
+  const events = ref<HistoryEvent[]>([])
+  const loading = ref(true)
+  const currentParams = ref<Record<string, string>>({})
+
+  const filteredEvents = computed(() =>
+    events.value.filter(e => NOTABLE_EVENT_TYPES.has(e.type))
+  )
+
+  async function fetchHistory(params?: Record<string, string>, showLoading = true) {
+    if (showLoading) loading.value = true
+    if (params) currentParams.value = { ...params }
+    const query = new URLSearchParams(currentParams.value).toString()
+    try {
+      const res = await fetch(`/api/history?${query}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const body = await res.json()
+      segments.value = body.segments
+      events.value = body.events
+    } catch {
+      // Auto-refresh failures are silent (keep stale data visible).
+      // Manual requests show empty state on error.
+      if (showLoading) {
+        segments.value = []
+        events.value = []
+      }
+    } finally {
+      if (showLoading) loading.value = false
+    }
+  }
+
+  // Auto-refresh on any new event — preserves current filter params
+  watch(
+    () => state.value?.last_event_id,
+    (newId, oldId) => {
+      if (newId && newId !== oldId) fetchHistory(undefined, false)
+    },
+  )
+
+  return { segments, filteredEvents, loading, fetchHistory }
+}
