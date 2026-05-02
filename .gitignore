@@ -26,8 +26,6 @@ node_modules/
 scheduler_config.json
 temp_playlist.json
 
-tests/
-
 data/
 
 # misc/ 工具生成的输出文件（图片、临时文本）
