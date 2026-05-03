@@ -190,18 +190,37 @@ class WeatherSensor(Sensor):
 
     def collect(self) -> Optional[WeatherData]:
         now = time.time()
+        cached = self._snapshot_with_freshness(now)
         # Rate-limit: once _last_fetch is set, wait at least interval before retry.
         # _last_fetch is set *before* the thread starts so rapid collect() calls
         # during a fetch don't spawn multiple concurrent threads.
         if self._last_fetch > 0 and (now - self._last_fetch) < self.interval:
-            return self._cached
+            return cached
 
         if not self._fetching:
             self._last_fetch = now
             self._fetching = True
             threading.Thread(target=self._fetch_async, daemon=True).start()
 
-        return self._cached
+        return cached
+
+    def _snapshot_with_freshness(self, now: float) -> Optional[WeatherData]:
+        cached = self._cached
+        if cached is None:
+            return None
+        return WeatherData(
+            id=cached.id,
+            main=cached.main,
+            sunrise=cached.sunrise,
+            sunset=cached.sunset,
+            fetched_at=cached.fetched_at,
+            stale=self._is_stale(now),
+        )
+
+    def _is_stale(self, now: float) -> bool:
+        if self._cached is None or self._cached.fetched_at <= 0:
+            return False
+        return (now - self._cached.fetched_at) > (self.interval + self.timeout)
 
     def _fetch_async(self) -> None:
         """Background fetch — updates ``_cached`` on success, never blocks tick loop."""
@@ -221,11 +240,14 @@ class WeatherSensor(Sensor):
                 data = resp.json()
                 first = (data.get("weather") or [{}])[0]
                 sys_block = data.get("sys") or {}
+                fetched_at = time.time()
                 self._cached = WeatherData(
                     id=first.get("id", 0),
                     main=first.get("main", ""),
                     sunrise=sys_block.get("sunrise", 0),
                     sunset=sys_block.get("sunset", 0),
+                    fetched_at=fetched_at,
+                    stale=False,
                 )
                 logger.info(
                     f"Weather updated: id={self._cached.id} main={self._cached.main} "

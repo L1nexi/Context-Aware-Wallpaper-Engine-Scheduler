@@ -14,7 +14,14 @@ from pydantic import BaseModel
 from core.actuator import Actuator
 from core.context import Context, ContextManager
 from core.controller import SchedulingController
-from core.diagnostics import SchedulerTickTrace
+from core.diagnostics import (
+    ActionKind,
+    ActionReasonCode,
+    ActuationOutcome,
+    ControllerDecision,
+    MatchEvaluation,
+    SchedulerTickTrace,
+)
 from core.event_logger import EventLogger, EventType
 from core.executor import WEExecutor
 from core.matcher import Matcher
@@ -151,62 +158,89 @@ class WEScheduler:
 
     def _run_loop(self):
         while not self.stop_event.is_set():
-            if self.paused:
-                if self.pause_until > 0 and time.time() >= self.pause_until:
-                    logger.info("Timed pause expired. Resuming scheduler.")
-                    self.resume()
-                    if self.on_auto_resume:
-                        try:
-                            self.on_auto_resume()
-                        except Exception:
-                            logger.exception("on_auto_resume hook failed")
-                else:
-                    time.sleep(1)
-                    continue
-
             try:
                 self._check_hot_reload()
-
-                live_context = self.context_manager.refresh()
-                context_snapshot = copy.deepcopy(live_context)
-                match = self.matcher.evaluate(context_snapshot)
-                active_playlist_before = self.current_playlist
-                action = self.actuator.act(
-                    context_snapshot,
-                    match,
-                    active_playlist_before,
-                )
-
-                self.tick_id += 1
-                trace = SchedulerTickTrace(
-                    tick_id=self.tick_id,
-                    ts=time.time(),
-                    paused=self.paused,
-                    pause_until=self.pause_until,
-                    active_playlist_before=active_playlist_before,
-                    active_playlist_after=action.active_playlist_after,
-                    context=context_snapshot,
-                    match=match,
-                    action=action,
-                )
-                self.last_tick_trace = trace
-
-                if action.active_playlist_after != self.current_playlist:
-                    self.current_playlist = action.active_playlist_after
-                    SchedulerState.save_state(self._build_state())
-
-                self._update_status(trace)
-
-                if self.on_tick:
-                    try:
-                        self.on_tick(trace)
-                    except Exception:
-                        logger.exception("on_tick hook failed")
+                self._maybe_auto_resume()
+                trace = self._run_tick()
+                self._commit_tick(trace)
 
             except Exception as exc:
                 logger.error("Error in main loop: %s", exc)
 
             time.sleep(1)
+
+    def _maybe_auto_resume(self) -> None:
+        if not self.paused or self.pause_until <= 0:
+            return
+        if time.time() < self.pause_until:
+            return
+
+        logger.info("Timed pause expired. Resuming scheduler.")
+        self.resume()
+        if self.on_auto_resume:
+            try:
+                self.on_auto_resume()
+            except Exception:
+                logger.exception("on_auto_resume hook failed")
+
+    def _run_tick(self) -> SchedulerTickTrace:
+        # Sense-Think-Act flow
+        live_context = self.context_manager.refresh()       # Sense
+        context_snapshot = copy.deepcopy(live_context)
+        match = self.matcher.evaluate(context_snapshot)     # Think
+        active_playlist_before = self.current_playlist
+
+        action: ActuationOutcome
+        if self.paused:
+            # early return with no actuation if paused, but still log tick for diagnostics
+            action = self._build_paused_actuation_outcome(match, active_playlist_before)
+        else:               # Act (if not paused)
+            action = self.actuator.act(context_snapshot, match, active_playlist_before,)
+
+        self.tick_id += 1
+        return SchedulerTickTrace(
+            tick_id=self.tick_id,
+            ts=time.time(),
+            paused=self.paused,
+            pause_until=self.pause_until,
+            active_playlist_before=active_playlist_before,
+            active_playlist_after=action.active_playlist_after,
+            context=context_snapshot,
+            match=match,
+            action=action,
+        )
+
+    def _build_paused_actuation_outcome(
+        self,
+        match: MatchEvaluation,
+        active_playlist_before: str,
+    ) -> ActuationOutcome:
+        return ActuationOutcome(
+            decision=ControllerDecision(
+                kind=ActionKind.PAUSE,
+                reason_code=ActionReasonCode.SCHEDULER_PAUSED,
+                matched_playlist=match.best_playlist,
+                evaluation=None,
+            ),
+            active_playlist_before=active_playlist_before,
+            active_playlist_after=active_playlist_before,
+            executed=False,
+        )
+
+    def _commit_tick(self, trace: SchedulerTickTrace) -> None:
+        self.last_tick_trace = trace
+
+        if trace.active_playlist_after != self.current_playlist:
+            self.current_playlist = trace.active_playlist_after
+            SchedulerState.save_state(self._build_state())
+
+        self._update_status(trace)
+
+        if self.on_tick:
+            try:
+                self.on_tick(trace)
+            except Exception:
+                logger.exception("on_tick hook failed")
 
     def _check_hot_reload(self) -> None:
         try:
@@ -312,8 +346,9 @@ class WEScheduler:
 
         tag_str = " | ".join(tag_parts)
         gap_str = f" gap={trace.match.similarity_gap:.2f}" if trace.match.playlist_matches else ""
+        prefix = "PAUSED " if trace.paused else ""
         self.last_status_line = (
-            f"[{label or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}{gap_str}"
+            f"{prefix}[{label or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}{gap_str}"
         )
         if not getattr(sys, "frozen", False):
             print(f"\r{self.last_status_line:<110}", end="", flush=True)

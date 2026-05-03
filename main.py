@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.diagnostics import SchedulerTickTrace
-    from core.scheduler import WEScheduler
 
 import sys
 import os
@@ -43,7 +42,8 @@ def _parse_args() -> argparse.Namespace:
     Dashboard subprocess flags (internal — suppressed from help):
         --dashboard   Launch the dashboard webview window
         --port        API port of the in-process HTTP server
-        --locale      UI language for the dashboard SPA
+        --locale      UI language for the dashboard client
+
     """
     parser = argparse.ArgumentParser(
         description="Context Aware Wallpaper Engine Scheduler"
@@ -74,36 +74,27 @@ def _resolve_config_path(config_arg: str) -> str:
     return os.path.join(get_app_root(), config_arg)
 
 
-# ── Dashboard subprocess spawning ───────────────────────────────
+# ── Mode runners ────────────────────────────────────────────────
 
 def _spawn_dashboard_subprocess(port: int) -> None:
-    """Spawn a detached dashboard subprocess loading the in-process HTTP server.
-
-    Called by the tray menu handler.  The subprocess runs independently —
-    closing the tray host does not kill the dashboard window.
-    """
+    """Spawn a detached dashboard subprocess loading the local host URL."""
     from utils.i18n import _current_lang
 
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         exe = sys.executable
-        cmd = [exe, '--dashboard', f'--port={port}', f'--locale={_current_lang}']
+        cmd = [exe, "--dashboard", f"--port={port}", f"--locale={_current_lang}"]
         subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
     else:
         exe = sys.executable
-        script = os.path.join(get_app_root(), 'main.py')
-        cmd = [exe, script, '--dashboard', f'--port={port}', f'--locale={_current_lang}']
+        script = os.path.join(get_app_root(), "main.py")
+        cmd = [exe, script, "--dashboard", f"--port={port}", f"--locale={_current_lang}"]
         subprocess.Popen(cmd, creationflags=0)
 
 
-# ── Mode runners ────────────────────────────────────────────────
-
 def _run_dashboard(port: int, locale: str) -> None:
-    """Dashboard subprocess entry point.
-
-    Opens a pywebview window loading the SPA from the host's HTTP server,
-    then blocks until the window is closed.
-    """
+    """Dashboard subprocess entry point."""
     from ui.webview import DashboardWindow
+
     DashboardWindow(port, locale).create_and_block()
 
 
@@ -134,13 +125,14 @@ def _run_console_mode(config_path: str, logger: logging.Logger) -> None:
 
 
 def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
-    """Create scheduler, start HTTP server, and block on the system tray icon.
+    """Create scheduler, start the local dashboard API server, and block on
+    the system tray icon.
 
     Error handling: log + native error dialog so the user sees it even
     though there's no console window.
     """
     from core.scheduler import WEScheduler
-    from ui.dashboard import DashboardHTTPServer, StateStore, build_tick_state
+    from ui.dashboard import AnalysisStore, DashboardHTTPServer, build_tick_snapshot
     from ui.tray import TrayIcon
     from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir
@@ -154,18 +146,17 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
 
     scheduler.start()
 
-    state_store = StateStore()
+    analysis_store = AnalysisStore()
+
     def _handle_tick(trace: SchedulerTickTrace) -> None:
-        state_store.update(build_tick_state(scheduler, trace))
+        analysis_store.update(build_tick_snapshot(scheduler, trace))
+
     scheduler.on_tick = _handle_tick
-    httpd = DashboardHTTPServer(state_store, scheduler.history_logger, config_path)
+    httpd = DashboardHTTPServer(analysis_store, scheduler.history_logger, config_path)
     httpd.start()
 
     tray = TrayIcon(scheduler)
-
-    def _on_show_dashboard():
-        _spawn_dashboard_subprocess(httpd.port)
-    tray.on_show_dashboard = _on_show_dashboard
+    tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
     tray.run()
 
 
@@ -177,7 +168,6 @@ def main() -> None:
 
     args = _parse_args()
 
-    # Dashboard subprocess — tray host spawns this to display the SPA.
     if args.dashboard:
         _run_dashboard(args.port, args.locale)
         return

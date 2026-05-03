@@ -35,6 +35,7 @@ class ActionReasonCode(str, Enum):
     CYCLE_BLOCKED_FULLSCREEN = "cycle_blocked_fullscreen"
     CYCLE_BLOCKED_CPU = "cycle_blocked_cpu"
     CYCLE_BLOCKED_NOT_IDLE = "cycle_blocked_not_idle"
+    SCHEDULER_PAUSED = "scheduler_paused"
 
 
 class ControllerBlocker(str, Enum):

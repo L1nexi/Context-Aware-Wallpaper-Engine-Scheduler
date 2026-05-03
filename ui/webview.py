@@ -1,9 +1,8 @@
 """
 Dashboard window process entry point.
 
-Launched as a subprocess by the tray host.  Thin wrapper around pywebview
+Launched as a subprocess by the tray host. Thin wrapper around pywebview
 that creates a single window, blocks until the user closes it, then exits.
-No show/hide tricks — window close = process exit.
 """
 
 from __future__ import annotations
@@ -12,8 +11,6 @@ import ctypes
 import logging
 import os
 import sys
-import threading
-import time
 
 from utils.i18n import t
 
@@ -25,10 +22,11 @@ ICON_BIG = 1
 
 
 def _resolve_icon_path() -> str:
-    if getattr(sys, 'frozen', False):
-        return os.path.join(sys._MEIPASS, 'AppIcon.ico')
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, "AppIcon.ico")
     from utils.app_context import get_app_root
-    return os.path.join(get_app_root(), 'AppIcon.ico')
+
+    return os.path.join(get_app_root(), "AppIcon.ico")
 
 
 def _set_window_icon() -> None:
@@ -40,15 +38,19 @@ def _set_window_icon() -> None:
         return
 
     try:
-        title = webview.windows[0].title          # 取当前窗口标题
+        title = webview.windows[0].title
         hwnd = ctypes.windll.user32.FindWindowW(None, title)
         if not hwnd:
             logger.warning("FindWindowW returned NULL for title: %r", title)
             return
 
         hicon = ctypes.windll.user32.LoadImageW(
-            0, icon_path, 1, 0, 0,
-            0x00000010 | 0x00000040   # LR_LOADFROMFILE | LR_DEFAULTSIZE
+            0,
+            icon_path,
+            1,
+            0,
+            0,
+            0x00000010 | 0x00000040,
         )
         if hicon:
             ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon)
@@ -58,22 +60,18 @@ def _set_window_icon() -> None:
 
 
 class _DashboardAPI:
-    """JS-accessible API exposed via pywebview js_api bridge."""
-
     def close(self) -> None:
-        """Called from JS via window.pywebview.api.close()"""
         import webview
+
         if webview.windows:
             webview.windows[0].destroy()
 
 
 class DashboardWindow:
-    """Creates a pywebview window loading the dashboard SPA from the
-    in-process HTTP server, then blocks until the window is closed."""
+    """Creates a pywebview window loading the dashboard host URL."""
 
     def __init__(self, api_port: int, locale: str):
         self._url = f"http://127.0.0.1:{api_port}?locale={locale}"
-
 
     def create_and_block(self) -> None:
         import webview
@@ -88,5 +86,4 @@ class DashboardWindow:
             js_api=_DashboardAPI(),
         )
 
-        # ↓ func= 在 GUI 主循环启动后、窗口可见前执行，无需轮询
         webview.start(gui="edgechromium", func=_set_window_icon)

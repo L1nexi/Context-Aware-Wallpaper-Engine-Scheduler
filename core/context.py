@@ -25,6 +25,8 @@ class WeatherData:
     main: str = ""
     sunrise: int = 0  # UTC unix timestamp
     sunset: int = 0   # UTC unix timestamp
+    fetched_at: float = 0.0
+    stale: bool = False
 
 
 @dataclass
