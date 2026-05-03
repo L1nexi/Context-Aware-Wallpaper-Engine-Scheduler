@@ -4,36 +4,30 @@ import logging
 import math
 import time as _time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import ClassVar, Dict, Any, Optional, Type
+from typing import Any, ClassVar, Dict, Optional, Type
 
 from core.context import Context
+from core.diagnostics import (
+    ActivityPolicyDetails,
+    ActivityPolicyEvaluation,
+    BasePolicyEvaluation,
+    SeasonPolicyDetails,
+    SeasonPolicyEvaluation,
+    TimePolicyDetails,
+    TimePolicyEvaluation,
+    WeatherPolicyDetails,
+    WeatherPolicyEvaluation,
+)
 from utils.config_loader import (
     _BasePolicyConfig,
     ActivityPolicyConfig,
-    TimePolicyConfig,
-    SeasonPolicyConfig,
-    WeatherPolicyConfig,
     PoliciesConfig,
+    SeasonPolicyConfig,
+    TimePolicyConfig,
+    WeatherPolicyConfig,
 )
 
 logger = logging.getLogger("WEScheduler.Policy")
-
-
-@dataclass
-class PolicyOutput:
-    """Decomposed policy signal with orthogonal semantic dimensions.
-
-    direction: unit L2-normalized tag vector (what kind of signal)
-    salience:  clarity of category membership [0,1]; default 1.0
-    intensity: physical/behavioral magnitude [0,1]; default 1.0
-
-    Effective contribution to the env vector:
-        direction * salience * intensity * weight_scale
-    """
-    direction: Dict[str, float]
-    salience: float = 1.0
-    intensity: float = 1.0
 
 
 def _circular_distance(a: float, b: float, period: float) -> float:
@@ -53,6 +47,7 @@ class Policy(ABC):
     # Config key matching the attribute name on PoliciesConfig.
     # Each concrete subclass must define this as a class-level string.
     config_key: ClassVar[str]
+    evaluation_cls: ClassVar[type[BasePolicyEvaluation]]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -71,21 +66,52 @@ class Policy(ABC):
         self.enabled = config.enabled
         self.weight_scale = config.weight_scale
 
-    @abstractmethod
-    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
-        """Compute raw PolicyOutput; direction need not be normalized."""
-        ...
+    def _make_evaluation(
+        self,
+        *,
+        details: object,
+        raw_direction: Optional[Dict[str, float]],
+        salience: float,
+        intensity: float,
+    ) -> BasePolicyEvaluation:
+        raw_direction = raw_direction or {}
+        active = False
+        direction: Dict[str, float] = {}
+        raw_contribution: Dict[str, float] = {}
+        effective_magnitude = 0.0
+        dominant_tag = max(raw_direction, key=raw_direction.get) if raw_direction else None
 
-    def get_output(self, context: Context) -> Optional[PolicyOutput]:
-        """Public interface. Normalizes direction to unit L2; returns None if zero."""
-        output = self._compute_output(context)
-        if output is None:
-            return None
-        norm = math.sqrt(sum(w * w for w in output.direction.values()))
-        if norm < 1e-6:
-            return None
-        output.direction = {t: w / norm for t, w in output.direction.items()}
-        return output
+        if self.enabled and raw_direction and salience > 0 and intensity > 0:
+            norm = math.sqrt(sum(weight * weight for weight in raw_direction.values()))
+            if norm >= 1e-6:
+                active = True
+                direction = {
+                    tag: weight / norm
+                    for tag, weight in raw_direction.items()
+                }
+                effective_magnitude = salience * intensity * self.weight_scale
+                raw_contribution = {
+                    tag: weight * effective_magnitude
+                    for tag, weight in direction.items()
+                }
+
+        return self.evaluation_cls(
+            policy_id=self.config_key,
+            enabled=self.enabled,
+            active=active,
+            weight_scale=self.weight_scale,
+            salience=max(salience, 0.0) if self.enabled else 0.0,
+            intensity=max(intensity, 0.0) if self.enabled else 0.0,
+            effective_magnitude=effective_magnitude,
+            direction=direction,
+            raw_contribution=raw_contribution,
+            dominant_tag=dominant_tag,
+            details=details,
+        )
+
+    @abstractmethod
+    def evaluate(self, context: Context) -> BasePolicyEvaluation:
+        ...
 
     def export_state(self) -> Dict[str, Any]:
         return {}
@@ -96,63 +122,84 @@ class Policy(ABC):
 
 class ActivityPolicy(Policy):
     config_key = "activity"
+    evaluation_cls = ActivityPolicyEvaluation
 
     def __init__(self, config: ActivityPolicyConfig):
         super().__init__(config)
-        # Convert rules to lowercase for case-insensitive matching
         self.rules = {k.lower(): v for k, v in config.process_rules.items()}
         self.title_rules = config.title_rules
 
         smoothing_window = config.smoothing_window
-        # Calculate alpha for EMA: alpha = 2 / (N + 1)
         if smoothing_window <= 1:
             self.alpha = 1.0
         else:
             self.alpha = 2.0 / (smoothing_window + 1.0)
 
-        # Dual EMA tracks per spec
-        self._dir_ema: Dict[str, float] = {}   # raw (un-normalized) direction EMA
-        self._mag_ema: float = 0.0              # scalar magnitude EMA
+        self._dir_ema: Dict[str, float] = {}
+        self._mag_ema: float = 0.0
 
-    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
+    def evaluate(self, context: Context) -> ActivityPolicyEvaluation:
         if not self.enabled:
-            return None
+            return self._make_evaluation(
+                details=ActivityPolicyDetails(
+                    window_title=context.window.title,
+                    process=context.window.process,
+                ),
+                raw_direction=None,
+                salience=0.0,
+                intensity=0.0,
+            )
 
-        instant_dir = self._get_instant_tags(context)
+        instant_dir, details = self._get_instant_signal(context)
 
-        # Direction EMA: blend raw vectors, base class normalizes on output
         all_tags = set(self._dir_ema.keys()) | set(instant_dir.keys())
         new_dir_ema: Dict[str, float] = {}
         for tag in all_tags:
             cur = instant_dir.get(tag, 0.0)
             prev = self._dir_ema.get(tag, 0.0)
-            v = self.alpha * cur + (1.0 - self.alpha) * prev
-            if v >= 1e-6:
-                new_dir_ema[tag] = v
+            value = self.alpha * cur + (1.0 - self.alpha) * prev
+            if value >= 1e-6:
+                new_dir_ema[tag] = value
         self._dir_ema = new_dir_ema
 
-        # Magnitude EMA: 1.0 when matched, 0.0 when not
         instant_mag = 1.0 if instant_dir else 0.0
         self._mag_ema = self.alpha * instant_mag + (1.0 - self.alpha) * self._mag_ema
 
-        if not self._dir_ema:
-            return None
+        if not instant_dir:
+            details.ema_active = bool(self._dir_ema)
 
-        return PolicyOutput(
-            direction=dict(self._dir_ema),  # base class normalizes
-            salience=1.0,
-            intensity=self._mag_ema,
+        return self._make_evaluation(
+            details=details,
+            raw_direction=dict(self._dir_ema),
+            salience=1.0 if self._dir_ema else 0.0,
+            intensity=self._mag_ema if self._dir_ema else 0.0,
         )
 
-    def _get_instant_tags(self, context: Context) -> Dict[str, float]:
-        window_title = context.window.title
+    def _get_instant_signal(
+        self,
+        context: Context,
+    ) -> tuple[Dict[str, float], ActivityPolicyDetails]:
+        details = ActivityPolicyDetails(
+            window_title=context.window.title,
+            process=context.window.process,
+        )
+
         for keyword, tag in self.title_rules.items():
-            if keyword.lower() in window_title.lower():
-                return {tag: 1.0}
-        tag = self.rules.get(context.window.process.lower())
+            if keyword.lower() in context.window.title.lower():
+                details.match_source = "title"
+                details.matched_rule = keyword
+                details.matched_tag = tag
+                return {tag: 1.0}, details
+
+        process_key = context.window.process.lower()
+        tag = self.rules.get(process_key)
         if tag:
-            return {tag: 1.0}
-        return {}
+            details.match_source = "process"
+            details.matched_rule = process_key
+            details.matched_tag = tag
+            return {tag: 1.0}, details
+
+        return {}, details
 
     def export_state(self) -> Dict[str, Any]:
         return {
@@ -166,12 +213,10 @@ class ActivityPolicy(Policy):
 
 
 class TimePolicy(Policy):
-    """Maps time-of-day to #dawn/#day/#sunset/#night via Hann windows.
-
-    salience = Hann window value (peak clarity); intensity = 1.0 always.
-    """
+    """Maps time-of-day to #dawn/#day/#sunset/#night via Hann windows."""
 
     config_key = "time"
+    evaluation_cls = TimePolicyEvaluation
 
     def __init__(self, config: TimePolicyConfig):
         super().__init__(config)
@@ -188,10 +233,10 @@ class TimePolicy(Policy):
         day_span = (ns - ds) % 24
         night_span = 24 - day_span
         return {
-            "#dawn":   ds,
-            "#day":    (ds + day_span / 2) % 24,
+            "#dawn": ds,
+            "#day": (ds + day_span / 2) % 24,
             "#sunset": ns % 24,
-            "#night":  (ns + night_span / 2) % 24,
+            "#night": (ns + night_span / 2) % 24,
         }
 
     _TAG_ORDER = ["#dawn", "#day", "#sunset", "#night"]
@@ -199,10 +244,7 @@ class TimePolicy(Policy):
 
     @staticmethod
     def _warp_time(hour: float, peaks: Dict[str, float]) -> float:
-        """Piecewise-linear map: real hour → virtual hour in [0, 24).
-
-        """
-        real = [peaks[t] for t in TimePolicy._TAG_ORDER]
+        real = [peaks[tag] for tag in TimePolicy._TAG_ORDER]
         n = len(real)
         for i in range(n):
             r_a = real[i]
@@ -223,49 +265,57 @@ class TimePolicy(Policy):
         weather = context.weather
         if weather is None or not weather.sunrise or not weather.sunset:
             return
-        sr = _time.localtime(weather.sunrise)
-        ss = _time.localtime(weather.sunset)
-        ds = sr.tm_hour + sr.tm_min / 60.0
-        ns = ss.tm_hour + ss.tm_min / 60.0
+        sunrise = _time.localtime(weather.sunrise)
+        sunset = _time.localtime(weather.sunset)
+        ds = sunrise.tm_hour + sunrise.tm_min / 60.0
+        ns = sunset.tm_hour + sunset.tm_min / 60.0
         if abs(ds - self._day_start) > 1 / 60 or abs(ns - self._night_start) > 1 / 60:
             self._recompute_peaks(ds, ns)
             logger.debug("TimePolicy peaks updated: day_start=%.2f night_start=%.2f", ds, ns)
 
-    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
-        if not self.enabled:
-            return None
-
+    def evaluate(self, context: Context) -> TimePolicyEvaluation:
+        current_time = context.time
         if self.auto:
             self._update_from_context(context)
-
-        current_time = context.time
         hour = current_time.tm_hour + current_time.tm_min / 60.0
         t_virtual = self._warp_time(hour, self._peaks)
+        details = TimePolicyDetails(
+            auto=self.auto,
+            hour=round(hour, 4),
+            virtual_hour=round(t_virtual, 4),
+            day_start_hour=round(self._day_start, 4),
+            night_start_hour=round(self._night_start, 4),
+            peaks={tag: round(value, 4) for tag, value in self._peaks.items()},
+        )
+        if not self.enabled:
+            return self._make_evaluation(
+                details=details,
+                raw_direction=None,
+                salience=0.0,
+                intensity=0.0,
+            )
 
-        # Dominant tag determines direction; salience = its Hann value
-        best_tag = None
-        best_w = 0.0
+        best_weight = 0.0
         raw: Dict[str, float] = {}
         for tag, v_peak in zip(self._TAG_ORDER, self._VIRTUAL_PEAKS):
-            d = _circular_distance(t_virtual, v_peak, 24)
-            w = _hann(d, self._H)
-            if w > 1e-4:
-                raw[tag] = w
-                if w > best_w:
-                    best_w = w
-                    best_tag = tag
-
-        if not raw:
-            return None
-
-        # direction = all Hann weights (base class normalizes); salience = peak Hann
-        return PolicyOutput(direction=raw, salience=best_w, intensity=1.0)
+            distance = _circular_distance(t_virtual, v_peak, 24)
+            weight = _hann(distance, self._H)
+            if weight > 1e-4:
+                raw[tag] = weight
+                best_weight = max(best_weight, weight)
+        return self._make_evaluation(
+            details=details,
+            raw_direction=raw,
+            salience=best_weight,
+            intensity=1.0 if raw else 0.0,
+        )
 
 
 class SeasonPolicy(Policy):
     """Maps day-of-year to #spring/#summer/#autumn/#winter via Hann windows."""
 
     config_key = "season"
+    evaluation_cls = SeasonPolicyEvaluation
 
     def __init__(self, config: SeasonPolicyConfig):
         super().__init__(config)
@@ -277,53 +327,40 @@ class SeasonPolicy(Policy):
         }
         self._H = 365 / len(self._peaks)
 
-    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
+    def evaluate(self, context: Context) -> SeasonPolicyEvaluation:
+        day_of_year = context.time.tm_yday
+        details = SeasonPolicyDetails(
+            day_of_year=day_of_year,
+            peaks=self._peaks.copy(),
+        )
         if not self.enabled:
-            return None
+            return self._make_evaluation(
+                details=details,
+                raw_direction=None,
+                salience=0.0,
+                intensity=0.0,
+            )
 
-        doy = context.time.tm_yday
         raw: Dict[str, float] = {}
-        best_w = 0.0
+        best_weight = 0.0
         for tag, peak in self._peaks.items():
-            d = _circular_distance(doy, peak, 365)
-            w = _hann(d, self._H)
-            if w > 1e-4:
-                raw[tag] = w
-                if w > best_w:
-                    best_w = w
-
-        if not raw:
-            return None
-
-        return PolicyOutput(direction=raw, salience=best_w, intensity=1.0)
+            distance = _circular_distance(day_of_year, peak, 365)
+            weight = _hann(distance, self._H)
+            if weight > 1e-4:
+                raw[tag] = weight
+                best_weight = max(best_weight, weight)
+        return self._make_evaluation(
+            details=details,
+            raw_direction=raw,
+            salience=best_weight,
+            intensity=1.0 if raw else 0.0,
+        )
 
 
 class WeatherPolicy(Policy):
-    """Maps OWM condition codes to (direction, intensity) PolicyOutput.
+    """Maps OWM condition codes to normalized weather tag contributions."""
 
-    direction = unit tag vector encoding weather type (#rain, #storm, etc.)
-    intensity = T1-T4 severity level extracted from the raw vector norm
-    salience  = 1.0 (weather IDs are unambiguous)
-        1. **intensity** ``s`` = L2 norm of the output vector ∈ (0, 1].
-       Represents "how much this weather overrides other signals":
-
-         T1 ≈ 0.25  negligible   mist, haze, dust whirls
-         T2 ≈ 0.50  light        drizzle, light rain/snow, sky conditions
-         T3 ≈ 0.75  heavy        moderate rain, dense fog
-         T4 = 1.00  extreme      very heavy rain, heavy snow, tornado
-
-    2. **unit_direction** = tag composition (Σ component² = 1).
-       Encodes "what kind of weather" without changing voting power.
-
-       Two-tag directions use fixed angle presets:
-         2:1 ratio  → (cos 27° ≈ 0.89, sin 27° ≈ 0.45)   primary dominates
-         3:1 ratio  → (cos 18° ≈ 0.95, sin 18° ≈ 0.32)   strongly primary
-         1:1 ratio  → (cos 45° ≈ 0.71, sin 45° ≈ 0.71)   equal mix
-    """
-
-    # Raw tag vectors: component = intensity * direction_component (pre-merged)
     _ID_TAGS: Dict[int, Dict[str, float]] = {
-        # 2xx Thunderstorm
         210: {"#storm": 0.50, "#rain": 0.25},
         211: {"#storm": 0.75, "#rain": 0.50},
         212: {"#storm": 1.00, "#rain": 0.60},
@@ -334,7 +371,6 @@ class WeatherPolicy(Policy):
         230: {"#storm": 0.62, "#rain": 0.21},
         231: {"#storm": 0.71, "#rain": 0.24},
         232: {"#storm": 0.80, "#rain": 0.36},
-        # 3xx Drizzle
         300: {"#rain": 0.25},
         301: {"#rain": 0.40},
         302: {"#rain": 0.55},
@@ -344,7 +380,6 @@ class WeatherPolicy(Policy):
         313: {"#rain": 0.50},
         314: {"#rain": 0.65},
         321: {"#rain": 0.50},
-        # 5xx Rain
         500: {"#rain": 0.40},
         501: {"#rain": 0.65},
         502: {"#rain": 0.85},
@@ -355,7 +390,6 @@ class WeatherPolicy(Policy):
         521: {"#rain": 0.65},
         522: {"#rain": 0.90},
         531: {"#rain": 0.70},
-        # 6xx Snow
         600: {"#snow": 0.40},
         601: {"#snow": 0.70},
         602: {"#snow": 1.00},
@@ -367,7 +401,6 @@ class WeatherPolicy(Policy):
         620: {"#snow": 0.40},
         621: {"#snow": 0.65},
         622: {"#snow": 1.00},
-        # 7xx Atmosphere
         701: {"#fog": 0.30},
         711: {"#fog": 0.45},
         721: {"#fog": 0.25},
@@ -378,7 +411,6 @@ class WeatherPolicy(Policy):
         762: {"#fog": 0.60},
         771: {"#storm": 0.65},
         781: {"#storm": 1.00},
-        # 800 Clear / 80x Clouds
         800: {"#clear": 0.50},
         801: {"#clear": 0.47, "#cloudy": 0.16},
         802: {"#clear": 0.35, "#cloudy": 0.35},
@@ -388,74 +420,85 @@ class WeatherPolicy(Policy):
 
     _MAIN_FALLBACK: Dict[str, Dict[str, float]] = {
         "thunderstorm": {"#storm": 0.67, "#rain": 0.34},
-        "drizzle":      {"#rain": 0.40},
-        "rain":         {"#rain": 0.65},
-        "snow":         {"#snow": 0.65},
-        "mist":         {"#fog": 0.30},
-        "smoke":        {"#fog": 0.45},
-        "haze":         {"#fog": 0.25},
-        "dust":         {"#fog": 0.40},
-        "fog":          {"#fog": 0.75},
-        "sand":         {"#fog": 0.30},
-        "ash":          {"#fog": 0.55},
-        "squall":       {"#storm": 0.65},
-        "tornado":      {"#storm": 1.00},
-        "clear":        {"#clear": 0.50},
-        "clouds":       {"#cloudy": 0.50},
+        "drizzle": {"#rain": 0.40},
+        "rain": {"#rain": 0.65},
+        "snow": {"#snow": 0.65},
+        "mist": {"#fog": 0.30},
+        "smoke": {"#fog": 0.45},
+        "haze": {"#fog": 0.25},
+        "dust": {"#fog": 0.40},
+        "fog": {"#fog": 0.75},
+        "sand": {"#fog": 0.30},
+        "ash": {"#fog": 0.55},
+        "squall": {"#storm": 0.65},
+        "tornado": {"#storm": 1.00},
+        "clear": {"#clear": 0.50},
+        "clouds": {"#cloudy": 0.50},
     }
 
     config_key = "weather"
+    evaluation_cls = WeatherPolicyEvaluation
 
     def __init__(self, config: WeatherPolicyConfig):
         super().__init__(config)
 
-    def _compute_output(self, context: Context) -> Optional[PolicyOutput]:
-        if not self.enabled:
-            return None
+    def evaluate(self, context: Context) -> WeatherPolicyEvaluation:
         weather = context.weather
+        details = WeatherPolicyDetails(
+            weather_id=weather.id if weather is not None else None,
+            weather_main=weather.main if weather is not None else None,
+            available=weather is not None,
+        )
+        if not self.enabled:
+            return self._make_evaluation(
+                details=details,
+                raw_direction=None,
+                salience=0.0,
+                intensity=0.0,
+            )
+
         if weather is None:
-            return None
+            return self._make_evaluation(
+                details=details,
+                raw_direction=None,
+                salience=0.0,
+                intensity=0.0,
+            )
 
         raw = self._resolve_tags(weather.id, weather.main)
         if not raw:
-            return None
+            return self._make_evaluation(
+                details=details,
+                raw_direction=None,
+                salience=0.0,
+                intensity=0.0,
+            )
 
-        # Extract intensity as L2 norm of raw vector, then normalize direction
-        norm = math.sqrt(sum(w * w for w in raw.values()))
-        if norm < 1e-6:
-            return None
-
-        intensity = norm
-        direction = {t: w / norm for t, w in raw.items()}
-
-        return PolicyOutput(direction=direction, salience=1.0, intensity=intensity)
+        details.mapped = True
+        norm = math.sqrt(sum(weight * weight for weight in raw.values()))
+        return self._make_evaluation(
+            details=details,
+            raw_direction=raw,
+            salience=1.0,
+            intensity=norm,
+        )
 
     @classmethod
     def _resolve_tags(cls, weather_id: int, weather_main: str) -> Optional[Dict[str, float]]:
         entry = cls._ID_TAGS.get(weather_id)
         if entry is not None:
             return dict(entry)
-        return cls._MAIN_FALLBACK.get(weather_main.lower())
+        fallback = cls._MAIN_FALLBACK.get(weather_main.lower())
+        return dict(fallback) if fallback is not None else None
 
-
-# ── Known Tags ─────────────────────────────────────────────────────
-# Central vocabulary of all tags that policies may emit.
-# Drive the UI tag palette via GET /api/tags/presets.
-# When adding a new policy output tag, add it here.
 
 KNOWN_TAGS: list[str] = sorted({
-    # ActivityPolicy
     "#focus", "#chill",
-    # TimePolicy
     "#dawn", "#day", "#sunset", "#night",
-    # SeasonPolicy
     "#spring", "#summer", "#autumn", "#winter",
-    # WeatherPolicy
     "#clear", "#cloudy", "#rain", "#storm", "#snow", "#fog",
 })
 
-# Registry of Policy classes in evaluation order.
-# To add a new policy: import its class above and append it here.
 POLICY_REGISTRY: list[Type[Policy]] = [
     ActivityPolicy,
     TimePolicy,

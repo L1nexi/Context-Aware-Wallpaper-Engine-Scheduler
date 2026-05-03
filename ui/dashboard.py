@@ -16,16 +16,16 @@ import threading
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 from collections import deque
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, TYPE_CHECKING
 from dataclasses import dataclass, field
 import json
-import time
 
 import bottle
 
 from utils.app_context import get_app_root
 from utils.i18n import _current_lang
-from core.scheduler import WEScheduler, Context, MatchResult
+from core.diagnostics import SchedulerTickTrace
+from core.scheduler import WEScheduler
 import getpass
 from utils.config_loader import AppConfig
 
@@ -89,37 +89,36 @@ class StateStore:
 
 def build_tick_state(
     scheduler: WEScheduler,
-    context: Context,
-    result: Optional[MatchResult],
+    trace: SchedulerTickTrace,
 ) -> TickState:
     """Construct a TickState snapshot from the current scheduler tick."""
-    tags = result.aggregated_tags if result is not None else {}
+    tags = trace.match.raw_context_vector
     sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:8]
     top_tags = [{"tag": t, "weight": round(w, 4)} for t, w in sorted_tags]
 
-    best = result.best_playlist if result is not None else ""
-    display = scheduler.display_of.get(best, "") if best else ""
+    active = trace.active_playlist_after
+    display = scheduler.display_of.get(active, "") if active else ""
 
     return TickState(
-        ts=time.time(),
-        current_playlist=best,
+        ts=trace.ts,
+        current_playlist=active,
         current_playlist_display=display,
-        similarity=round(result.similarity, 4) if result is not None else 0.0,
-        similarity_gap=round(result.similarity_gap, 4) if result is not None else 0.0,
-        max_policy_magnitude=round(result.max_policy_magnitude, 4) if result is not None else 0.0,
+        similarity=round(trace.match.similarity, 4),
+        similarity_gap=round(trace.match.similarity_gap, 4),
+        max_policy_magnitude=round(trace.match.max_policy_magnitude, 4),
         top_tags=top_tags,
-        paused=scheduler.paused,
-        pause_until=scheduler.pause_until,
-        active_window=context.window.process or "N/A",
-        idle_time=round(context.idle, 1),
-        cpu=round(context.cpu, 1),
-        fullscreen=context.fullscreen,
+        paused=trace.paused,
+        pause_until=trace.pause_until,
+        active_window=trace.context.window.process or "N/A",
+        idle_time=round(trace.context.idle, 1),
+        cpu=round(trace.context.cpu, 1),
+        fullscreen=trace.context.fullscreen,
         locale=_current_lang,
         last_event_id=scheduler.history_logger.last_event_id if scheduler.history_logger else 0,
         top_matches=[
             (scheduler.display_of.get(name, name), round(score, 4))
-            for name, score in (result.top_matches if result else [])
-        ] if result else [],
+            for name, score in trace.match.playlist_matches[:5]
+        ],
     )
 
 

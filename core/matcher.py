@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import math
 import logging
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Dict, Optional, Tuple
+import math
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+
+from core.context import Context
+from core.diagnostics import MatchEvaluation, PolicyEvaluation
+from utils.config_loader import PlaylistConfig, TagSpec
 
 if TYPE_CHECKING:
     from core.policies import Policy
-
-from core.context import Context
-from core.policies import PolicyOutput
-from utils.config_loader import PlaylistConfig, TagSpec
 
 logger = logging.getLogger("WEScheduler.Matcher")
 
@@ -18,19 +17,8 @@ _MIN_SIMILARITY = 0.001
 _MIN_EXPAND_WEIGHT = 0.02
 
 
-@dataclass
-class MatchResult:
-    """Output of Matcher.match(): best playlist choice plus diagnostics."""
-    best_playlist: str
-    similarity: float
-    aggregated_tags: Dict[str, float] = field(default_factory=dict)
-    similarity_gap: float = 0.0        # sim(1st) - sim(2nd); 0 if only one playlist
-    max_policy_magnitude: float = 0.0  # max(salience * intensity * weight_scale) across policies
-    top_matches: list[tuple[str, float]] = field(default_factory=list)
-
-
 class Matcher:
-    """Owns the full Think pipeline: per-policy eval → aggregate → cosine match."""
+    """Owns the full Think pipeline: per-policy eval -> aggregate -> cosine match."""
 
     def __init__(
         self,
@@ -41,138 +29,148 @@ class Matcher:
         self.policies = policies
         self._tag_specs: Dict[str, TagSpec] = tag_specs or {}
 
-        # Identify the Universe of Tags from all playlists
-        all_tags: set = set()
-        for pl in playlists:
-            all_tags.update(pl.tags.keys())
+        all_tags: set[str] = set()
+        for playlist in playlists:
+            all_tags.update(playlist.tags.keys())
 
-        self._known_tags: set = set(all_tags)
+        self._known_tags: set[str] = set(all_tags)
         self.all_tags = sorted(all_tags)
         self.tag_to_index = {tag: i for i, tag in enumerate(self.all_tags)}
         self.dim = len(self.all_tags)
 
-        self._warned_tags: set = set()
+        self._warned_tags: set[str] = set()
 
-        # Pre-calculate Normalized Playlist Vectors
         self.playlist_vectors: List[Tuple[str, List[float]]] = []
-        for pl in playlists:
-            v = [0.0] * self.dim
-            for tag, weight in pl.tags.items():
+        for playlist in playlists:
+            vector = [0.0] * self.dim
+            for tag, weight in playlist.tags.items():
                 if tag in self.tag_to_index:
-                    v[self.tag_to_index[tag]] = weight
-            norm = math.sqrt(sum(x * x for x in v))
+                    vector[self.tag_to_index[tag]] = weight
+            norm = math.sqrt(sum(x * x for x in vector))
             if norm > 1e-6:
-                v = [x / norm for x in v]
-                self.playlist_vectors.append((pl.name, v))
+                vector = [x / norm for x in vector]
+                self.playlist_vectors.append((playlist.name, vector))
             else:
-                logger.warning("Playlist '%s' has no valid tags or zero weights.", pl.name)
+                logger.warning("Playlist '%s' has no valid tags or zero weights.", playlist.name)
 
-    def match(self, context: Context) -> Optional[MatchResult]:
-        """Run the full Think pipeline for one tick.
-
-        Aggregates policy contributions as:
-            env_vector += direction * salience * intensity * weight_scale
-        Applies TagSpec fallback on the aggregated env_vector before cosine match.
-        """
-        aggregated_tags: Dict[str, float] = {}
-        v_env = [0.0] * self.dim
-        any_valid = False
-        max_magnitude = 0.0
+    def evaluate(self, context: Context) -> MatchEvaluation:
+        raw_context_vector: Dict[str, float] = {}
+        resolved_context_vector: Dict[str, float] = {}
+        fallback_expansions: dict[str, dict[str, float]] = {}
+        policy_evaluations: list[PolicyEvaluation] = []
+        max_policy_magnitude = 0.0
 
         for policy in self.policies:
-            output: Optional[PolicyOutput] = policy.get_output(context)
-            if output is None:
-                continue
+            evaluation = policy.evaluate(context)
+            policy_evaluations.append(evaluation)
+            if evaluation.effective_magnitude > max_policy_magnitude:
+                max_policy_magnitude = evaluation.effective_magnitude
 
-            magnitude = output.salience * output.intensity * policy.weight_scale
-            if magnitude > max_magnitude:
-                max_magnitude = magnitude
+            for tag, weight in evaluation.raw_contribution.items():
+                raw_context_vector[tag] = raw_context_vector.get(tag, 0.0) + weight
 
-            # Build contribution: direction * salience * intensity * weight_scale
-            contrib: Dict[str, float] = {
-                t: w * magnitude for t, w in output.direction.items()
-            }
+            resolved, expansions = self._resolve_raw_tags(evaluation.raw_contribution)
+            evaluation.resolved_contribution = resolved
+            for tag, weight in resolved.items():
+                resolved_context_vector[tag] = resolved_context_vector.get(tag, 0.0) + weight
+            for source_tag, resolved_tags in expansions.items():
+                bucket = fallback_expansions.setdefault(source_tag, {})
+                for resolved_tag, resolved_weight in resolved_tags.items():
+                    bucket[resolved_tag] = bucket.get(resolved_tag, 0.0) + resolved_weight
 
-            for tag, w in contrib.items():
-                aggregated_tags[tag] = aggregated_tags.get(tag, 0.0) + w
+        best_playlist: Optional[str] = None
+        playlist_matches: list[tuple[str, float]] = []
 
-            resolved = self._resolve_raw_tags(contrib)
-            if resolved:
-                any_valid = True
-                for tag, weight in resolved.items():
-                    v_env[self.tag_to_index[tag]] += weight
+        if self.playlist_vectors and resolved_context_vector:
+            env_vector = [0.0] * self.dim
+            for tag, weight in resolved_context_vector.items():
+                if tag in self.tag_to_index:
+                    env_vector[self.tag_to_index[tag]] += weight
 
-        if not self.playlist_vectors or not any_valid:
-            return None
+            norm_env = math.sqrt(sum(value * value for value in env_vector))
+            if norm_env >= 1e-6:
+                env_vector = [value / norm_env for value in env_vector]
+                scores: List[Tuple[float, str]] = []
+                for name, playlist_vector in self.playlist_vectors:
+                    sim = sum(a * b for a, b in zip(env_vector, playlist_vector))
+                    scores.append((sim, name))
 
-        norm_env = math.sqrt(sum(x * x for x in v_env))
-        if norm_env < 1e-6:
-            return None
-        v_env = [x / norm_env for x in v_env]
+                scores.sort(reverse=True)
+                candidate_score, candidate = scores[0]
+                playlist_matches = [(name, score) for score, name in scores]
+                if candidate_score > _MIN_SIMILARITY:
+                    best_playlist = candidate
 
-        # Cosine similarity — collect top-2 for similarity_gap
-        scores: List[Tuple[float, str]] = []
-        for name, v_pl in self.playlist_vectors:
-            sim = sum(a * b for a, b in zip(v_env, v_pl))
-            scores.append((sim, name))
-
-        scores.sort(reverse=True)
-        best_score, best_playlist = scores[0]
-
-        if best_score <= _MIN_SIMILARITY:
-            return None
-
-        gap = best_score - scores[1][0] if len(scores) > 1 else best_score
-        top_matches = [(name, round(score, 4)) for score, name in scores[:5]]
-
-        return MatchResult(
+        return MatchEvaluation(
             best_playlist=best_playlist,
-            similarity=best_score,
-            aggregated_tags=aggregated_tags,
-            similarity_gap=gap,
-            max_policy_magnitude=max_magnitude,
-            top_matches=top_matches,
+            playlist_matches=playlist_matches,
+            raw_context_vector=raw_context_vector,
+            resolved_context_vector=resolved_context_vector,
+            fallback_expansions=fallback_expansions,
+            policy_evaluations=policy_evaluations,
+            max_policy_magnitude=max_policy_magnitude,
         )
 
-    # ── TagSpec fallback helpers ──────────────────────────────────────────────
-
-    def _resolve_raw_tags(self, sub: Dict[str, float]) -> Dict[str, float]:
+    def _resolve_raw_tags(
+        self,
+        raw_contribution: Dict[str, float],
+    ) -> tuple[Dict[str, float], dict[str, dict[str, float]]]:
         resolved: Dict[str, float] = {}
-        for tag, weight in sub.items():
+        expansions: dict[str, dict[str, float]] = {}
+        for tag, weight in raw_contribution.items():
             if tag in self._known_tags:
                 resolved[tag] = resolved.get(tag, 0.0) + weight
-            else:
-                expanded = self._recursive_expand_fallback(tag, weight, frozenset())
-                if expanded:
-                    for t, w in expanded.items():
-                        resolved[t] = resolved.get(t, 0.0) + w
-                elif tag not in self._warned_tags:
-                    logger.info(
-                        "Tag '%s' from a Policy is not present in any playlist "
-                        "and has no fallback defined in 'tags' config. Add a "
-                        "playlist using this tag, define a fallback, or check "
-                        "for typos.", tag,
-                    )
-                    self._warned_tags.add(tag)
-        return resolved
+                continue
+
+            expanded, tag_expansions = self._recursive_expand_fallback(
+                tag=tag,
+                weight=weight,
+                visited=frozenset(),
+            )
+            if expanded:
+                for resolved_tag, resolved_weight in expanded.items():
+                    resolved[resolved_tag] = resolved.get(resolved_tag, 0.0) + resolved_weight
+                bucket = expansions.setdefault(tag, {})
+                for resolved_tag, resolved_weight in tag_expansions.items():
+                    bucket[resolved_tag] = bucket.get(resolved_tag, 0.0) + resolved_weight
+            elif tag not in self._warned_tags:
+                logger.info(
+                    "Tag '%s' from a Policy is not present in any playlist "
+                    "and has no fallback defined in 'tags' config. Add a "
+                    "playlist using this tag, define a fallback, or check "
+                    "for typos.",
+                    tag,
+                )
+                self._warned_tags.add(tag)
+        return resolved, expansions
 
     def _recursive_expand_fallback(
-        self, tag: str, weight: float, visited: frozenset
-    ) -> Dict[str, float]:
+        self,
+        *,
+        tag: str,
+        weight: float,
+        visited: frozenset[str],
+    ) -> tuple[Dict[str, float], dict[str, float]]:
         if tag in self._known_tags:
-            return {tag: weight}
+            return {tag: weight}, {tag: weight}
         if tag in visited or weight < _MIN_EXPAND_WEIGHT:
-            return {}
+            return {}, {}
 
         spec = self._tag_specs.get(tag)
         if not spec or not spec.fallback:
-            return {}
+            return {}, {}
 
         result: Dict[str, float] = {}
+        expansions: dict[str, float] = {}
         new_visited = visited | {tag}
-        for fb_tag, fb_weight in spec.fallback.items():
-            for t, w in self._recursive_expand_fallback(
-                fb_tag, weight * fb_weight, new_visited
-            ).items():
-                result[t] = result.get(t, 0.0) + w
-        return result
+        for fallback_tag, fallback_weight in spec.fallback.items():
+            child_resolved, child_expansions = self._recursive_expand_fallback(
+                tag=fallback_tag,
+                weight=weight * fallback_weight,
+                visited=new_visited,
+            )
+            for resolved_tag, resolved_weight in child_resolved.items():
+                result[resolved_tag] = result.get(resolved_tag, 0.0) + resolved_weight
+            for resolved_tag, resolved_weight in child_expansions.items():
+                expansions[resolved_tag] = expansions.get(resolved_tag, 0.0) + resolved_weight
+        return result, expansions

@@ -10,6 +10,16 @@ from datetime import datetime, timezone
 import bottle
 import pytest
 
+from core.context import Context, WindowData
+from core.diagnostics import (
+    ActionKind,
+    ActionReasonCode,
+    ActuationOutcome,
+    ControllerDecision,
+    ControllerEvaluation,
+    MatchEvaluation,
+    SchedulerTickTrace,
+)
 from core.event_logger import EventType
 from ui.dashboard import (
     TickState,
@@ -403,7 +413,7 @@ def test_flatten_errors_no_errors_attr():
 
 # ── build_tick_state ────────────────────────────────────────────────
 
-def test_build_tick_state_no_result():
+def test_build_tick_state_no_match():
     from unittest import mock
     scheduler = mock.MagicMock()
     scheduler.paused = False
@@ -411,41 +421,83 @@ def test_build_tick_state_no_result():
     scheduler.history_logger = None
     scheduler.display_of = {}
 
-    context = mock.MagicMock()
-    context.window.process = None
-    context.idle = 0.0
-    context.cpu = 0.0
-    context.fullscreen = False
+    trace = SchedulerTickTrace(
+        tick_id=1,
+        ts=123.0,
+        paused=False,
+        pause_until=0.0,
+        active_playlist_before="",
+        active_playlist_after="",
+        context=Context(
+            window=WindowData(process="", title=""),
+            idle=0.0,
+            cpu=0.0,
+            fullscreen=False,
+        ),
+        match=MatchEvaluation(
+            best_playlist=None,
+            raw_context_vector={},
+            resolved_context_vector={},
+            playlist_matches=[],
+        ),
+        action=ActuationOutcome(
+            decision=ControllerDecision(
+                kind=ActionKind.NONE,
+                reason_code=ActionReasonCode.NO_MATCH,
+                matched_playlist=None,
+                evaluation=None,
+            ),
+            active_playlist_before="",
+            active_playlist_after="",
+        ),
+    )
 
-    state = build_tick_state(scheduler, context, None)
+    state = build_tick_state(scheduler, trace)
     assert state.current_playlist == ""
     assert state.similarity == 0.0
     assert state.top_matches == []
 
 
-def test_build_tick_state_with_result():
+def test_build_tick_state_with_trace():
     from unittest import mock
     scheduler = mock.MagicMock()
-    scheduler.paused = False
-    scheduler.pause_until = 0.0
     scheduler.history_logger = None
-    scheduler.display_of = {"test_pl": "Test Display"}
+    scheduler.display_of = {"test_pl": "Test Display", "other": "Other Display"}
 
-    context = mock.MagicMock()
-    context.window.process = "chrome.exe"
-    context.idle = 10.5
-    context.cpu = 25.0
-    context.fullscreen = False
+    trace = SchedulerTickTrace(
+        tick_id=2,
+        ts=456.0,
+        paused=False,
+        pause_until=0.0,
+        active_playlist_before="old_pl",
+        active_playlist_after="test_pl",
+        context=Context(
+            window=WindowData(process="chrome.exe", title="Chrome"),
+            idle=10.5,
+            cpu=25.0,
+            fullscreen=False,
+        ),
+        match=MatchEvaluation(
+            best_playlist="test_pl",
+            max_policy_magnitude=1.2,
+            raw_context_vector={"#focus": 0.8, "#day": 0.6},
+            resolved_context_vector={"#focus": 0.8, "#day": 0.6},
+            playlist_matches=[("test_pl", 0.85), ("other", 0.7)],
+        ),
+        action=ActuationOutcome(
+            decision=ControllerDecision(
+                kind=ActionKind.SWITCH,
+                reason_code=ActionReasonCode.SWITCH_ALLOWED,
+                matched_playlist="test_pl",
+                evaluation=ControllerEvaluation(operation="switch", allowed=True),
+            ),
+            active_playlist_before="old_pl",
+            active_playlist_after="test_pl",
+            executed=True,
+        ),
+    )
 
-    result = mock.MagicMock()
-    result.best_playlist = "test_pl"
-    result.similarity = 0.85
-    result.similarity_gap = 0.15
-    result.max_policy_magnitude = 1.2
-    result.aggregated_tags = {"#focus": 0.8, "#day": 0.6}
-    result.top_matches = [("test_pl", 0.85), ("other", 0.7)]
-
-    state = build_tick_state(scheduler, context, result)
+    state = build_tick_state(scheduler, trace)
     assert state.current_playlist == "test_pl"
     assert state.current_playlist_display == "Test Display"
     assert state.similarity == 0.85
@@ -464,17 +516,40 @@ def test_build_tick_state_with_result():
 def test_build_tick_state_paused():
     from unittest import mock
     scheduler = mock.MagicMock()
-    scheduler.paused = True
-    scheduler.pause_until = 999999.0
     scheduler.history_logger = None
     scheduler.display_of = {}
 
-    context = mock.MagicMock()
-    context.window.process = None
-    context.idle = 0.0
-    context.cpu = 0.0
-    context.fullscreen = False
+    trace = SchedulerTickTrace(
+        tick_id=3,
+        ts=789.0,
+        paused=True,
+        pause_until=999999.0,
+        active_playlist_before="",
+        active_playlist_after="",
+        context=Context(
+            window=WindowData(process="", title=""),
+            idle=0.0,
+            cpu=0.0,
+            fullscreen=False,
+        ),
+        match=MatchEvaluation(
+            best_playlist=None,
+            raw_context_vector={},
+            resolved_context_vector={},
+            playlist_matches=[],
+        ),
+        action=ActuationOutcome(
+            decision=ControllerDecision(
+                kind=ActionKind.NONE,
+                reason_code=ActionReasonCode.NO_MATCH,
+                matched_playlist=None,
+                evaluation=None,
+            ),
+            active_playlist_before="",
+            active_playlist_after="",
+        ),
+    )
 
-    state = build_tick_state(scheduler, context, None)
+    state = build_tick_state(scheduler, trace)
     assert state.paused is True
     assert state.pause_until == 999999.0

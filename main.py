@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from core.scheduler import WEScheduler, Context, MatchResult
+    from core.diagnostics import SchedulerTickTrace
+    from core.scheduler import WEScheduler
 
 import sys
 import os
@@ -154,8 +155,8 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     scheduler.start()
 
     state_store = StateStore()
-    def _handle_tick(scheduler: WEScheduler, context: Context, result: MatchResult) -> None:
-        state_store.update(build_tick_state(scheduler, context, result))
+    def _handle_tick(trace: SchedulerTickTrace) -> None:
+        state_store.update(build_tick_state(scheduler, trace))
     scheduler.on_tick = _handle_tick
     httpd = DashboardHTTPServer(state_store, scheduler.history_logger, config_path)
     httpd.start()
