@@ -4,6 +4,33 @@
 
 该页面不是传统运营看板，而是一个面向“为什么切了 / 为什么没切”的时间分析台。用户打开它时，默认已经带着疑问而来；页面必须优先回答调度决策链，而不是只展示当前状态。
 
+## 0. 实施状态（2026-05-04）
+
+本 spec 仍然定义 Dashboard 重写的目标形态，但其中一部分已经落地到后端 core。
+
+已完成：
+
+- Dashboard 分析后端重构第一阶段已经完成。
+- `core/diagnostics.py` 已定义中立 tick 诊断事实模型：
+  - `MatchEvaluation`
+  - typed `PolicyEvaluation` 变体
+  - `ControllerDecision`
+  - `ActuationOutcome`
+  - `SchedulerTickTrace`
+- `WEScheduler.on_tick` 当前直接产出 `SchedulerTickTrace`。
+- legacy `ui/dashboard.py::build_tick_state()` 当前只是把 `SchedulerTickTrace` 适配为旧 `TickState`，用于旧 Dashboard。
+
+尚未完成：
+
+- `GET /api/analysis/window` 等正式分析接口尚未实现。
+- `dashboard-v2` 仍未接入新的 analysis store / 时间轴 / 三栏分析页。
+- 旧 `/api/state`、`/api/ticks` 与 legacy `TickState` 仍作为兼容层存在，尚未删除。
+
+因此，后续 thread 若继续推进 Dashboard，应默认：
+
+- core 数据事实已经准备好；
+- 下一步重点是 API mapper 与 `dashboard-v2`，而不是再回去改 `TickState`。
+
 ## 1. 目标
 
 Dashboard 页必须满足以下目标：
@@ -31,7 +58,7 @@ Dashboard 页必须满足以下目标：
 
 结论：
 
-- 旧的 `TickState` 应当删去，不应继续扩展。
+- 旧的 `TickState` 作为正式分析契约应当删去，不应继续扩展。
 - 旧的 `/api/state` 与 `/api/ticks` 若只服务于旧 Dashboard，应在迁移后删除或改造成新分析接口。
 - 新 Dashboard 不应围绕“当前状态摘要”建模，而应围绕“tick 诊断快照”建模。
 
@@ -135,6 +162,12 @@ Dashboard 页必须满足以下目标：
 - `ControllerDiagnostic`
 - `ActionDecision`
 
+注意：
+
+- 这一节定义的是前端 analysis DTO，不是 core 领域对象。
+- 当前 core 已经产出的是 `SchedulerTickTrace` 及其内嵌的中立诊断类型。
+- API 层的职责是把 `SchedulerTickTrace` 映射成这里定义的 DTO，而不是继续从 `TickState` 反推。
+
 ### 6.1 TickSummary
 
 `TickSummary` 用于顶部时间轴。
@@ -161,18 +194,19 @@ type TickSummary = {
   reasonCode:
     | "no_match"
     | "hold_same_playlist"
-    | "switch_executed"
+    | "switch_allowed"
     | "switch_blocked_cooldown"
     | "switch_blocked_fullscreen"
     | "switch_blocked_cpu"
     | "switch_blocked_not_idle"
-    | "cycle_executed"
+    | "cycle_allowed"
     | "cycle_blocked_cooldown"
     | "cycle_blocked_fullscreen"
     | "cycle_blocked_cpu"
     | "cycle_blocked_not_idle"
     | "scheduler_paused"
   paused: boolean
+  executed: boolean
   hasEvent: boolean
 }
 ```
@@ -227,11 +261,10 @@ type TickSnapshot = {
   think: {
     rawContextVector: Array<{ tag: string; weight: number }>
     resolvedContextVector: Array<{ tag: string; weight: number }>
-    fallbackExpansions: Array<{
-      sourceTag: string
+    fallbackExpansions: Record<string, Array<{
       resolvedTag: string
       weight: number
-    }>
+    }>>
     policies: PolicyDiagnostic[]
   }
   act: {
@@ -259,8 +292,7 @@ type TickSnapshot = {
 建议结构：
 
 ```ts
-type PolicyDiagnostic = {
-  policyId: "activity" | "time" | "season" | "weather" | string
+type BasePolicyDiagnostic = {
   enabled: boolean
   active: boolean
   weightScale: number
@@ -271,24 +303,59 @@ type PolicyDiagnostic = {
   rawContribution: Array<{ tag: string; weight: number }>
   resolvedContribution: Array<{ tag: string; weight: number }>
   dominantTag: string | null
-  explanation: {
-    kind:
-      | "activity_process_rule"
-      | "activity_title_rule"
-      | "time_window"
-      | "season_window"
-      | "weather_code"
-      | "inactive"
-    label: string
-    details: Record<string, string | number | boolean | null>
-  }
 }
+
+type PolicyDiagnostic =
+  | (BasePolicyDiagnostic & {
+      policyId: "activity"
+      details: {
+        matchSource: "title" | "process" | "none"
+        matchedRule: string | null
+        matchedTag: string | null
+        windowTitle: string
+        process: string
+        emaActive: boolean
+      }
+    })
+  | (BasePolicyDiagnostic & {
+      policyId: "time"
+      details: {
+        auto: boolean
+        hour: number
+        virtualHour: number
+        dayStartHour: number
+        nightStartHour: number
+        peaks: Record<string, number>
+      }
+    })
+  | (BasePolicyDiagnostic & {
+      policyId: "season"
+      details: {
+        dayOfYear: number
+        peaks: Record<string, number>
+      }
+    })
+  | (BasePolicyDiagnostic & {
+      policyId: "weather"
+      details: {
+        weatherId: number | null
+        weatherMain: string | null
+        available: boolean
+        mapped: boolean
+      }
+    })
+  | (BasePolicyDiagnostic & {
+      policyId: string
+      details: Record<string, unknown>
+    })
 ```
 
 说明：
 
+- 当前 core 已经采用“每个 policy 自己携带 typed details”的方式，而不是通用 `explanation.kind + details` 魔法协议。
+- 前端 DTO 应优先延续这套 typed details 思路，而不是再退回弱类型解释对象。
 - `ActivityPolicy` 需要暴露究竟命中了 `process_rules` 还是 `title_rules`。
-- `TimePolicy` 需要暴露当前 hour、dominant tag，以及是否走了 sunrise/sunset 自动模式。
+- `TimePolicy` 需要暴露当前 hour，以及是否走了 sunrise/sunset 自动模式。
 - `WeatherPolicy` 需要暴露天气 `id` 与 `main`，否则 UI 无法解释天气贡献。
 
 ### 6.4 ControllerDiagnostic
@@ -297,16 +364,18 @@ type PolicyDiagnostic = {
 
 职责：
 
-- 把布尔 `can_switch` / `can_cycle` 还原为有原因的决策。
-- 回答“为什么这次没切”。
+- 暴露 controller 在本 tick 实际走到的那一路径评估。
+- 回答“为什么这次没切 / 为什么这次没轮播”。
+- 同时保留完整 blocker 事实，而不是只保留主因摘要。
 
 建议结构：
 
 ```ts
 type ControllerDiagnostic = {
-  switchEval: {
+  evaluation: {
+    operation: "switch" | "cycle"
     allowed: boolean
-    blockedBy: Array<"cooldown" | "fullscreen" | "cpu" | "idle" | "paused">
+    blockedBy: Array<"cooldown" | "fullscreen" | "cpu" | "idle">
     cooldownRemaining: number
     idleSeconds: number
     idleThreshold: number
@@ -314,19 +383,15 @@ type ControllerDiagnostic = {
     cpuThreshold: number | null
     fullscreen: boolean
     forceAfterRemaining: number | null
-  }
-  cycleEval: {
-    allowed: boolean
-    blockedBy: Array<"cooldown" | "fullscreen" | "cpu" | "idle" | "paused">
-    cooldownRemaining: number
-    idleSeconds: number
-    idleThreshold: number
-    cpuPercent: number
-    cpuThreshold: number | null
-    fullscreen: boolean
-  }
+  } | null
 }
 ```
+
+说明：
+
+- 不再同时暴露 `switchEval` / `cycleEval` 两份评估。
+- `evaluation` 只表示当前 tick 实际走到的动作路径。
+- `blockedBy` 必须保留全部 blocker；`ActionDecision.reasonCode` 只保留按优先级压缩后的主因。
 
 ### 6.5 ActionDecision
 
@@ -336,6 +401,7 @@ type ControllerDiagnostic = {
 
 - 为 `Act` 栏和时间轴 marker 提供统一动作结论。
 - 将“推荐结果”和“真实执行结果”联系起来。
+- 明确区分 controller 的“允许/阻止结论”和 actuator 的“是否真的执行成功”。
 
 建议结构：
 
@@ -345,23 +411,47 @@ type ActionDecision = {
   reasonCode:
     | "no_match"
     | "hold_same_playlist"
-    | "switch_executed"
+    | "switch_allowed"
     | "switch_blocked_cooldown"
     | "switch_blocked_fullscreen"
     | "switch_blocked_cpu"
     | "switch_blocked_not_idle"
-    | "cycle_executed"
+    | "cycle_allowed"
     | "cycle_blocked_cooldown"
     | "cycle_blocked_fullscreen"
     | "cycle_blocked_cpu"
     | "cycle_blocked_not_idle"
     | "scheduler_paused"
-  summary: string
+  executed: boolean
   activePlaylistBefore: string | null
   activePlaylistAfter: string | null
   matchedPlaylist: string | null
 }
 ```
+
+说明：
+
+- `reasonCode` 当前应表达 controller 的决策结论，例如 `switch_allowed`，而不是假装动作已经执行完成。
+- actuator 是否真的执行成功，使用独立的 `executed` 字段表达。
+
+### 6.6 当前 core 映射来源
+
+后续 analysis API 实现时，建议按下面的关系做映射：
+
+```text
+SchedulerTickTrace
+  -> TickSummary
+  -> TickSnapshot
+     -> PolicyDiagnostic[]
+     -> ControllerDiagnostic
+     -> ActionDecision
+```
+
+说明：
+
+- `TickSummary / TickSnapshot` 是前端 DTO。
+- `SchedulerTickTrace` 是当前已经落地的后端中立事实模型。
+- legacy `TickState` 不应再作为分析页 DTO 的中间模型。
 
 ## 7. Weather 的可用性 / 过期语义
 
@@ -411,6 +501,12 @@ type TickWindowResponse = {
 - `count=900` 对应最近约 15 分钟，按 1 秒 1 tick 计算。
 - 若后续需要更长窗口，可继续放大 ring buffer。
 - 第一版不需要 `GET /api/analysis/ticks/:id` 这类 detail-only 接口。
+
+当前实现说明：
+
+- 新 analysis API 的输入源应为 `SchedulerTickTrace`。
+- 现有 legacy `/api/state` 与 `/api/ticks` 仍通过 `ui/dashboard.py::build_tick_state()` 走 `SchedulerTickTrace -> TickState` 兼容映射。
+- 后续 thread 不应继续把 `TickState` 当作分析 API 的中间模型。
 
 ## 9. 前端状态模型
 
@@ -508,7 +604,7 @@ type DashboardAnalysisStore = {
 
 建议按以下顺序落地：
 
-1. 后端先定义新的 tick 诊断快照模型。
+1. 后端先定义新的 tick 诊断快照模型。已完成（core phase 1）。
 2. 后端增加新的 analysis window 接口。
 3. 前端建立 Pinia store 与类型定义。
 4. 前端接入顶部时间轴与三栏分析页。

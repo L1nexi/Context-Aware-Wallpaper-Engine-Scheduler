@@ -4,6 +4,22 @@
 
 Config 页的目标不是“把 `scheduler_config.json` 可视化”，而是让用户在不理解 JSON 嵌套结构的前提下，完成对调度器的正式配置。
 
+## 0. 实施状态（2026-05-04）
+
+本 spec 当前仍然基本处于“目标设计”阶段，尚未进入正式实现。
+
+当前事实：
+
+- 当前运行时仍使用 legacy Dashboard 的配置页。
+- `dashboard-v2` 尚未接入本 spec 定义的 Config 路由、Sidebar 二级章节、browser/detail 工作台或 policies 顶部 selector。
+- 后端 `GET /api/config` 仍返回原始 JSON，而不是 `current + defaults + capabilities`。
+- `utils/config_loader.py` 当前仍允许 `policies` 下未知 key：`PoliciesConfig.model_config = ConfigDict(extra="allow")`。
+
+结论：
+
+- 这份文档目前主要定义的是下一阶段的实现目标，而不是当前行为。
+- 如果后续 thread 开始做 Config 重构，应先从后端 schema 与 `/api/config` 契约开始，而不是先做纯前端表单壳子。
+
 ## 1. 目标
 
 Config 页必须满足以下目标：
