@@ -1,4 +1,4 @@
-# Dashboard Analysis Implementation Spec
+# Dashboard Analysis Implementation Spec - [DONE]
 
 本文档收敛 `Dashboard Analysis v1` 的具体实现决策。  
 [DASHBOARD_ANALYSIS_SPEC.md](./DASHBOARD_ANALYSIS_SPEC.md) 继续承担整体框架、目标和 DTO 契约定义；本文档只负责把当前已经达成共识的交互、状态模型和信息密度规则写死，避免实现阶段反复改方向。

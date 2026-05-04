@@ -1,4 +1,4 @@
-# Dashboard Analysis Spec
+# Dashboard Analysis Spec -[DONE]
 
 本文档定义 `dashboard-v2` 中 Dashboard 页的目标、信息架构、交互模型与后端数据契约。
 

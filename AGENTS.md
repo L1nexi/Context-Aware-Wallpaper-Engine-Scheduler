@@ -28,7 +28,7 @@
   - Dashboard 子进程只负责打开 pywebview 窗口
 - `ui/webview.py` 关闭窗口时只退出 dashboard 子进程，不应影响托盘宿主。
 
-### 2.1 `dashboard-v2` 是新的前端基座，但还没有接线完成
+### 2.1 `dashboard-v2` 是新的前端基座，但仍处在建设中
 
 `dashboard-v2/` 当前已经具备这些基础：
 
@@ -39,18 +39,17 @@
 - `Pinia` 依赖和 `src/stores/` 目录
 - `vue-router` hash 路由
 - `base: './'`
+- dashboard 应用已基本完成实现
+- pywebview 已经接入 `dashboard-v2/dist/` 目录并能正常加载
 
 但它仍然不是功能完成态：
 
 - 路由目前只有 `/`
-- `src/views/DashboardView.vue` 初步完成，仍有 BUG
-- `src/stores/` 目前为空
-- `src/composables/useApi.ts` 仍沿用旧 `TickState` + `/api/state` `/api/ticks` 的临时轮询模型
+- History 和 Config Editor 页面还没做
 
 结论：
 
 - `dashboard-v2` 是当前前端开发标准和重写主战场
-- 但它还没有完成对旧前端的功能替换，也没有接入正式运行时
 
 ### 2.2 Dashboard 分析后端重构已完成第一阶段
 
@@ -76,7 +75,7 @@
 
 ### 2.3 Dashboard DTO 模型已经重构完成
 
-- `GET /api/analysis/window` 已经重构为返回 `TickSnapshot` 列表，每个 `TickSnapshot` 由 `SchedulerTickTrace` 转换而来，具体定义参考 `ui/dashboard_analysis.py` 
+- `GET /api/analysis/window` 已经重构为返回 `TickSnapshot` 列表，每个 `TickSnapshot` 由 `SchedulerTickTrace` 转换而来，具体定义参考 `ui/dashboard_analysis.py`
 
 ### 2.4 Dashboard 的前后端联调辅助设施已上线
 
@@ -105,17 +104,6 @@ npm run dev
 - Router 使用 `createWebHashHistory()`
 - Locale 继续通过 dashboard URL query 传入
 - pywebview 仍然加载本地 HTTP server 暴露的页面
-
-### 3.2 如果你要让 `dashboard-v2` 接管正式运行时
-
-至少同步检查这些位置：
-
-- `ui/dashboard.py`
-- `ui/webview.py`
-- `scripts/build.bat`
-- `WEScheduler.spec`
-- `dist/` 目录的来源与目标
-- 当前 URL / hash 路由 / `?locale=` 假设
 
 ## 4. 后端与 API 现状
 
@@ -197,4 +185,4 @@ npm run build-only
 - 如果任务属于 Dashboard 重写的下一阶段，默认假设 core 诊断链已经完成；除非发现 spec 与实现冲突，否则不要回退去重做 `core/controller.py`、`core/actuator.py`、`core/diagnostics.py` 的基础建模。
 - 如果任务需要 breaking change，就连同调用方、测试、静态资源接线一起改，不要把过渡态长期留在主线上。
 - 不要把 `dashboard-v2` 的工程规范退化回旧式做法：大段 scoped CSS、页面私有全局类、绕开 token 的硬编码颜色/尺寸、用局部状态假装全局状态。
-- 尽量复用 `dashboard-v2/src/components/ui/workbench/*`、现有 token、Tailwind utility 和 Pinia 方向，而不是回到 `dashboard/` 的 Element Plus 心智。
+- 尽量复用 `dashboard-v2/src/components/ui/workbench/*`、现有 token、Tailwind utility 和 Pinia 方向。

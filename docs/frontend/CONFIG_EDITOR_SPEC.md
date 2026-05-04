@@ -277,6 +277,7 @@ Config 工作区只分为两类布局：
 - `Identity`
   - `name`
   - `display`
+  - `color`
 - `Tag Vector`
   - tags 列表
   - tag 权重编辑
