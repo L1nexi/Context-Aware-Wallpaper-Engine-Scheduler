@@ -1,4 +1,5 @@
 import './style.css'
+import './plugins/echarts'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'

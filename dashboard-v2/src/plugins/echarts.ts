@@ -1,6 +1,15 @@
 import { use } from 'echarts/core'
-import { LineChart, GaugeChart, CustomChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent } from 'echarts/components'
+import { LineChart, GaugeChart, CustomChart, ScatterChart } from 'echarts/charts'
+import { AxisPointerComponent, GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
-use([LineChart, GaugeChart, CustomChart, GridComponent, TooltipComponent, CanvasRenderer])
+use([
+  LineChart,
+  GaugeChart,
+  CustomChart,
+  ScatterChart,
+  GridComponent,
+  TooltipComponent,
+  AxisPointerComponent,
+  CanvasRenderer,
+])

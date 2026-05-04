@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { RouterLink } from 'vue-router'
+
 import { Button } from '@/components/ui/button'
 import {
   WorkbenchHeader,
@@ -11,19 +12,26 @@ import {
   WorkbenchSidebar,
   WorkbenchWorkspace,
 } from '@/components/ui/workbench'
-import { cn } from '@/lib/utils'
 import { useI18n } from '@/composables/useI18n'
+import ActPanel from '@/features/dashboard-analysis/ActPanel.vue'
+import DashboardTimeline from '@/features/dashboard-analysis/DashboardTimeline.vue'
+import SensePanel from '@/features/dashboard-analysis/SensePanel.vue'
+import ThinkPanel from '@/features/dashboard-analysis/ThinkPanel.vue'
+import { cn } from '@/lib/utils'
 import { useDashboardAnalysisStore } from '@/stores/dashboardAnalysis'
 
-const { t, lang } = useI18n()
+const { t } = useI18n()
 const dashboardAnalysisStore = useDashboardAnalysisStore()
 
 const {
   activeTick,
+  activeTickId,
   error,
+  hasUnseenLiveTicks,
   isDisconnected,
-  latestTickId,
-  windowCount,
+  mode,
+  newTicksSinceLocked,
+  timelineTicks,
   workspaceState,
 } = storeToRefs(dashboardAnalysisStore)
 
@@ -34,33 +42,6 @@ onMounted(() => {
 onUnmounted(() => {
   dashboardAnalysisStore.stopPolling()
 })
-
-const timestampFormatter = computed(
-  () =>
-    new Intl.DateTimeFormat(lang.value, {
-      dateStyle: 'medium',
-      timeStyle: 'medium',
-    }),
-)
-
-const latestTimestamp = computed(() => {
-  const timestamp = activeTick.value?.summary.ts
-  if (timestamp === undefined) {
-    return t('dashboard_metric_unavailable')
-  }
-
-  return timestampFormatter.value.format(new Date(timestamp * 1000))
-})
-
-const latestTickIdLabel = computed(() => {
-  if (latestTickId.value === null) {
-    return t('dashboard_metric_unavailable')
-  }
-
-  return String(latestTickId.value)
-})
-
-const windowCountLabel = computed(() => String(windowCount.value))
 
 const statusLabel = computed(() =>
   isDisconnected.value ? t('dashboard_disconnected_status') : t('dashboard_live_status'),
@@ -74,6 +55,16 @@ const statusBadgeClass = computed(() =>
       : 'border-primary/20 bg-primary/10 text-primary',
   ),
 )
+
+const headerHint = computed(() => {
+  if (isDisconnected.value) {
+    return t('dashboard_disconnect_notice')
+  }
+
+  return mode.value === 'snapshot'
+    ? t('dashboard_snapshot_header_hint')
+    : t('dashboard_live_hint')
+})
 </script>
 
 <template>
@@ -121,27 +112,27 @@ const statusBadgeClass = computed(() =>
               />
               {{ statusLabel }}
             </span>
+            <span
+              v-if="mode === 'snapshot'"
+              class="hidden rounded-full border border-border/70 bg-muted/70 px-3 py-1 text-xs font-medium text-muted-foreground md:inline-flex"
+            >
+              {{ t('dashboard_snapshot_status') }}
+            </span>
           </div>
         </div>
 
-        <p class="hidden text-sm text-muted-foreground md:block">
-          {{
-            isDisconnected
-              ? t('dashboard_disconnect_notice')
-              : t('dashboard_live_hint')
-          }}
+        <p class="hidden max-w-xl text-right text-sm text-muted-foreground md:block">
+          {{ headerHint }}
         </p>
       </WorkbenchHeader>
 
       <WorkbenchMain>
         <WorkbenchPanel
+          v-if="workspaceState === 'loading'"
           padding="lg"
           class="flex min-h-[28rem] flex-1 flex-col justify-center"
         >
-          <div
-            v-if="workspaceState === 'loading'"
-            class="mx-auto flex max-w-xl flex-col items-center gap-4 text-center"
-          >
+          <div class="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
             <div class="chrome-kicker">{{ t('dashboard_shell_title') }}</div>
             <h3 class="text-2xl font-semibold tracking-tight">
               {{ t('dashboard_loading_title') }}
@@ -150,11 +141,14 @@ const statusBadgeClass = computed(() =>
               {{ t('dashboard_loading_body') }}
             </p>
           </div>
+        </WorkbenchPanel>
 
-          <div
-            v-else-if="workspaceState === 'error'"
-            class="mx-auto flex max-w-xl flex-col items-center gap-5 text-center"
-          >
+        <WorkbenchPanel
+          v-else-if="workspaceState === 'error'"
+          padding="lg"
+          class="flex min-h-[28rem] flex-1 flex-col justify-center"
+        >
+          <div class="mx-auto flex max-w-xl flex-col items-center gap-5 text-center">
             <div class="chrome-kicker">{{ t('dashboard_shell_title') }}</div>
             <h3 class="text-2xl font-semibold tracking-tight">
               {{ t('dashboard_error_title') }}
@@ -176,11 +170,14 @@ const statusBadgeClass = computed(() =>
               {{ t('dashboard_retry') }}
             </Button>
           </div>
+        </WorkbenchPanel>
 
-          <div
-            v-else-if="workspaceState === 'empty'"
-            class="mx-auto flex max-w-xl flex-col items-center gap-4 text-center"
-          >
+        <WorkbenchPanel
+          v-else-if="workspaceState === 'empty'"
+          padding="lg"
+          class="flex min-h-[28rem] flex-1 flex-col justify-center"
+        >
+          <div class="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
             <div class="chrome-kicker">{{ t('dashboard_shell_title') }}</div>
             <h3 class="text-2xl font-semibold tracking-tight">
               {{ t('dashboard_empty_title') }}
@@ -189,57 +186,39 @@ const statusBadgeClass = computed(() =>
               {{ t('dashboard_empty_body') }}
             </p>
           </div>
-
-          <div v-else class="flex flex-col gap-6">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="space-y-2">
-                <p class="chrome-kicker">{{ t('dashboard_shell_title') }}</p>
-                <h3 class="text-2xl font-semibold tracking-tight">
-                  {{ t('dashboard_live_title') }}
-                </h3>
-                <p class="max-w-2xl text-sm leading-6 text-muted-foreground">
-                  {{ t('dashboard_live_body') }}
-                </p>
-              </div>
-
-              <div
-                v-if="isDisconnected"
-                class="rounded-2xl border border-destructive/15 bg-destructive/6 px-4 py-3 text-sm text-foreground"
-              >
-                {{ t('dashboard_disconnect_notice') }}
-              </div>
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-3">
-              <section
-                class="rounded-3xl border border-border/70 bg-background/70 p-5 shadow-sm"
-              >
-                <p class="chrome-kicker">{{ t('dashboard_metric_latest_tick') }}</p>
-                <p class="mt-3 text-3xl font-semibold tracking-tight data-mono">
-                  {{ latestTickIdLabel }}
-                </p>
-              </section>
-
-              <section
-                class="rounded-3xl border border-border/70 bg-background/70 p-5 shadow-sm"
-              >
-                <p class="chrome-kicker">{{ t('dashboard_metric_latest_timestamp') }}</p>
-                <p class="mt-3 text-lg font-medium tracking-tight data-mono">
-                  {{ latestTimestamp }}
-                </p>
-              </section>
-
-              <section
-                class="rounded-3xl border border-border/70 bg-background/70 p-5 shadow-sm"
-              >
-                <p class="chrome-kicker">{{ t('dashboard_metric_window_count') }}</p>
-                <p class="mt-3 text-3xl font-semibold tracking-tight data-mono">
-                  {{ windowCountLabel }}
-                </p>
-              </section>
-            </div>
-          </div>
         </WorkbenchPanel>
+
+        <template v-else-if="activeTick !== null">
+          <WorkbenchPanel padding="lg">
+            <DashboardTimeline
+              :ticks="timelineTicks"
+              :active-tick-id="activeTickId"
+              :mode="mode"
+              :is-disconnected="isDisconnected"
+              :new-ticks-since-locked="newTicksSinceLocked"
+              :has-unseen-live-ticks="hasUnseenLiveTicks"
+              @hover-tick="dashboardAnalysisStore.hoverTick"
+              @clear-hover="dashboardAnalysisStore.clearHover"
+              @lock-tick="dashboardAnalysisStore.lockTick"
+              @unlock-to-live="dashboardAnalysisStore.unlockToLive"
+              @step="dashboardAnalysisStore.stepLockedTick"
+            />
+          </WorkbenchPanel>
+
+          <div class="grid gap-4 xl:grid-cols-[0.95fr_1.1fr_1fr]">
+            <WorkbenchPanel padding="lg">
+              <SensePanel :tick="activeTick" />
+            </WorkbenchPanel>
+
+            <WorkbenchPanel padding="lg">
+              <ThinkPanel :tick="activeTick" />
+            </WorkbenchPanel>
+
+            <WorkbenchPanel padding="lg">
+              <ActPanel :tick="activeTick" />
+            </WorkbenchPanel>
+          </div>
+        </template>
       </WorkbenchMain>
     </WorkbenchWorkspace>
   </WorkbenchShell>

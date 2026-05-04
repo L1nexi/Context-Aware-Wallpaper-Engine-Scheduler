@@ -20,6 +20,7 @@ export type ActionReasonCode =
 
 export type ControllerBlocker = 'cooldown' | 'fullscreen' | 'cpu' | 'idle'
 export type ControllerOperation = 'switch' | 'cycle'
+export type PolicyId = 'activity' | 'time' | 'season' | 'weather'
 
 export interface TagWeight {
   tag: string
@@ -90,7 +91,7 @@ export interface WeatherPolicyDetails {
 }
 
 export interface BasePolicyDiagnostic {
-  policyId: string
+  policyId: PolicyId
   enabled: boolean
   active: boolean
   weightScale: number
@@ -104,18 +105,22 @@ export interface BasePolicyDiagnostic {
 }
 
 export interface ActivityPolicyDiagnostic extends BasePolicyDiagnostic {
+  policyId: 'activity'
   details: ActivityPolicyDetails
 }
 
 export interface TimePolicyDiagnostic extends BasePolicyDiagnostic {
+  policyId: 'time'
   details: TimePolicyDetails
 }
 
 export interface SeasonPolicyDiagnostic extends BasePolicyDiagnostic {
+  policyId: 'season'
   details: SeasonPolicyDetails
 }
 
 export interface WeatherPolicyDiagnostic extends BasePolicyDiagnostic {
+  policyId: 'weather'
   details: WeatherPolicyDetails
 }
 
