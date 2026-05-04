@@ -13,13 +13,18 @@ import logging
 import os
 import sys
 import threading
+from collections.abc import Callable
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 from typing import TYPE_CHECKING
 
 import bottle
 
-from ui.dashboard_analysis import AnalysisStore
+from ui.dashboard_analysis import (
+    AnalysisStore,
+    DashboardRuntimeMetadata,
+    build_tick_window_response,
+)
 from utils.app_context import get_app_root
 from utils.config_loader import AppConfig
 
@@ -60,12 +65,21 @@ def _parse_positive_count(raw_value: str) -> int:
     return count
 
 
+MetadataProvider = Callable[[], DashboardRuntimeMetadata]
+
+
+def _empty_metadata() -> DashboardRuntimeMetadata:
+    return DashboardRuntimeMetadata(display_of={}, color_of={})
+
+
 def _build_app(
     analysis_store: AnalysisStore,
     history_logger: EventLogger | None = None,
     config_path: str = "",
+    metadata_provider: MetadataProvider | None = None,
 ) -> bottle.Bottle:
     app = bottle.Bottle()
+    resolve_metadata = metadata_provider or _empty_metadata
 
     @app.route("/api/analysis/window")
     def api_analysis_window():
@@ -77,8 +91,10 @@ def _build_app(
             bottle.response.content_type = "application/json; charset=utf-8"
             return json.dumps({"error": "invalid_count"})
 
+        window = analysis_store.read_window(count)
+        payload = build_tick_window_response(window, resolve_metadata())
         bottle.response.content_type = "application/json; charset=utf-8"
-        return json.dumps(analysis_store.read_window(count))
+        return json.dumps(payload)
 
     @app.route("/api/health")
     def api_health():
@@ -254,18 +270,28 @@ class DashboardHTTPServer:
         history_logger: EventLogger | None = None,
         config_path: str = "",
         requested_port: int = 0,
+        metadata_provider: MetadataProvider | None = None,
     ):
+        """
+        metadata_provider: callback to get metadata at request time, showing the latest metadata in case of hotreload
+        """
         self._analysis_store = analysis_store
         self._history: EventLogger | None = history_logger
         self._config_path = config_path
         self._requested_port = requested_port
+        self._metadata_provider = metadata_provider
         self._httpd: _ThreadingWSGIServer | None = None
         self._thread: threading.Thread | None = None
         self.port: int = 0
 
     def start(self) -> None:
         os.makedirs(_resolve_static_root(), exist_ok=True)
-        app = _build_app(self._analysis_store, self._history, self._config_path)
+        app = _build_app(
+            self._analysis_store,
+            self._history,
+            self._config_path,
+            self._metadata_provider,
+        )
 
         try:
             self._httpd = make_server(

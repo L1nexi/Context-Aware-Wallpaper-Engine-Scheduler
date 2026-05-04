@@ -3,6 +3,7 @@ import type {
   ActionReasonCode,
   ControllerBlocker,
   ControllerEvaluation,
+  PlaylistRef,
   PolicyDiagnostic,
   PolicyId,
   TopMatch,
@@ -18,16 +19,15 @@ export interface SummaryField {
   value: string
 }
 
-function formatPlaylistName(
-  playlist: string | null | undefined,
-  display: string | null | undefined,
+function formatPlaylistRef(
+  playlist: PlaylistRef | null | undefined,
   t: Translate,
 ): string {
-  return display ?? playlist ?? t('dashboard_none')
+  return playlist?.display ?? playlist?.name ?? t('dashboard_none')
 }
 
 export function getTopMatchName(match: TopMatch, t: Translate): string {
-  return formatPlaylistName(match.playlist, match.display, t)
+  return formatPlaylistRef(match.playlist, t)
 }
 
 export function getTickPlaylistLabel(
@@ -35,17 +35,8 @@ export function getTickPlaylistLabel(
   type: 'active' | 'matched',
   t: Translate,
 ): string {
-  if (type === 'active') {
-    return formatPlaylistName(
-      tick.summary.activePlaylist,
-      tick.summary.activePlaylistDisplay,
-      t,
-    )
-  }
-
-  return formatPlaylistName(
-    tick.summary.matchedPlaylist,
-    tick.summary.matchedPlaylistDisplay,
+  return formatPlaylistRef(
+    type === 'active' ? tick.summary.activePlaylist : tick.summary.matchedPlaylist,
     t,
   )
 }
@@ -224,16 +215,8 @@ export function getDecisionSummary(
   tick: TickSnapshot,
   t: Translate,
 ): string {
-  const activeBefore = formatPlaylistName(
-    decision.activePlaylistBefore,
-    null,
-    t,
-  )
-  const activeAfter = formatPlaylistName(
-    decision.activePlaylistAfter,
-    tick.summary.activePlaylistDisplay,
-    t,
-  )
+  const activeBefore = formatPlaylistRef(decision.activePlaylistBefore, t)
+  const activeAfter = formatPlaylistRef(decision.activePlaylistAfter, t)
 
   switch (decision.kind) {
     case 'switch':

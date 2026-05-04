@@ -35,7 +35,7 @@ from ui.dashboard import (
     _flatten_errors,
     _resolve_static_root,
 )
-from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
+from ui.dashboard_analysis import AnalysisStore, DashboardRuntimeMetadata, build_tick_snapshot
 
 
 @pytest.fixture
@@ -199,16 +199,20 @@ def _find_free_port() -> int:
 
 
 def test_analysis_store_read_window_empty(analysis_store):
-    assert analysis_store.read_window() == {"liveTickId": None, "ticks": []}
+    window = analysis_store.read_window()
+
+    assert window.live_tick_id is None
+    assert window.traces == []
 
 
 def test_analysis_store_read_window_returns_recent(analysis_store):
     for tick_id in range(1, 6):
-        analysis_store.update({"summary": {"tickId": tick_id}, "sense": {}, "think": {}, "act": {}})
+        analysis_store.update(_make_trace(tick_id=tick_id))
 
     window = analysis_store.read_window(2)
-    assert window["liveTickId"] == 5
-    assert [tick["summary"]["tickId"] for tick in window["ticks"]] == [4, 5]
+
+    assert window.live_tick_id == 5
+    assert [trace.tick_id for trace in window.traces] == [4, 5]
 
 
 def test_build_tick_snapshot_maps_analysis_fields():
@@ -292,22 +296,54 @@ def test_build_tick_snapshot_maps_analysis_fields():
     snapshot = build_tick_snapshot(scheduler, trace)
 
     assert snapshot["summary"]["tickId"] == 7
-    assert snapshot["summary"]["activePlaylist"] == "idle"
-    assert snapshot["summary"]["activePlaylistColor"] == "#2E5F8A"
-    assert snapshot["summary"]["matchedPlaylist"] == "focus"
-    assert snapshot["summary"]["matchedPlaylistDisplay"] == "Focus Flow"
-    assert snapshot["summary"]["matchedPlaylistColor"] == "#F5C518"
+    assert snapshot["summary"]["activePlaylist"] == {
+        "name": "idle",
+        "display": "idle",
+        "color": "#2E5F8A",
+    }
+    assert snapshot["summary"]["matchedPlaylist"] == {
+        "name": "focus",
+        "display": "Focus Flow",
+        "color": "#F5C518",
+    }
+    assert "activePlaylistDisplay" not in snapshot["summary"]
+    assert "activePlaylistColor" not in snapshot["summary"]
+    assert "matchedPlaylistDisplay" not in snapshot["summary"]
+    assert "matchedPlaylistColor" not in snapshot["summary"]
     assert "enabled" not in snapshot["sense"]["weather"]
     assert snapshot["sense"]["weather"]["available"] is True
     assert snapshot["sense"]["weather"]["stale"] is True
     assert snapshot["think"]["fallbackExpansions"]["#storm"][0]["resolvedTag"] == "#rain"
     assert snapshot["think"]["policies"][0]["policyId"] == "activity"
     assert snapshot["think"]["policies"][1]["details"]["mapped"] is True
-    assert snapshot["act"]["topMatches"][0]["display"] == "Focus Flow"
-    assert snapshot["act"]["topMatches"][0]["color"] == "#F5C518"
-    assert snapshot["act"]["topMatches"][1]["color"] == "#4A90D9"
+    assert snapshot["act"]["topMatches"][0]["playlist"] == {
+        "name": "focus",
+        "display": "Focus Flow",
+        "color": "#F5C518",
+    }
+    assert snapshot["act"]["topMatches"][0]["score"] == 0.91
+    assert snapshot["act"]["topMatches"][1]["playlist"] == {
+        "name": "rainy",
+        "display": "Rainy Mood",
+        "color": "#4A90D9",
+    }
     assert snapshot["act"]["controller"]["evaluation"]["operation"] == "switch"
     assert snapshot["act"]["decision"]["reasonCode"] == "switch_blocked_cooldown"
+    assert snapshot["act"]["decision"]["activePlaylistBefore"] == {
+        "name": "idle",
+        "display": "idle",
+        "color": "#2E5F8A",
+    }
+    assert snapshot["act"]["decision"]["activePlaylistAfter"] == {
+        "name": "idle",
+        "display": "idle",
+        "color": "#2E5F8A",
+    }
+    assert snapshot["act"]["decision"]["matchedPlaylist"] == {
+        "name": "focus",
+        "display": "Focus Flow",
+        "color": "#F5C518",
+    }
 
 
 def test_build_tick_snapshot_maps_paused_tick():
@@ -333,12 +369,57 @@ def test_build_tick_snapshot_maps_paused_tick():
     assert snapshot["summary"]["actionKind"] == "pause"
     assert snapshot["summary"]["paused"] is True
     assert snapshot["summary"]["hasEvent"] is False
-    assert snapshot["summary"]["activePlaylistColor"] == "#F5C518"
-    assert snapshot["summary"]["matchedPlaylistColor"] == "#4A90D9"
+    assert snapshot["summary"]["activePlaylist"] == {
+        "name": "focus",
+        "display": "focus",
+        "color": "#F5C518",
+    }
+    assert snapshot["summary"]["matchedPlaylist"] == {
+        "name": "rainy",
+        "display": "rainy",
+        "color": "#4A90D9",
+    }
     assert snapshot["sense"]["weather"]["available"] is False
     assert snapshot["act"]["controller"]["evaluation"] is None
-    assert snapshot["act"]["decision"]["activePlaylistAfter"] == "focus"
-    assert snapshot["act"]["decision"]["matchedPlaylist"] == "rainy"
+    assert snapshot["act"]["decision"]["activePlaylistAfter"] == {
+        "name": "focus",
+        "display": "focus",
+        "color": "#F5C518",
+    }
+    assert snapshot["act"]["decision"]["matchedPlaylist"] == {
+        "name": "rainy",
+        "display": "rainy",
+        "color": "#4A90D9",
+    }
+
+
+def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
+    scheduler = _make_scheduler()
+    trace = _make_trace(
+        tick_id=9,
+        active_playlist_before="",
+        active_playlist_after="unknown_active",
+        matched_playlist="unknown_match",
+        executed=False,
+        action_kind=ActionKind.HOLD,
+        reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
+        evaluation=None,
+        weather=None,
+    )
+
+    snapshot = build_tick_snapshot(scheduler, trace)
+
+    assert snapshot["summary"]["activePlaylist"] == {
+        "name": "unknown_active",
+        "display": "unknown_active",
+        "color": None,
+    }
+    assert snapshot["summary"]["matchedPlaylist"] == {
+        "name": "unknown_match",
+        "display": "unknown_match",
+        "color": None,
+    }
+    assert snapshot["act"]["decision"]["activePlaylistBefore"] is None
 
 
 def test_api_analysis_window_empty(app):
@@ -350,7 +431,7 @@ def test_api_analysis_window_empty(app):
 def test_api_analysis_window_returns_recent(analysis_store, history_logger, config_path):
     app = _build_app(analysis_store, history_logger, config_path)
     for tick_id in range(1, 5):
-        analysis_store.update({"summary": {"tickId": tick_id}, "sense": {}, "think": {}, "act": {}})
+        analysis_store.update(_make_trace(tick_id=tick_id))
 
     status, body = wsgi_request(app, "GET", "/api/analysis/window", query="count=2")
     assert "200" in status
@@ -358,57 +439,52 @@ def test_api_analysis_window_returns_recent(analysis_store, history_logger, conf
     assert [tick["summary"]["tickId"] for tick in body["ticks"]] == [3, 4]
 
 
-def test_api_analysis_window_applies_current_playlist_colors(analysis_store, history_logger, config_path):
-    app = _build_app(analysis_store, history_logger, config_path)
+def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
+    analysis_store,
+    history_logger,
+    config_path,
+):
+    metadata = DashboardRuntimeMetadata(
+        display_of={"test_pl": "Test Playlist"},
+        color_of={"test_pl": "#5BB8D4"},
+    )
+    app = _build_app(
+        analysis_store,
+        history_logger,
+        config_path,
+        metadata_provider=lambda: metadata,
+    )
     analysis_store.update(
-        {
-            "summary": {
-                "tickId": 1,
-                "activePlaylist": "test_pl",
-                "activePlaylistDisplay": "Stale Display",
-                "activePlaylistColor": "#000000",
-                "matchedPlaylist": "missing_playlist",
-                "matchedPlaylistDisplay": "Missing Playlist",
-                "matchedPlaylistColor": "#111111",
-            },
-            "sense": {},
-            "think": {},
-            "act": {
-                "topMatches": [
-                    {
-                        "playlist": "test_pl",
-                        "display": "Stale Display",
-                        "score": 0.91,
-                        "color": "#222222",
-                    },
-                    {
-                        "playlist": "missing_playlist",
-                        "display": "Missing Playlist",
-                        "score": 0.66,
-                        "color": "#333333",
-                    },
-                ],
-                "controller": {"evaluation": None},
-                "decision": {
-                    "kind": "hold",
-                    "reasonCode": "hold_same_playlist",
-                    "executed": False,
-                    "activePlaylistBefore": "test_pl",
-                    "activePlaylistAfter": "test_pl",
-                    "matchedPlaylist": "missing_playlist",
-                },
-            },
-        }
+        _make_trace(
+            tick_id=1,
+            active_playlist_before="test_pl",
+            active_playlist_after="test_pl",
+            matched_playlist="missing_playlist",
+            executed=False,
+            action_kind=ActionKind.HOLD,
+            reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
+        )
     )
 
     status, body = wsgi_get(app, "/api/analysis/window")
 
     assert "200" in status
     tick = body["ticks"][0]
-    assert tick["summary"]["activePlaylistColor"] == "#5BB8D4"
-    assert tick["summary"]["matchedPlaylistColor"] is None
-    assert tick["act"]["topMatches"][0]["color"] == "#5BB8D4"
-    assert tick["act"]["topMatches"][1]["color"] is None
+    assert tick["summary"]["activePlaylist"] == {
+        "name": "test_pl",
+        "display": "Test Playlist",
+        "color": "#5BB8D4",
+    }
+    assert tick["summary"]["matchedPlaylist"] == {
+        "name": "missing_playlist",
+        "display": "missing_playlist",
+        "color": None,
+    }
+    assert tick["act"]["topMatches"][0]["playlist"] == {
+        "name": "focus",
+        "display": "focus",
+        "color": None,
+    }
 
 
 def test_api_analysis_window_invalid_count(app):

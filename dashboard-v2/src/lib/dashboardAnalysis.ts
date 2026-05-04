@@ -147,20 +147,24 @@ export interface ControllerDiagnostic {
   evaluation: ControllerEvaluation | null
 }
 
+export interface PlaylistRef {
+  name: string
+  display: string
+  color: string
+}
+
 export interface ActionDecision {
   kind: ActionKind
   reasonCode: ActionReasonCode
   executed: boolean
-  activePlaylistBefore: string | null
-  activePlaylistAfter: string | null
-  matchedPlaylist: string | null
+  activePlaylistBefore: PlaylistRef | null
+  activePlaylistAfter: PlaylistRef | null
+  matchedPlaylist: PlaylistRef | null
 }
 
 export interface TopMatch {
-  playlist: string
-  display: string | null
+  playlist: PlaylistRef
   score: number
-  color: string | null
 }
 
 export interface SenseSnapshot {
@@ -190,12 +194,8 @@ export interface TickSummary {
   ts: number
   similarity: number
   similarityGap: number
-  activePlaylist: string | null
-  activePlaylistDisplay: string | null
-  activePlaylistColor: string | null
-  matchedPlaylist: string | null
-  matchedPlaylistDisplay: string | null
-  matchedPlaylistColor: string | null
+  activePlaylist: PlaylistRef | null
+  matchedPlaylist: PlaylistRef | null
   actionKind: ActionKind
   reasonCode: ActionReasonCode
   paused: boolean

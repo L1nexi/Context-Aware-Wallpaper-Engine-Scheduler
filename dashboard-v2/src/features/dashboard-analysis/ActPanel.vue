@@ -23,6 +23,18 @@ const { t, lang } = useI18n()
 const topMatches = computed(() => props.tick.act.topMatches.slice(0, 5))
 const decisionSummary = computed(() => getDecisionSummary(props.tick.act.decision, props.tick, t))
 const matchedPlaylistLabel = computed(() => getTickPlaylistLabel(props.tick, 'matched', t))
+const activePlaylistBeforeLabel = computed(
+  () =>
+    props.tick.act.decision.activePlaylistBefore?.display ??
+    props.tick.act.decision.activePlaylistBefore?.name ??
+    t('dashboard_none'),
+)
+const activePlaylistAfterLabel = computed(
+  () =>
+    props.tick.act.decision.activePlaylistAfter?.display ??
+    props.tick.act.decision.activePlaylistAfter?.name ??
+    t('dashboard_none'),
+)
 const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
 </script>
 
@@ -54,13 +66,13 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
         <div v-if="topMatches.length > 0" class="mt-4 space-y-3">
           <div
             v-for="match in topMatches"
-            :key="match.playlist"
+            :key="match.playlist.name"
             class="flex items-center justify-between gap-4 rounded-2xl border border-border/70 bg-muted/35 px-3 py-3"
           >
             <div class="flex min-w-0 items-center gap-3">
               <span
                 class="size-3 rounded-full border border-background/70"
-                :style="{ backgroundColor: match.color ?? mutedPlaylistColor }"
+                :style="{ backgroundColor: match.playlist.color ?? mutedPlaylistColor }"
               />
               <span class="truncate font-medium">
                 {{ getTopMatchName(match, t) }}
@@ -123,14 +135,14 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
             <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
               <dt class="text-xs text-muted-foreground">{{ t('dashboard_active_before') }}</dt>
               <dd class="mt-1 font-medium data-mono">
-                {{ tick.act.decision.activePlaylistBefore ?? t('dashboard_none') }}
+                {{ activePlaylistBeforeLabel }}
               </dd>
             </div>
 
             <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
               <dt class="text-xs text-muted-foreground">{{ t('dashboard_active_after') }}</dt>
               <dd class="mt-1 font-medium data-mono">
-                {{ tick.act.decision.activePlaylistAfter ?? t('dashboard_none') }}
+                {{ activePlaylistAfterLabel }}
               </dd>
             </div>
           </dl>

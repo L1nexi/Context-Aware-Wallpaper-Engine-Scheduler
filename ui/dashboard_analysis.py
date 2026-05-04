@@ -41,15 +41,6 @@ def _playlist_or_none(playlist: str | None) -> str | None:
     return playlist
 
 
-def _playlist_display(
-    playlist: str | None,
-    display_of: dict[str, str],
-) -> str | None:
-    if playlist is None:
-        return None
-    return display_of.get(playlist, playlist)
-
-
 def _sorted_tag_items(items: dict[str, float]) -> list[tuple[str, float]]:
     return sorted(items.items(), key=lambda item: (-item[1], item[0]))
 
@@ -185,20 +176,24 @@ class ControllerDiagnosticDto(ApiDto):
     evaluation: ControllerEvaluationDto | None
 
 
+class PlaylistRefDto(ApiDto):
+    name: str
+    display: str        # fallback from name if no display
+    color: str          # required, fallback to default palette color if not found in metadata
+
+
 class ActionDecisionDto(ApiDto):
     kind: ActionKind
     reason_code: ActionReasonCode
     executed: bool
-    active_playlist_before: str | None
-    active_playlist_after: str | None
-    matched_playlist: str | None
+    active_playlist_before: PlaylistRefDto | None
+    active_playlist_after: PlaylistRefDto | None
+    matched_playlist: PlaylistRefDto | None
 
 
 class TopMatchDto(ApiDto):
-    playlist: str
-    display: str | None
+    playlist: PlaylistRefDto
     score: float
-    color: str | None
 
 
 class SenseSnapshotDto(ApiDto):
@@ -228,12 +223,8 @@ class TickSummaryDto(ApiDto):
     ts: float
     similarity: float
     similarity_gap: float
-    active_playlist: str | None
-    active_playlist_display: str | None
-    active_playlist_color: str | None
-    matched_playlist: str | None
-    matched_playlist_display: str | None
-    matched_playlist_color: str | None
+    active_playlist: PlaylistRefDto | None
+    matched_playlist: PlaylistRefDto | None
     action_kind: ActionKind
     reason_code: ActionReasonCode
     paused: bool
@@ -259,27 +250,51 @@ class DashboardRuntimeMetadata:
     color_of: dict[str, str]
 
 
+@dataclass(frozen=True)
+class AnalysisTraceWindow:
+    live_tick_id: int | None
+    traces: list[SchedulerTickTrace]
+
+
+def _playlist_ref_from_name(
+    playlist: str,
+    metadata: DashboardRuntimeMetadata,
+) -> PlaylistRefDto:
+    return PlaylistRefDto(
+        name=playlist,
+        display=metadata.display_of.get(playlist, playlist),
+        color=metadata.color_of.get(playlist),
+    )
+
+
+def _playlist_ref(
+    playlist: str | None,
+    metadata: DashboardRuntimeMetadata,
+) -> PlaylistRefDto | None:
+    normalized_playlist = _playlist_or_none(playlist)
+    if normalized_playlist is None:
+        return None
+    return _playlist_ref_from_name(normalized_playlist, metadata)
+
+
 class AnalysisStore:
     def __init__(self, tick_history: int = 1200):
         self._lock = threading.Lock()
-        self._ticks: deque[dict[str, Any]] = deque(maxlen=tick_history)
+        self._ticks: deque[SchedulerTickTrace] = deque(maxlen=tick_history)
         self._live_tick_id: int | None = None
 
-    def update(self, snapshot: dict[str, Any]) -> None:
+    def update(self, trace: SchedulerTickTrace) -> None:
         with self._lock:
-            self._ticks.append(snapshot)
-            self._live_tick_id = snapshot["summary"]["tickId"]
+            self._ticks.append(trace)
+            self._live_tick_id = trace.tick_id
 
-    def read_window(self, count: int | None = None) -> dict[str, Any]:
+    def read_window(self, count: int | None = None) -> AnalysisTraceWindow:
         with self._lock:
             items = list(self._ticks)
             live_tick_id = self._live_tick_id
             if count is not None:
                 items = items[-count:]
-        return {
-            "liveTickId": live_tick_id,
-            "ticks": items,
-        }
+        return AnalysisTraceWindow(live_tick_id=live_tick_id, traces=items)
 
 
 def extract_runtime_metadata(scheduler: WEScheduler) -> DashboardRuntimeMetadata:
@@ -287,15 +302,6 @@ def extract_runtime_metadata(scheduler: WEScheduler) -> DashboardRuntimeMetadata
         display_of=dict(getattr(scheduler, "display_of", {})),
         color_of=dict(getattr(scheduler, "color_of", {})),
     )
-
-
-def _playlist_color(
-    playlist: str | None,
-    color_of: dict[str, str],
-) -> str | None:
-    if not playlist:
-        return None
-    return color_of.get(playlist)
 
 
 def _tag_weights(values: dict[str, float]) -> list[TagWeightDto]:
@@ -430,8 +436,13 @@ def map_tick_snapshot(
     metadata: DashboardRuntimeMetadata,
 ) -> TickSnapshotDto:
     matched_playlist = _playlist_or_none(trace.match.best_playlist)
+    action_matched_playlist = _playlist_or_none(trace.action.matched_playlist)
     active_playlist_after = _playlist_or_none(trace.action.active_playlist_after)
     active_playlist_before = _playlist_or_none(trace.action.active_playlist_before)
+    matched_playlist_ref = _playlist_ref(matched_playlist, metadata)
+    action_matched_playlist_ref = _playlist_ref(action_matched_playlist, metadata)
+    active_playlist_after_ref = _playlist_ref(active_playlist_after, metadata)
+    active_playlist_before_ref = _playlist_ref(active_playlist_before, metadata)
     has_event = trace.action.kind in {ActionKind.SWITCH, ActionKind.CYCLE}
 
     return TickSnapshotDto(
@@ -440,24 +451,8 @@ def map_tick_snapshot(
             ts=trace.ts,
             similarity=_round_float(trace.match.similarity),
             similarity_gap=_round_float(trace.match.similarity_gap),
-            active_playlist=active_playlist_after,
-            active_playlist_display=_playlist_display(
-                active_playlist_after,
-                metadata.display_of,
-            ),
-            active_playlist_color=_playlist_color(
-                active_playlist_after,
-                metadata.color_of,
-            ),
-            matched_playlist=matched_playlist,
-            matched_playlist_display=_playlist_display(
-                matched_playlist,
-                metadata.display_of,
-            ),
-            matched_playlist_color=_playlist_color(
-                matched_playlist,
-                metadata.color_of,
-            ),
+            active_playlist=active_playlist_after_ref,
+            matched_playlist=matched_playlist_ref,
             action_kind=trace.action.kind,
             reason_code=trace.action.reason_code,
             paused=trace.paused,
@@ -487,10 +482,8 @@ def map_tick_snapshot(
         act=ActSnapshotDto(
             top_matches=[
                 TopMatchDto(
-                    playlist=playlist,
-                    display=metadata.display_of.get(playlist, playlist),
+                    playlist=_playlist_ref_from_name(playlist, metadata),
                     score=_round_float(score),
-                    color=_playlist_color(playlist, metadata.color_of),
                 )
                 for playlist, score in trace.match.playlist_matches[:5]
             ],
@@ -501,9 +494,9 @@ def map_tick_snapshot(
                 kind=trace.action.kind,
                 reason_code=trace.action.reason_code,
                 executed=trace.action.executed,
-                active_playlist_before=active_playlist_before,
-                active_playlist_after=active_playlist_after,
-                matched_playlist=_playlist_or_none(trace.action.matched_playlist),
+                active_playlist_before=active_playlist_before_ref,
+                active_playlist_after=active_playlist_after_ref,
+                matched_playlist=action_matched_playlist_ref,
             ),
         ),
     )
@@ -515,3 +508,14 @@ def build_tick_snapshot(
 ) -> dict[str, Any]:
     snapshot = map_tick_snapshot(trace, extract_runtime_metadata(scheduler))
     return snapshot.model_dump(mode="json", by_alias=True)
+
+
+def build_tick_window_response(
+    window: AnalysisTraceWindow,
+    metadata: DashboardRuntimeMetadata,
+) -> dict[str, Any]:
+    response = TickWindowResponseDto(
+        live_tick_id=window.live_tick_id,
+        ticks=[map_tick_snapshot(trace, metadata) for trace in window.traces],
+    )
+    return response.model_dump(mode="json", by_alias=True)

@@ -140,7 +140,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger, dashboard_api_port:
     """
     from core.scheduler import WEScheduler
     from ui.dashboard import DashboardHTTPServer
-    from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
+    from ui.dashboard_analysis import AnalysisStore, extract_runtime_metadata
     from ui.tray import TrayIcon
     from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir
@@ -157,7 +157,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger, dashboard_api_port:
     analysis_store = AnalysisStore()
 
     def _handle_tick(trace: SchedulerTickTrace) -> None:
-        analysis_store.update(build_tick_snapshot(scheduler, trace))
+        analysis_store.update(trace)
 
     scheduler.on_tick = _handle_tick
     httpd = DashboardHTTPServer(
@@ -165,6 +165,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger, dashboard_api_port:
         scheduler.history_logger,
         config_path,
         requested_port=dashboard_api_port,
+        metadata_provider=lambda: extract_runtime_metadata(scheduler),
     )
     try:
         httpd.start()
