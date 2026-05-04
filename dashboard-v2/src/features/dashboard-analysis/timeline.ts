@@ -105,6 +105,18 @@ function buildGapSeries(ticks: TickSnapshot[]): [number, number][] {
   return ticks.map((tick, index) => [index, tick.summary.similarityGap])
 }
 
+function getGapAxisMax(ticks: TickSnapshot[]): number {
+  const maxGap = ticks.reduce((currentMax, tick) => {
+    return Math.max(currentMax, tick.summary.similarityGap)
+  }, 0)
+
+  if (maxGap <= 0) {
+    return 0.1
+  }
+
+  return Math.max(0.1, Number((maxGap * 1.2).toFixed(3)))
+}
+
 function buildEventSeries(
   ticks: TickSnapshot[],
   type: 'switch' | 'cycle',
@@ -160,7 +172,10 @@ export function resolveTimelineIndexFromPixel(
   pixelY: number,
   ticks: TickSnapshot[],
   chart: {
-    convertFromPixel: (finder: { xAxisIndex: number }, value: [number, number]) => number[]
+    convertFromPixel: (
+      finder: { gridIndex: number } | { xAxisIndex: number; yAxisIndex: number },
+      value: [number, number],
+    ) => number[] | number
     containPixel: (finder: { gridIndex: number }, value: [number, number]) => boolean
   },
 ): number | null {
@@ -168,17 +183,18 @@ export function resolveTimelineIndexFromPixel(
     return null
   }
 
-  const isInsideAnyGrid =
-    chart.containPixel({ gridIndex: 0 }, [pixelX, pixelY]) ||
-    chart.containPixel({ gridIndex: 1 }, [pixelX, pixelY]) ||
-    chart.containPixel({ gridIndex: 2 }, [pixelX, pixelY])
+  const finder = chart.containPixel({ gridIndex: 0 }, [pixelX, pixelY])
+    ? ({ xAxisIndex: 0, yAxisIndex: 0 } as const)
+    : chart.containPixel({ gridIndex: 1 }, [pixelX, pixelY])
+      ? ({ xAxisIndex: 1, yAxisIndex: 2 } as const)
+      : null
 
-  if (!isInsideAnyGrid) {
+  if (finder === null) {
     return null
   }
 
-  const result = chart.convertFromPixel({ xAxisIndex: 2 }, [pixelX, 0])
-  const rawIndex = Array.isArray(result) ? result[0] ?? null : null
+  const result = chart.convertFromPixel(finder, [pixelX, pixelY])
+  const rawIndex = Array.isArray(result) ? result[0] ?? null : result
   if (rawIndex === null || Number.isNaN(rawIndex)) {
     return null
   }
@@ -199,6 +215,7 @@ export function buildTimelineOption(
   const panelColor = getCssColor('--surface', '#ffffff')
 
   const lastIndex = Math.max(ticks.length - 1, 0)
+  const gapAxisMax = getGapAxisMax(ticks)
   const trackRows = [labels.activeTrack, labels.matchedTrack]
 
   return {
@@ -206,21 +223,15 @@ export function buildTimelineOption(
     grid: [
       {
         left: 78,
-        right: 18,
+        right: 78,
         top: 24,
-        height: 150,
+        height: 206,
       },
       {
         left: 78,
-        right: 18,
-        top: 190,
+        right: 78,
+        top: 258,
         height: 86,
-      },
-      {
-        left: 78,
-        right: 18,
-        top: 296,
-        height: 84,
       },
     ],
     xAxis: [
@@ -239,16 +250,6 @@ export function buildTimelineOption(
         min: 0,
         max: lastIndex,
         gridIndex: 1,
-        axisLabel: { show: false },
-        axisTick: { show: false },
-        axisLine: { show: false },
-        splitLine: { show: false },
-      },
-      {
-        type: 'value',
-        min: 0,
-        max: lastIndex,
-        gridIndex: 2,
         axisLabel: {
           color: textColor,
           formatter: (value: number) => formatShortTime(ticks[Math.round(value)]?.summary.ts, locale),
@@ -283,10 +284,18 @@ export function buildTimelineOption(
       {
         type: 'value',
         min: 0,
-        gridIndex: 1,
+        max: gapAxisMax,
+        gridIndex: 0,
+        position: 'right',
         axisLabel: {
           color: textColor,
           formatter: (value: number) => formatWeight(value, locale),
+        },
+        axisLine: {
+          show: true,
+          lineStyle: {
+            color: splitLineColor,
+          },
         },
         splitLine: {
           lineStyle: {
@@ -298,7 +307,7 @@ export function buildTimelineOption(
       {
         type: 'category',
         data: trackRows,
-        gridIndex: 2,
+        gridIndex: 1,
         axisTick: { show: false },
         axisLine: { show: false },
         axisLabel: {
@@ -321,6 +330,8 @@ export function buildTimelineOption(
     },
     tooltip: {
       trigger: 'axis',
+      triggerOn: 'none',
+      alwaysShowContent: true,
       axisPointer: {
         type: 'line',
       },
@@ -361,6 +372,7 @@ export function buildTimelineOption(
     },
     series: [
       {
+        id: 'similarity',
         name: labels.similarity,
         type: 'line',
         xAxisIndex: 0,
@@ -375,14 +387,16 @@ export function buildTimelineOption(
         areaStyle: {
           color: 'transparent',
         },
+        emphasis: {
+          disabled: true,
+        },
         data: buildSimilaritySeries(ticks),
       },
-      buildEventSeries(ticks, 'switch', t),
-      buildEventSeries(ticks, 'cycle', t),
       {
+        id: 'gap',
         name: labels.gap,
         type: 'line',
-        xAxisIndex: 1,
+        xAxisIndex: 0,
         yAxisIndex: 1,
         z: 2,
         showSymbol: false,
@@ -395,12 +409,24 @@ export function buildTimelineOption(
           color: gapColor,
           opacity: 0.22,
         },
+        emphasis: {
+          disabled: true,
+        },
         data: buildGapSeries(ticks),
       },
       {
+        ...buildEventSeries(ticks, 'switch', t),
+        id: 'event-switch',
+      },
+      {
+        ...buildEventSeries(ticks, 'cycle', t),
+        id: 'event-cycle',
+      },
+      {
+        id: 'track-active',
         name: labels.activeTrack,
         type: 'custom',
-        xAxisIndex: 2,
+        xAxisIndex: 1,
         yAxisIndex: 2,
         z: 1,
         renderItem(params, api) {
@@ -431,9 +457,10 @@ export function buildTimelineOption(
         },
       },
       {
+        id: 'track-matched',
         name: labels.matchedTrack,
         type: 'custom',
-        xAxisIndex: 2,
+        xAxisIndex: 1,
         yAxisIndex: 2,
         z: 1,
         renderItem(params, api) {

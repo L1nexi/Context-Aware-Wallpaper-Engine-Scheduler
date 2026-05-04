@@ -97,6 +97,10 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
       return
     }
 
+    if (hoverTickId.value !== null) {
+      return
+    }
+
     selectedTickId.value = nextLiveTickId ?? getLatestTickId(nextLiveWindow)
   }
 

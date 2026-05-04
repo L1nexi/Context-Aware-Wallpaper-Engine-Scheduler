@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { useI18n } from '@/composables/useI18n'
 import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
-import { formatTimestamp } from './formatting'
+import { formatShortTime, formatTimestamp, formatWeight } from './formatting'
+import { getTickPlaylistLabel } from './presenters'
 import { buildTimelineOption, resolveTimelineIndexFromPixel } from './timeline'
 
 type DashboardMode = 'live' | 'snapshot'
@@ -31,8 +32,15 @@ const emit = defineEmits<{
 const { t, lang } = useI18n()
 
 const chartRef = ref<InstanceType<typeof VChart> | null>(null)
+const timelineFrameRef = ref<HTMLElement | null>(null)
 const isFocused = ref(false)
+const updateOptions = Object.freeze({ notMerge: true })
 let detachHandlers: (() => void) | null = null
+const hoverTooltip = ref<{
+  index: number
+  x: number
+  y: number
+} | null>(null)
 
 function getChartInstance() {
   return chartRef.value?.chart
@@ -79,6 +87,39 @@ const selectedTimestamp = computed(() =>
   }),
 )
 
+const hoverTooltipTick = computed(() => {
+  if (hoverTooltip.value === null) {
+    return null
+  }
+
+  return props.ticks[hoverTooltip.value.index] ?? null
+})
+
+const hoverTooltipStyle = computed(() => {
+  if (hoverTooltip.value === null) {
+    return {}
+  }
+
+  const chartWidth = chartRef.value?.getWidth() ?? 0
+  const horizontalOffset =
+    chartWidth > 0 && hoverTooltip.value.x > chartWidth - 280 ? -238 : 14
+
+  return {
+    left: `${hoverTooltip.value.x + horizontalOffset}px`,
+    top: `${hoverTooltip.value.y + 14}px`,
+  }
+})
+
+const hoverGuideStyle = computed(() => {
+  if (hoverTooltip.value === null) {
+    return {}
+  }
+
+  return {
+    left: `${hoverTooltip.value.x}px`,
+  }
+})
+
 function clearProgrammaticTooltip(): void {
   const chart = chartRef.value
   if (!chart) {
@@ -109,11 +150,19 @@ function bindChartHandlers(): void {
       chart,
     )
     if (index === null) {
+      hoverTooltip.value = null
+      chart.dispatchAction({ type: 'hideTip' })
+      emit('clearHover')
       return
     }
 
     const tick = props.ticks[index]
     if (tick) {
+      hoverTooltip.value = {
+        index,
+        x: event.offsetX,
+        y: event.offsetY,
+      }
       emit('hoverTick', tick.summary.tickId)
     }
   }
@@ -135,12 +184,16 @@ function bindChartHandlers(): void {
 
     const tick = props.ticks[index]
     if (tick) {
+      hoverTooltip.value = null
       emit('lockTick', tick.summary.tickId)
+      timelineFrameRef.value?.focus({ preventScroll: true })
     }
   }
 
   const handleOut = () => {
     if (props.mode === 'live') {
+      hoverTooltip.value = null
+      chart.dispatchAction({ type: 'hideTip' })
       emit('clearHover')
     }
   }
@@ -190,12 +243,11 @@ watch(
 )
 
 watch(
-  () => [props.activeTickId, props.ticks, props.mode],
+  () => props.mode,
   async () => {
     await nextTick()
     clearProgrammaticTooltip()
   },
-  { deep: true },
 )
 
 onBeforeUnmount(() => {
@@ -284,6 +336,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div
+      ref="timelineFrameRef"
       class="rounded-3xl border border-border/70 bg-background/70 p-3 shadow-sm outline-none transition-shadow focus-visible:ring-4 focus-visible:ring-ring/15"
       :class="isFocused ? 'shadow-[var(--shadow-focus)]' : ''"
       tabindex="0"
@@ -292,12 +345,45 @@ onBeforeUnmount(() => {
       @focus="isFocused = true"
       @keydown="handleKeydown"
     >
-      <VChart
-        ref="chartRef"
-        class="h-[24.5rem] w-full"
-        :option="option"
-        autoresize
-      />
+      <div class="relative h-[24.5rem] w-full">
+        <VChart
+          ref="chartRef"
+          class="block h-full w-full"
+          :option="option"
+          :update-options="updateOptions"
+          autoresize
+        />
+        <template v-if="hoverTooltip !== null && hoverTooltipTick !== null">
+          <div
+            class="pointer-events-none absolute top-6 bottom-12 z-10 border-l border-dashed border-primary/30"
+            :style="hoverGuideStyle"
+          />
+          <div
+            class="pointer-events-none absolute z-20 min-w-56 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground shadow-lg"
+            :style="hoverTooltipStyle"
+          >
+            <div class="data-mono text-xs uppercase tracking-[0.18em]">
+              {{ formatShortTime(hoverTooltipTick.summary.ts, lang) }}
+            </div>
+            <div class="mt-2 font-semibold text-primary">
+              {{ t('similarity') }}:
+              {{ formatWeight(hoverTooltipTick.summary.similarity, lang) }}
+            </div>
+            <div class="mt-1">
+              {{ t('gap') }}:
+              {{ formatWeight(hoverTooltipTick.summary.similarityGap, lang) }}
+            </div>
+            <div class="mt-2">
+              {{ t('dashboard_timeline_active_track') }}:
+              {{ getTickPlaylistLabel(hoverTooltipTick, 'active', t) }}
+            </div>
+            <div class="mt-1">
+              {{ t('dashboard_timeline_matched_track') }}:
+              {{ getTickPlaylistLabel(hoverTooltipTick, 'matched', t) }}
+            </div>
+          </div>
+        </template>
+      </div>
     </div>
 
     <p class="text-xs leading-5 text-muted-foreground">
