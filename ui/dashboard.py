@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("WEScheduler.Dashboard")
 
+DASHBOARD_STATIC_APP_DIR = "dashboard-v2"
+DASHBOARD_STATIC_DIST_DIR = "dist"
+
 
 def _flatten_errors(exc) -> list[dict]:
     """Flatten Pydantic ValidationError to [{field, message}]."""
@@ -46,8 +49,8 @@ class _ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
 
 def _resolve_static_root() -> str:
     if getattr(sys, "frozen", False):
-        return os.path.join(sys._MEIPASS, "dashboard", "dist")
-    return os.path.join(get_app_root(), "dashboard", "dist")
+        return os.path.join(sys._MEIPASS, DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR)
+    return os.path.join(get_app_root(), DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR)
 
 
 def _parse_positive_count(raw_value: str) -> int:

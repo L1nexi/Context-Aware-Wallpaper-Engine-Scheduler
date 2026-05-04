@@ -25,7 +25,13 @@ from core.diagnostics import (
     WeatherPolicyEvaluation,
 )
 from core.event_logger import EventType
-from ui.dashboard import _build_app, _flatten_errors
+from ui.dashboard import (
+    DASHBOARD_STATIC_APP_DIR,
+    DASHBOARD_STATIC_DIST_DIR,
+    _build_app,
+    _flatten_errors,
+    _resolve_static_root,
+)
 from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
 
 
@@ -334,6 +340,11 @@ def test_api_health(app):
     status, body = wsgi_get(app, "/api/health")
     assert "200" in status
     assert body == {"ok": True}
+
+
+def test_resolve_static_root_targets_dashboard_v2():
+    static_root = _resolve_static_root()
+    assert static_root.endswith(os.path.join(DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR))
 
 
 def test_api_history_no_logger(analysis_store, config_path):

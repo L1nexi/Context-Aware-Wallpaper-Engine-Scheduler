@@ -6,7 +6,7 @@
 
 ## 0. 实施状态（2026-05-04）
 
-本 spec 仍然定义 Dashboard 重写的目标形态，但其中一部分已经落地到后端 core。
+本 spec 继续定义 Dashboard Analysis 的整体框架，但实现已经进入 `dashboard-v2` 正式运行时阶段。
 
 已完成：
 
@@ -18,22 +18,26 @@
   - `ActuationOutcome`
   - `SchedulerTickTrace`
 - `WEScheduler.on_tick` 当前直接产出 `SchedulerTickTrace`。
-- legacy `ui/dashboard.py::build_tick_state()` 当前只是把 `SchedulerTickTrace` 适配为旧 `TickState`，用于旧 Dashboard。
-
-已完成：
-
 - `GET /api/analysis/window` 已经实现，返回 `TickSnapshot` 列表。
-- 旧 `/api/state`、`/api/ticks` 与 legacy `TickState` 已删除
+- `dashboard-v2` 已经接入正式运行时，当前 pywebview 加载的是 `dashboard-v2/dist`
+- `dashboard-v2` 已经有最小 dashboard shell、Pinia analysis store 与正式 analysis 数据入口
+- 旧 `/api/state`、`/api/ticks` 与 legacy `TickState` 页面状态建模已经退出新 Dashboard 路径
 
 尚未完成：
 
-- history 与 config 接口
-- `dashboard-v2` 仍未接入新的 analysis store / 时间轴 / 三栏分析页。
+- 顶部正式时间轴
+- `live / snapshot` 双态与冻结窗口步进
+- 完整的 `Sense / Think / Act` 三栏分析页
+
+具体的 v1 交互、时间轴语法、双窗口状态模型与信息密度决策，见：
+
+- [DASHBOARD_ANALYSIS_IMPLEMENTATION_SPEC.md](./DASHBOARD_ANALYSIS_IMPLEMENTATION_SPEC.md)
 
 因此，后续 thread 若继续推进 Dashboard，应默认：
 
 - core 数据事实已经准备好；
-- 下一步重点是 API mapper 与 `dashboard-v2`
+- 正式运行时接线已经完成；
+- 下一步重点是 `dashboard-v2` 中的时间轴与分析页实现。
 
 ## 1. 目标
 
@@ -94,10 +98,15 @@ Dashboard 页必须满足以下目标：
 
 - `similarity`
 - `similarity_gap`
+- `activePlaylist` / `matchedPlaylist` 的时间关系
 - 切换事件 marker
 - cycle 事件 marker
-- pause / resume marker
-- 被 gate 阻塞的区段标记
+- paused 区间
+
+说明：
+
+- `resume marker` 不是 v1 必需语义；paused 区间结束后自然回到普通 tick。
+- gate blocker 在 v1 中继续作为当前 tick 的精确诊断事实，而不是时间轴主视觉 overlay。
 
 ### 4.2 下方三栏分析区
 
@@ -145,6 +154,12 @@ Dashboard 页必须满足以下目标：
 - hover 时间轴时进入临时 scrub。
 - click 后进入锁定 `snapshot`。
 - 点击“回到实时”后恢复 `live`。
+
+补充约束：
+
+- `snapshot` 模式冻结的是前端当前窗口，而不是后端数据流。
+- 锁定期间后台仍持续拉取最新 analysis window。
+- keyboard step 应基于冻结窗口进行，而不是直接在实时 ring buffer 上步进。
 
 ### 5.3 本地 WebView 场景假设
 
@@ -534,7 +549,7 @@ type TickWindowResponse = {
 当前实现说明：
 
 - 新 analysis API 的输入源应为 `SchedulerTickTrace`。
-- 现有 legacy `/api/state` 与 `/api/ticks` 仍通过 `ui/dashboard.py::build_tick_state()` 走 `SchedulerTickTrace -> TickState` 兼容映射。
+- 当前正式分析页路径只依赖 `/api/analysis/window`。
 - 后续 thread 不应继续把 `TickState` 当作分析 API 的中间模型。
 
 ## 9. 前端状态模型
@@ -545,7 +560,8 @@ Dashboard 页应使用 Pinia 管理页面状态，不继续用旧的 `useApi()` 
 
 ```ts
 type DashboardAnalysisStore = {
-  ticks: TickSnapshot[];
+  liveWindow: TickSnapshot[];
+  snapshotWindow: TickSnapshot[] | null;
   liveTickId: number | null;
   selectedTickId: number | null;
   hoverTickId: number | null;
@@ -553,14 +569,16 @@ type DashboardAnalysisStore = {
   mode: "live" | "snapshot";
   loading: boolean;
   error: string | null;
+  newTicksSinceLocked: number;
 };
 ```
 
 派生规则：
 
-- `lockedTickId !== null` 时，优先显示 locked tick。
-- 否则 `hoverTickId !== null` 时，显示 hover tick。
-- 否则显示 `liveTickId`。
+- `liveWindow` 始终跟随后端最新窗口。
+- `snapshotWindow` 在 click lock 时由当前 `liveWindow` 冻结得到，并在锁定期间保持不可变。
+- `mode = "snapshot"` 时，keyboard step 只在 `snapshotWindow` 中移动。
+- 未锁定时，`hoverTickId` 优先于 `liveTickId`。
 - `TickSnapshot` 已经内含 `summary`，store 不应再把 summary/detail 重复拆成两份并排缓存。
 
 ## 10. 页面区块职责
@@ -593,6 +611,7 @@ type DashboardAnalysisStore = {
 说明：
 
 - `Policy` 在此栏是解释器，不是独立终局。
+- 默认展开策略不应简单依赖 `active` 布尔值；应优先展开当前 tick 中 `effectiveMagnitude` 最主导的前 `1 ~ 2` 个 policy。
 
 ### 10.3 Act 栏
 
@@ -605,6 +624,10 @@ type DashboardAnalysisStore = {
 - 当前实际播放列表
 - `ControllerDiagnostic`
 - `ActionDecision`
+
+说明：
+
+- `Act` 栏默认应优先展示当前决策结论与相关 blocker 证据，不要求把所有 evaluation 字段平铺在默认层。
 
 ## 11. 迁移要求
 
@@ -632,10 +655,10 @@ type DashboardAnalysisStore = {
 建议按以下顺序落地：
 
 1. 后端先定义新的 tick 诊断快照模型。已完成（core phase 1）。
-2. 后端增加新的 analysis window 接口。
-3. 前端建立 Pinia store 与类型定义。
+2. 后端增加新的 analysis window 接口。已完成。
+3. 前端建立 Pinia store、类型定义与正式运行时接线。已完成。
 4. 前端接入顶部时间轴与三栏分析页。
-5. 新 Dashboard 可用后，删除旧 `TickState` 与旧状态接口。
+5. 时间轴与三栏稳定后，清理仍只服务旧 Dashboard 的残余实现。
 
 ## 12. 验收标准
 
@@ -647,4 +670,5 @@ type DashboardAnalysisStore = {
 4. 用户能区分 `rawContextVector` 与 `resolvedContextVector`。
 5. 用户能在天气不可用时看出“未参与决策”而不是误读为“天气贡献为 0”。
 6. hover scrub 不触发逐 tick 网络请求。
-7. 页面不再依赖旧 `TickState`。
+7. `snapshot` 锁定后，keyboard step 基于冻结窗口稳定工作，不会被实时刷新打断。
+8. 页面不再依赖旧 `TickState`。

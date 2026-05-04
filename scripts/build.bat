@@ -1,9 +1,12 @@
 @echo off
+set DASHBOARD_APP_DIR=dashboard-v2
+set DASHBOARD_DIST_DIR=%DASHBOARD_APP_DIR%\dist
+
 echo ==========================================
 echo      WEScheduler Build Script
 echo ==========================================
 
-echo [1/4] Installing dependencies...
+echo [1/5] Installing dependencies...
 pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo Failed to install dependencies.
@@ -11,14 +14,25 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
-echo [2/4] Cleaning up previous builds...
+echo [2/5] Building dashboard-v2...
+pushd %DASHBOARD_APP_DIR%
+call npm run build-only
+if %errorlevel% neq 0 (
+    popd
+    echo Failed to build dashboard-v2.
+    pause
+    exit /b %errorlevel%
+)
+popd
+
+echo [3/5] Cleaning up previous builds...
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
-if exist *.spec del /q *.spec
 
-echo [3/4] Running PyInstaller...
+echo [4/5] Running PyInstaller...
 pyinstaller --noconsole --onefile --name "WEScheduler" ^
     --icon "AppIcon.ico" ^
+    --add-data "%DASHBOARD_DIST_DIR%;%DASHBOARD_DIST_DIR%" ^
     --hidden-import=pystray ^
     --hidden-import=PIL ^
     --hidden-import=psutil ^
@@ -34,7 +48,7 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
-echo [4/4] Preparing distribution folder...
+echo [5/5] Preparing distribution folder...
 if not exist dist\scheduler_config.json (
     echo Copying default config...
     copy scheduler_config.example.json dist\scheduler_config.json
