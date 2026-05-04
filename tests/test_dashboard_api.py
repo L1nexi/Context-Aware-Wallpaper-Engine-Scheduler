@@ -25,12 +25,8 @@ from core.diagnostics import (
     WeatherPolicyEvaluation,
 )
 from core.event_logger import EventType
-from ui.dashboard import (
-    AnalysisStore,
-    _build_app,
-    _flatten_errors,
-    build_tick_snapshot,
-)
+from ui.dashboard import _build_app, _flatten_errors
+from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
 
 
 @pytest.fixture
@@ -270,7 +266,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
     assert snapshot["summary"]["activePlaylist"] == "idle"
     assert snapshot["summary"]["matchedPlaylist"] == "focus"
     assert snapshot["summary"]["matchedPlaylistDisplay"] == "Focus Flow"
-    assert snapshot["sense"]["weather"]["enabled"] is True
+    assert "enabled" not in snapshot["sense"]["weather"]
     assert snapshot["sense"]["weather"]["available"] is True
     assert snapshot["sense"]["weather"]["stale"] is True
     assert snapshot["think"]["fallbackExpansions"]["#storm"][0]["resolvedTag"] == "#rain"
@@ -301,7 +297,7 @@ def test_build_tick_snapshot_maps_paused_tick():
     assert snapshot["summary"]["actionKind"] == "pause"
     assert snapshot["summary"]["paused"] is True
     assert snapshot["summary"]["hasEvent"] is False
-    assert snapshot["sense"]["weather"]["enabled"] is False
+    assert snapshot["sense"]["weather"]["available"] is False
     assert snapshot["act"]["controller"]["evaluation"] is None
     assert snapshot["act"]["decision"]["activePlaylistAfter"] == "focus"
     assert snapshot["act"]["decision"]["matchedPlaylist"] == "rainy"

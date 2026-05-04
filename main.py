@@ -132,7 +132,8 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
     though there's no console window.
     """
     from core.scheduler import WEScheduler
-    from ui.dashboard import AnalysisStore, DashboardHTTPServer, build_tick_snapshot
+    from ui.dashboard import DashboardHTTPServer
+    from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
     from ui.tray import TrayIcon
     from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir

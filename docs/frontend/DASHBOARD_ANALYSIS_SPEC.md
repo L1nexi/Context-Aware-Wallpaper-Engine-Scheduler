@@ -167,6 +167,7 @@ Dashboard 页必须满足以下目标：
 - 这一节定义的是前端 analysis DTO，不是 core 领域对象。
 - 当前 core 已经产出的是 `SchedulerTickTrace` 及其内嵌的中立诊断类型。
 - API 层的职责是把 `SchedulerTickTrace` 映射成这里定义的 DTO，而不是继续从 `TickState` 反推。
+- DTO mapper 可以接收少量显式运行时元信息，例如播放列表 display 映射；但这类 metadata 是后端实现输入，不属于前端返回契约。
 
 ### 6.1 TickSummary
 
@@ -216,6 +217,8 @@ type TickSummary = {
 - `activePlaylist` 是该 tick 开始或结束时实际处于播放状态的列表。
 - `matchedPlaylist` 是 matcher 在该 tick 给出的最优候选。
 - 二者必须并存，不能再混成一个 `currentPlaylist` 字段。
+- `hasEvent` 用于时间轴 marker，而不是简单等价于 `paused`。
+- 第一版中，`hasEvent` 应优先用于 `switch` / `cycle` 等动作事件；暂停中的稳态 tick 不应因为每秒都处于 `pause` 而整段都变成事件 marker。
 
 ### 6.2 TickSnapshot
 
@@ -244,7 +247,6 @@ type TickSnapshot = {
     }
     fullscreen: boolean
     weather: {
-      enabled: boolean
       available: boolean
       stale: boolean
       id: number | null
@@ -453,13 +455,24 @@ SchedulerTickTrace
 - `SchedulerTickTrace` 是当前已经落地的后端中立事实模型。
 - legacy `TickState` 不应再作为分析页 DTO 的中间模型。
 
+### 6.7 API mapper 的运行时元信息边界
+
+Analysis DTO 的输入可以包含 `SchedulerTickTrace` 之外的少量运行时元信息，但边界应保持明确。
+
+推荐约束：
+
+- 运行时元信息应显式传入 mapper，而不是让 DTO 层直接依赖整个 `scheduler` 实例。
+- 典型例子是播放列表 id 到 display name 的映射；这类信息不在 `SchedulerTickTrace` 内，但需要进入最终 DTO。
+- 任何会被配置热重载改写的展示字段，都应在 snapshot 映射时冻结，而不是在 API 读取时临时回填。
+- 这类 metadata 属于后端实现输入，不属于前端 wire contract。
+
 ## 7. Weather 的可用性 / 过期语义
 
 “传感器不仅要给值，还要给是否可用/是否过期”这一要求，当前只对 `Weather` 是刚性需求。
 
 结论：
 
-- 第一版仅为 `weather` 建立 `enabled / available / stale` 语义。
+- 第一版仅为 `weather` 建立 `available / stale` 语义。
 - `window / idle / cpu / fullscreen / time` 暂不增加统一的可用性壳层。
 
 原因：
@@ -467,6 +480,15 @@ SchedulerTickTrace
 - 这些本地传感器当前没有明显的缓存过期问题。
 - `WeatherSensor` 是唯一带异步拉取、缓存、失败回退、冷启动等待的输入源。
 - 把所有传感器一律包成 availability envelope，会增加复杂度但没有实际收益。
+
+`weather.available = false` 的含义应收敛为“当前没有可用天气读数”，包括但不限于：
+
+- weather policy 未启用
+- API key 未配置或配置错误
+- 远程抓取失败
+- 冷启动阶段尚未拿到首个结果
+
+若 UI 需要判断 weather policy 是否启用，应查看 `think.policies` 中 `policyId = "weather"` 的诊断，而不是在 `sense.weather` 重复暴露 `enabled`。
 
 未来若新增远程或缓存型传感器，再考虑推广为统一模型。
 
@@ -485,10 +507,7 @@ SchedulerTickTrace
 ```ts
 type TickWindowResponse = {
   liveTickId: number | null
-  ticks: Array<{
-    summary: TickSummary
-    snapshot: TickSnapshot
-  }>
+  ticks: Array<TickSnapshot>
 }
 ```
 
@@ -501,6 +520,9 @@ type TickWindowResponse = {
 - `count=900` 对应最近约 15 分钟，按 1 秒 1 tick 计算。
 - 若后续需要更长窗口，可继续放大 ring buffer。
 - 第一版不需要 `GET /api/analysis/ticks/:id` 这类 detail-only 接口。
+- `ticks` 表示“最近一段时间窗口”，但返回顺序应保持时间正序，即 `oldest -> newest`，以便前端直接驱动时间轴。
+- `liveTickId` 指向服务端当前已知的最新 tick；在非空窗口中，通常对应 `ticks` 的最后一个元素。
+- 服务端可以维护比 `count` 更大的内存 ring buffer，但具体容量属于实现细节，不在本 spec 中写死。
 
 当前实现说明：
 
@@ -516,10 +538,7 @@ Dashboard 页应使用 Pinia 管理页面状态，不继续用旧的 `useApi()` 
 
 ```ts
 type DashboardAnalysisStore = {
-  ticks: Array<{
-    summary: TickSummary
-    snapshot: TickSnapshot
-  }>
+  ticks: TickSnapshot[]
   liveTickId: number | null
   selectedTickId: number | null
   hoverTickId: number | null
@@ -535,6 +554,7 @@ type DashboardAnalysisStore = {
 - `lockedTickId !== null` 时，优先显示 locked tick。
 - 否则 `hoverTickId !== null` 时，显示 hover tick。
 - 否则显示 `liveTickId`。
+- `TickSnapshot` 已经内含 `summary`，store 不应再把 summary/detail 重复拆成两份并排缓存。
 
 ## 10. 页面区块职责
 
