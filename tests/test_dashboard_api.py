@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import socket
 import time
+import urllib.request
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
@@ -28,6 +30,7 @@ from core.event_logger import EventType
 from ui.dashboard import (
     DASHBOARD_STATIC_APP_DIR,
     DASHBOARD_STATIC_DIST_DIR,
+    DashboardHTTPServer,
     _build_app,
     _flatten_errors,
     _resolve_static_root,
@@ -174,6 +177,12 @@ def _make_trace(
             executed=executed,
         ),
     )
+
+
+def _find_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
 
 
 def test_analysis_store_read_window_empty(analysis_store):
@@ -340,6 +349,37 @@ def test_api_health(app):
     status, body = wsgi_get(app, "/api/health")
     assert "200" in status
     assert body == {"ok": True}
+
+
+def test_dashboard_http_server_binds_requested_port(analysis_store, history_logger, config_path):
+    requested_port = _find_free_port()
+    server = DashboardHTTPServer(
+        analysis_store,
+        history_logger,
+        config_path,
+        requested_port=requested_port,
+    )
+
+    try:
+        server.start()
+
+        assert server.port == requested_port
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{requested_port}/api/health", timeout=5) as response:
+            assert response.status == 200
+            assert json.loads(response.read().decode("utf-8")) == {"ok": True}
+    finally:
+        server.stop()
+
+
+def test_parse_args_accepts_dashboard_api_port(monkeypatch):
+    import main
+
+    monkeypatch.setattr("sys.argv", ["main.py", "--dashboard-api-port", "38417"])
+
+    args = main._parse_args()
+
+    assert args.dashboard_api_port == 38417
 
 
 def test_resolve_static_root_targets_dashboard_v2():

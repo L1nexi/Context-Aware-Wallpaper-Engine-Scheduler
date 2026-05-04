@@ -253,10 +253,12 @@ class DashboardHTTPServer:
         analysis_store: AnalysisStore,
         history_logger: EventLogger | None = None,
         config_path: str = "",
+        requested_port: int = 0,
     ):
         self._analysis_store = analysis_store
         self._history: EventLogger | None = history_logger
         self._config_path = config_path
+        self._requested_port = requested_port
         self._httpd: _ThreadingWSGIServer | None = None
         self._thread: threading.Thread | None = None
         self.port: int = 0
@@ -265,7 +267,20 @@ class DashboardHTTPServer:
         os.makedirs(_resolve_static_root(), exist_ok=True)
         app = _build_app(self._analysis_store, self._history, self._config_path)
 
-        self._httpd = make_server("127.0.0.1", 0, app, server_class=_ThreadingWSGIServer)
+        try:
+            self._httpd = make_server(
+                "127.0.0.1",
+                self._requested_port,
+                app,
+                server_class=_ThreadingWSGIServer,
+            )
+        except OSError as exc:
+            if self._requested_port > 0:
+                raise OSError(
+                    f"Failed to bind dashboard API server to 127.0.0.1:{self._requested_port}"
+                ) from exc
+            raise
+
         self.port = self._httpd.server_address[1]
 
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)

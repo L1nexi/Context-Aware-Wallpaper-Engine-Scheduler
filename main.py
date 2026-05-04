@@ -36,8 +36,9 @@ def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments.
 
     Host-mode flags (user-facing):
-        --config      Path to scheduler_config.json
-        --no-tray     Run without system tray icon (console mode)
+        --config               Path to scheduler_config.json
+        --no-tray              Run without system tray icon (console mode)
+        --dashboard-api-port   Local dashboard HTTP server port (0 = dynamic)
 
     Dashboard subprocess flags (internal — suppressed from help):
         --dashboard   Launch the dashboard webview window
@@ -55,6 +56,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-tray", action="store_true",
         help="Run without system tray icon (console mode)",
+    )
+    parser.add_argument(
+        "--dashboard-api-port",
+        type=int,
+        default=0,
+        help="Local dashboard HTTP server port (0 = dynamic)",
     )
     parser.add_argument("--dashboard", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--port", type=int, default=0, help=argparse.SUPPRESS)
@@ -124,7 +131,7 @@ def _run_console_mode(config_path: str, logger: logging.Logger) -> None:
         scheduler.stop()
 
 
-def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
+def _run_tray_mode(config_path: str, logger: logging.Logger, dashboard_api_port: int = 0) -> None:
     """Create scheduler, start the local dashboard API server, and block on
     the system tray icon.
 
@@ -153,8 +160,20 @@ def _run_tray_mode(config_path: str, logger: logging.Logger) -> None:
         analysis_store.update(build_tick_snapshot(scheduler, trace))
 
     scheduler.on_tick = _handle_tick
-    httpd = DashboardHTTPServer(analysis_store, scheduler.history_logger, config_path)
-    httpd.start()
+    httpd = DashboardHTTPServer(
+        analysis_store,
+        scheduler.history_logger,
+        config_path,
+        requested_port=dashboard_api_port,
+    )
+    try:
+        httpd.start()
+    except OSError as exc:
+        scheduler.stop()
+        detail = str(exc)
+        logger.critical(detail)
+        TrayIcon.show_startup_error(detail)
+        sys.exit(1)
 
     tray = TrayIcon(scheduler)
     tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
@@ -178,7 +197,7 @@ def main() -> None:
     if args.no_tray:
         _run_console_mode(config_path, logger)
     else:
-        _run_tray_mode(config_path, logger)
+        _run_tray_mode(config_path, logger, args.dashboard_api_port)
 
 
 if __name__ == "__main__":
