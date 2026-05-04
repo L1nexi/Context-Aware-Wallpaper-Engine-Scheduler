@@ -120,6 +120,42 @@ const hoverGuideStyle = computed(() => {
   }
 })
 
+function resolveHoverPointStyle(
+  yAxisIndex: number,
+  value: number | null | undefined,
+): Record<string, string> {
+  if (hoverTooltip.value === null || value === null || value === undefined) {
+    return {}
+  }
+
+  const point = chartRef.value?.convertToPixel(
+    { xAxisIndex: 0, yAxisIndex },
+    [hoverTooltip.value.index, value],
+  )
+
+  if (!Array.isArray(point) || point.length < 2) {
+    return {}
+  }
+
+  const [x, y] = point
+  if (typeof x !== 'number' || typeof y !== 'number' || Number.isNaN(x) || Number.isNaN(y)) {
+    return {}
+  }
+
+  return {
+    left: `${x}px`,
+    top: `${y}px`,
+  }
+}
+
+const hoverSimilarityPointStyle = computed(() =>
+  resolveHoverPointStyle(0, hoverTooltipTick.value?.summary.similarity),
+)
+
+const hoverGapPointStyle = computed(() =>
+  resolveHoverPointStyle(1, hoverTooltipTick.value?.summary.similarityGap),
+)
+
 function clearProgrammaticTooltip(): void {
   const chart = chartRef.value
   if (!chart) {
@@ -358,6 +394,18 @@ onBeforeUnmount(() => {
             class="pointer-events-none absolute top-6 bottom-12 z-10 border-l border-dashed border-primary/30"
             :style="hoverGuideStyle"
           />
+          <div
+            class="pointer-events-none absolute z-30 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow-[0_0_0_2px_var(--primary),0_6px_16px_rgba(14,165,233,0.35)]"
+            :style="hoverSimilarityPointStyle"
+          >
+            <span class="absolute inset-1 rounded-full bg-background/85" />
+          </div>
+          <div
+            class="pointer-events-none absolute z-30 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-[var(--color-chart-2)] shadow-[0_0_0_2px_var(--chart-2),0_6px_16px_rgba(20,184,166,0.35)]"
+            :style="hoverGapPointStyle"
+          >
+            <span class="absolute inset-1 rounded-full bg-background/85" />
+          </div>
           <div
             class="pointer-events-none absolute z-20 min-w-56 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground shadow-lg"
             :style="hoverTooltipStyle"

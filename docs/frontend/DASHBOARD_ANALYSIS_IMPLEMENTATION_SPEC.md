@@ -16,6 +16,10 @@
 - 收敛 `Dashboard Analysis v1` 的前端实现方案
 - 明确哪些决定已经固定，哪些细节可以留给后续迭代
 
+时间轴 ECharts / zrender 交互实现中的已知坑点与维护指引见：
+
+- [DASHBOARD_TIMELINE_ECHARTS_GUIDE.md](./DASHBOARD_TIMELINE_ECHARTS_GUIDE.md)
+
 ## 1. v1 范围
 
 `Dashboard Analysis v1` 的正式范围是：
