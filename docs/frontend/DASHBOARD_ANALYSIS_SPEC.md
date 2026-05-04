@@ -20,16 +20,20 @@
 - `WEScheduler.on_tick` 当前直接产出 `SchedulerTickTrace`。
 - legacy `ui/dashboard.py::build_tick_state()` 当前只是把 `SchedulerTickTrace` 适配为旧 `TickState`，用于旧 Dashboard。
 
+已完成：
+
+- `GET /api/analysis/window` 已经实现，返回 `TickSnapshot` 列表。
+- 旧 `/api/state`、`/api/ticks` 与 legacy `TickState` 已删除
+
 尚未完成：
 
-- `GET /api/analysis/window` 等正式分析接口尚未实现。
+- history 与 config 接口
 - `dashboard-v2` 仍未接入新的 analysis store / 时间轴 / 三栏分析页。
-- 旧 `/api/state`、`/api/ticks` 与 legacy `TickState` 仍作为兼容层存在，尚未删除。
 
 因此，后续 thread 若继续推进 Dashboard，应默认：
 
 - core 数据事实已经准备好；
-- 下一步重点是 API mapper 与 `dashboard-v2`，而不是再回去改 `TickState`。
+- 下一步重点是 API mapper 与 `dashboard-v2`
 
 ## 1. 目标
 
@@ -183,15 +187,15 @@ Dashboard 页必须满足以下目标：
 
 ```ts
 type TickSummary = {
-  tickId: number
-  ts: number
-  similarity: number
-  similarityGap: number
-  activePlaylist: string | null
-  activePlaylistDisplay: string | null
-  matchedPlaylist: string | null
-  matchedPlaylistDisplay: string | null
-  actionKind: "none" | "switch" | "cycle" | "hold" | "pause"
+  tickId: number;
+  ts: number;
+  similarity: number;
+  similarityGap: number;
+  activePlaylist: string | null;
+  activePlaylistDisplay: string | null;
+  matchedPlaylist: string | null;
+  matchedPlaylistDisplay: string | null;
+  actionKind: "none" | "switch" | "cycle" | "hold" | "pause";
   reasonCode:
     | "no_match"
     | "hold_same_playlist"
@@ -205,11 +209,11 @@ type TickSummary = {
     | "cycle_blocked_fullscreen"
     | "cycle_blocked_cpu"
     | "cycle_blocked_not_idle"
-    | "scheduler_paused"
-  paused: boolean
-  executed: boolean
-  hasEvent: boolean
-}
+    | "scheduler_paused";
+  paused: boolean;
+  executed: boolean;
+  hasEvent: boolean;
+};
 ```
 
 说明：
@@ -233,52 +237,55 @@ type TickSummary = {
 
 ```ts
 type TickSnapshot = {
-  summary: TickSummary
+  summary: TickSummary;
   sense: {
     window: {
-      process: string
-      title: string
-    }
+      process: string;
+      title: string;
+    };
     idle: {
-      seconds: number
-    }
+      seconds: number;
+    };
     cpu: {
-      averagePercent: number
-    }
-    fullscreen: boolean
+      averagePercent: number;
+    };
+    fullscreen: boolean;
     weather: {
-      available: boolean
-      stale: boolean
-      id: number | null
-      main: string | null
-      sunrise: number | null
-      sunset: number | null
-    }
+      available: boolean;
+      stale: boolean;
+      id: number | null;
+      main: string | null;
+      sunrise: number | null;
+      sunset: number | null;
+    };
     clock: {
-      localTs: number
-      hour: number
-      dayOfYear: number
-    }
-  }
+      localTs: number;
+      hour: number;
+      dayOfYear: number;
+    };
+  };
   think: {
-    rawContextVector: Array<{ tag: string; weight: number }>
-    resolvedContextVector: Array<{ tag: string; weight: number }>
-    fallbackExpansions: Record<string, Array<{
-      resolvedTag: string
-      weight: number
-    }>>
-    policies: PolicyDiagnostic[]
-  }
+    rawContextVector: Array<{ tag: string; weight: number }>;
+    resolvedContextVector: Array<{ tag: string; weight: number }>;
+    fallbackExpansions: Record<
+      string,
+      Array<{
+        resolvedTag: string;
+        weight: number;
+      }>
+    >;
+    policies: PolicyDiagnostic[];
+  };
   act: {
     topMatches: Array<{
-      playlist: string
-      display: string
-      score: number
-    }>
-    controller: ControllerDiagnostic
-    decision: ActionDecision
-  }
-}
+      playlist: string;
+      display: string;
+      score: number;
+    }>;
+    controller: ControllerDiagnostic;
+    decision: ActionDecision;
+  };
+};
 ```
 
 ### 6.3 PolicyDiagnostic
@@ -295,61 +302,61 @@ type TickSnapshot = {
 
 ```ts
 type BasePolicyDiagnostic = {
-  enabled: boolean
-  active: boolean
-  weightScale: number
-  salience: number
-  intensity: number
-  effectiveMagnitude: number
-  direction: Array<{ tag: string; weight: number }>
-  rawContribution: Array<{ tag: string; weight: number }>
-  resolvedContribution: Array<{ tag: string; weight: number }>
-  dominantTag: string | null
-}
+  enabled: boolean;
+  active: boolean;
+  weightScale: number;
+  salience: number;
+  intensity: number;
+  effectiveMagnitude: number;
+  direction: Array<{ tag: string; weight: number }>;
+  rawContribution: Array<{ tag: string; weight: number }>;
+  resolvedContribution: Array<{ tag: string; weight: number }>;
+  dominantTag: string | null;
+};
 
 type PolicyDiagnostic =
   | (BasePolicyDiagnostic & {
-      policyId: "activity"
+      policyId: "activity";
       details: {
-        matchSource: "title" | "process" | "none"
-        matchedRule: string | null
-        matchedTag: string | null
-        windowTitle: string
-        process: string
-        emaActive: boolean
-      }
+        matchSource: "title" | "process" | "none";
+        matchedRule: string | null;
+        matchedTag: string | null;
+        windowTitle: string;
+        process: string;
+        emaActive: boolean;
+      };
     })
   | (BasePolicyDiagnostic & {
-      policyId: "time"
+      policyId: "time";
       details: {
-        auto: boolean
-        hour: number
-        virtualHour: number
-        dayStartHour: number
-        nightStartHour: number
-        peaks: Record<string, number>
-      }
+        auto: boolean;
+        hour: number;
+        virtualHour: number;
+        dayStartHour: number;
+        nightStartHour: number;
+        peaks: Record<string, number>;
+      };
     })
   | (BasePolicyDiagnostic & {
-      policyId: "season"
+      policyId: "season";
       details: {
-        dayOfYear: number
-        peaks: Record<string, number>
-      }
+        dayOfYear: number;
+        peaks: Record<string, number>;
+      };
     })
   | (BasePolicyDiagnostic & {
-      policyId: "weather"
+      policyId: "weather";
       details: {
-        weatherId: number | null
-        weatherMain: string | null
-        available: boolean
-        mapped: boolean
-      }
+        weatherId: number | null;
+        weatherMain: string | null;
+        available: boolean;
+        mapped: boolean;
+      };
     })
   | (BasePolicyDiagnostic & {
-      policyId: string
-      details: Record<string, unknown>
-    })
+      policyId: string;
+      details: Record<string, unknown>;
+    });
 ```
 
 说明：
@@ -375,18 +382,18 @@ type PolicyDiagnostic =
 ```ts
 type ControllerDiagnostic = {
   evaluation: {
-    operation: "switch" | "cycle"
-    allowed: boolean
-    blockedBy: Array<"cooldown" | "fullscreen" | "cpu" | "idle">
-    cooldownRemaining: number
-    idleSeconds: number
-    idleThreshold: number
-    cpuPercent: number
-    cpuThreshold: number | null
-    fullscreen: boolean
-    forceAfterRemaining: number | null
-  } | null
-}
+    operation: "switch" | "cycle";
+    allowed: boolean;
+    blockedBy: Array<"cooldown" | "fullscreen" | "cpu" | "idle">;
+    cooldownRemaining: number;
+    idleSeconds: number;
+    idleThreshold: number;
+    cpuPercent: number;
+    cpuThreshold: number | null;
+    fullscreen: boolean;
+    forceAfterRemaining: number | null;
+  } | null;
+};
 ```
 
 说明：
@@ -409,7 +416,7 @@ type ControllerDiagnostic = {
 
 ```ts
 type ActionDecision = {
-  kind: "none" | "switch" | "cycle" | "hold" | "pause"
+  kind: "none" | "switch" | "cycle" | "hold" | "pause";
   reasonCode:
     | "no_match"
     | "hold_same_playlist"
@@ -423,12 +430,12 @@ type ActionDecision = {
     | "cycle_blocked_fullscreen"
     | "cycle_blocked_cpu"
     | "cycle_blocked_not_idle"
-    | "scheduler_paused"
-  executed: boolean
-  activePlaylistBefore: string | null
-  activePlaylistAfter: string | null
-  matchedPlaylist: string | null
-}
+    | "scheduler_paused";
+  executed: boolean;
+  activePlaylistBefore: string | null;
+  activePlaylistAfter: string | null;
+  matchedPlaylist: string | null;
+};
 ```
 
 说明：
@@ -506,9 +513,9 @@ Analysis DTO 的输入可以包含 `SchedulerTickTrace` 之外的少量运行时
 
 ```ts
 type TickWindowResponse = {
-  liveTickId: number | null
-  ticks: Array<TickSnapshot>
-}
+  liveTickId: number | null;
+  ticks: Array<TickSnapshot>;
+};
 ```
 
 建议接口：
@@ -538,15 +545,15 @@ Dashboard 页应使用 Pinia 管理页面状态，不继续用旧的 `useApi()` 
 
 ```ts
 type DashboardAnalysisStore = {
-  ticks: TickSnapshot[]
-  liveTickId: number | null
-  selectedTickId: number | null
-  hoverTickId: number | null
-  lockedTickId: number | null
-  mode: "live" | "snapshot"
-  loading: boolean
-  error: string | null
-}
+  ticks: TickSnapshot[];
+  liveTickId: number | null;
+  selectedTickId: number | null;
+  hoverTickId: number | null;
+  lockedTickId: number | null;
+  mode: "live" | "snapshot";
+  loading: boolean;
+  error: string | null;
+};
 ```
 
 派生规则：
