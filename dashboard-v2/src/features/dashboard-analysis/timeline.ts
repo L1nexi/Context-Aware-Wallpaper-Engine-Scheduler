@@ -4,7 +4,6 @@ import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
 import { getCssColor } from './cssColors'
 import { clamp, formatShortTime, formatWeight } from './formatting'
-import { getPlaylistColor } from './playlistColors'
 import { getTickPlaylistLabel } from './presenters'
 
 type Translate = (key: string, params?: Record<string, string | number>) => string
@@ -73,9 +72,11 @@ function buildTrackSegments(
   ticks.forEach((tick, index) => {
     const playlist =
       type === 'active' ? tick.summary.activePlaylist : tick.summary.matchedPlaylist
+    const playlistColor =
+      type === 'active' ? tick.summary.activePlaylistColor : tick.summary.matchedPlaylistColor
     const paused = tick.summary.paused
     const key = paused ? '__paused__' : playlist ?? '__none__'
-    const color = paused ? mutedColor : getPlaylistColor(playlist)
+    const color = paused ? mutedColor : playlistColor ?? mutedColor
 
     if (index === 0) {
       previousKey = key

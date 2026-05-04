@@ -15,31 +15,37 @@
   "playlists": [
     {
       "name": "BRIGHT_FLOW",
+      "color": "#F5C518",
       "tags": { "#focus": 1.0, "#day": 0.9, "#dawn": 0.3, "#clear": 0.3 },
       "display": "日光流动"
     },
     {
       "name": "CASUAL_ANIME",
+      "color": "#5BB8D4",
       "tags": { "#chill": 1.0, "#day": 0.9, "#clear": 0.3 },
       "display": "次元日常"
     },
     {
       "name": "SUNSET_GLOW",
+      "color": "#FF8C00",
       "tags": { "#sunset": 1.0, "#chill": 0.5, "#clear": 0.3 },
       "display": "夕阳余晖"
     },
     {
       "name": "NIGHT_CHILL",
+      "color": "#7B68EE",
       "tags": { "#chill": 1.0, "#night": 0.9, "#clear": 0.2 },
       "display": "闲适夜晚"
     },
     {
       "name": "NIGHT_FOCUS",
+      "color": "#2E5F8A",
       "tags": { "#focus": 1.0, "#night": 0.9, "#clear": 0.2 },
       "display": "深夜专注"
     },
     {
       "name": "RAINY_MOOD",
+      "color": "#4A90D9",
       "tags": {
         "#rain": 1.2,
         "#storm": 0.4,
@@ -51,16 +57,19 @@
     },
     {
       "name": "SPRING_BLOOM",
+      "color": "#5CBE5C",
       "tags": { "#spring": 1.0, "#day": 0.5, "#clear": 0.3, "#chill": 0.2 },
       "display": "春日绿意"
     },
     {
       "name": "SUMMER_GLOW",
+      "color": "#D83820",
       "tags": { "#summer": 1.0, "#day": 0.5, "#clear": 0.4, "#chill": 0.3 },
       "display": "盛夏之感"
     },
     {
       "name": "AUTUMN_DRIFT",
+      "color": "#C07830",
       "tags": {
         "#autumn": 1.0,
         "#sunset": 0.5,
@@ -72,6 +81,7 @@
     },
     {
       "name": "WINTER_VIBES",
+      "color": "#ADC8E0",
       "tags": {
         "#winter": 1.0,
         "#sunset": 0.7,

@@ -158,8 +158,9 @@ export interface ActionDecision {
 
 export interface TopMatch {
   playlist: string
-  display: string
+  display: string | null
   score: number
+  color: string | null
 }
 
 export interface SenseSnapshot {
@@ -191,8 +192,10 @@ export interface TickSummary {
   similarityGap: number
   activePlaylist: string | null
   activePlaylistDisplay: string | null
+  activePlaylistColor: string | null
   matchedPlaylist: string | null
   matchedPlaylistDisplay: string | null
+  matchedPlaylistColor: string | null
   actionKind: ActionKind
   reasonCode: ActionReasonCode
   paused: boolean

@@ -55,7 +55,14 @@ def config_path(tmp_path):
     config = {
         "wallpaper_engine_path": "C:\\fake\\wallpaper64.exe",
         "tags": {},
-        "playlists": [{"name": "test_pl", "tags": {"#focus": 1.0}}],
+        "playlists": [
+            {
+                "name": "test_pl",
+                "display": "Test Playlist",
+                "color": "#5BB8D4",
+                "tags": {"#focus": 1.0},
+            }
+        ],
         "policies": {},
         "scheduling": {},
     }
@@ -114,9 +121,15 @@ def wsgi_post(app, path, data=None):
     return wsgi_request(app, "POST", path, body=body_bytes)
 
 
-def _make_scheduler(*, weather_enabled: bool = True, display_of: dict[str, str] | None = None):
+def _make_scheduler(
+    *,
+    weather_enabled: bool = True,
+    display_of: dict[str, str] | None = None,
+    color_of: dict[str, str] | None = None,
+):
     scheduler = mock.MagicMock()
     scheduler.display_of = display_of or {}
+    scheduler.color_of = color_of or {}
     weather_cfg = SimpleNamespace(enabled=weather_enabled) if weather_enabled else None
     scheduler.config_loader = SimpleNamespace(
         config=SimpleNamespace(
@@ -202,6 +215,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
     scheduler = _make_scheduler(
         weather_enabled=True,
         display_of={"focus": "Focus Flow", "rainy": "Rainy Mood"},
+        color_of={"focus": "#F5C518", "rainy": "#4A90D9", "idle": "#2E5F8A"},
     )
     evaluation = ControllerEvaluation(
         operation="switch",
@@ -279,8 +293,10 @@ def test_build_tick_snapshot_maps_analysis_fields():
 
     assert snapshot["summary"]["tickId"] == 7
     assert snapshot["summary"]["activePlaylist"] == "idle"
+    assert snapshot["summary"]["activePlaylistColor"] == "#2E5F8A"
     assert snapshot["summary"]["matchedPlaylist"] == "focus"
     assert snapshot["summary"]["matchedPlaylistDisplay"] == "Focus Flow"
+    assert snapshot["summary"]["matchedPlaylistColor"] == "#F5C518"
     assert "enabled" not in snapshot["sense"]["weather"]
     assert snapshot["sense"]["weather"]["available"] is True
     assert snapshot["sense"]["weather"]["stale"] is True
@@ -288,12 +304,17 @@ def test_build_tick_snapshot_maps_analysis_fields():
     assert snapshot["think"]["policies"][0]["policyId"] == "activity"
     assert snapshot["think"]["policies"][1]["details"]["mapped"] is True
     assert snapshot["act"]["topMatches"][0]["display"] == "Focus Flow"
+    assert snapshot["act"]["topMatches"][0]["color"] == "#F5C518"
+    assert snapshot["act"]["topMatches"][1]["color"] == "#4A90D9"
     assert snapshot["act"]["controller"]["evaluation"]["operation"] == "switch"
     assert snapshot["act"]["decision"]["reasonCode"] == "switch_blocked_cooldown"
 
 
 def test_build_tick_snapshot_maps_paused_tick():
-    scheduler = _make_scheduler(weather_enabled=False)
+    scheduler = _make_scheduler(
+        weather_enabled=False,
+        color_of={"focus": "#F5C518", "rainy": "#4A90D9"},
+    )
     trace = _make_trace(
         tick_id=8,
         paused=True,
@@ -312,6 +333,8 @@ def test_build_tick_snapshot_maps_paused_tick():
     assert snapshot["summary"]["actionKind"] == "pause"
     assert snapshot["summary"]["paused"] is True
     assert snapshot["summary"]["hasEvent"] is False
+    assert snapshot["summary"]["activePlaylistColor"] == "#F5C518"
+    assert snapshot["summary"]["matchedPlaylistColor"] == "#4A90D9"
     assert snapshot["sense"]["weather"]["available"] is False
     assert snapshot["act"]["controller"]["evaluation"] is None
     assert snapshot["act"]["decision"]["activePlaylistAfter"] == "focus"
@@ -333,6 +356,59 @@ def test_api_analysis_window_returns_recent(analysis_store, history_logger, conf
     assert "200" in status
     assert body["liveTickId"] == 4
     assert [tick["summary"]["tickId"] for tick in body["ticks"]] == [3, 4]
+
+
+def test_api_analysis_window_applies_current_playlist_colors(analysis_store, history_logger, config_path):
+    app = _build_app(analysis_store, history_logger, config_path)
+    analysis_store.update(
+        {
+            "summary": {
+                "tickId": 1,
+                "activePlaylist": "test_pl",
+                "activePlaylistDisplay": "Stale Display",
+                "activePlaylistColor": "#000000",
+                "matchedPlaylist": "missing_playlist",
+                "matchedPlaylistDisplay": "Missing Playlist",
+                "matchedPlaylistColor": "#111111",
+            },
+            "sense": {},
+            "think": {},
+            "act": {
+                "topMatches": [
+                    {
+                        "playlist": "test_pl",
+                        "display": "Stale Display",
+                        "score": 0.91,
+                        "color": "#222222",
+                    },
+                    {
+                        "playlist": "missing_playlist",
+                        "display": "Missing Playlist",
+                        "score": 0.66,
+                        "color": "#333333",
+                    },
+                ],
+                "controller": {"evaluation": None},
+                "decision": {
+                    "kind": "hold",
+                    "reasonCode": "hold_same_playlist",
+                    "executed": False,
+                    "activePlaylistBefore": "test_pl",
+                    "activePlaylistAfter": "test_pl",
+                    "matchedPlaylist": "missing_playlist",
+                },
+            },
+        }
+    )
+
+    status, body = wsgi_get(app, "/api/analysis/window")
+
+    assert "200" in status
+    tick = body["ticks"][0]
+    assert tick["summary"]["activePlaylistColor"] == "#5BB8D4"
+    assert tick["summary"]["matchedPlaylistColor"] is None
+    assert tick["act"]["topMatches"][0]["color"] == "#5BB8D4"
+    assert tick["act"]["topMatches"][1]["color"] is None
 
 
 def test_api_analysis_window_invalid_count(app):
@@ -441,6 +517,7 @@ def test_api_config_returns_config(app):
     status, body = wsgi_get(app, "/api/config")
     assert "200" in status
     assert body["wallpaper_engine_path"] == "C:\\fake\\wallpaper64.exe"
+    assert body["playlists"][0]["color"] == "#5BB8D4"
 
 
 def test_api_config_not_found(analysis_store, history_logger):
@@ -463,7 +540,7 @@ def test_api_config_invalid_file(analysis_store, history_logger, tmp_path):
 def test_api_config_save_valid(app, config_path):
     payload = {
         "wallpaper_engine_path": "C:\\valid\\wallpaper64.exe",
-        "playlists": [{"name": "pl", "tags": {"#focus": 1.0}}],
+        "playlists": [{"name": "pl", "color": "#F5C518", "tags": {"#focus": 1.0}}],
     }
     status, body = wsgi_post(app, "/api/config", payload)
     assert "200" in status
@@ -472,6 +549,7 @@ def test_api_config_save_valid(app, config_path):
     with open(config_path, "r", encoding="utf-8") as file:
         saved = json.load(file)
     assert saved["wallpaper_engine_path"] == "C:\\valid\\wallpaper64.exe"
+    assert saved["playlists"][0]["color"] == "#F5C518"
 
 
 def test_api_config_save_no_body(app):
@@ -485,12 +563,13 @@ def test_api_config_save_validation_failed(analysis_store, history_logger, tmp_p
     app = _build_app(analysis_store, history_logger, path)
     payload = {
         "wallpaper_engine_path": "C:\\x\\wallpaper64.exe",
-        "playlists": [{"name": "", "tags": {}}],
+        "playlists": [{"name": "", "color": "#FFF", "tags": {}}],
     }
     status, body = wsgi_post(app, "/api/config", payload)
     assert "422" in status
     assert body["error"] == "validation_failed"
     assert len(body["details"]) > 0
+    assert any(detail["field"] == "playlists.0.color" for detail in body["details"])
     assert not os.path.exists(path + ".tmp")
 
 

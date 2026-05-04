@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 export interface PlaylistConfig {
   name: string
   display?: string
+  color: string
   tags: Record<string, number>
 }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import threading
 import time
 from collections import deque
@@ -195,8 +196,9 @@ class ActionDecisionDto(ApiDto):
 
 class TopMatchDto(ApiDto):
     playlist: str
-    display: str
+    display: str | None
     score: float
+    color: str | None
 
 
 class SenseSnapshotDto(ApiDto):
@@ -228,8 +230,10 @@ class TickSummaryDto(ApiDto):
     similarity_gap: float
     active_playlist: str | None
     active_playlist_display: str | None
+    active_playlist_color: str | None
     matched_playlist: str | None
     matched_playlist_display: str | None
+    matched_playlist_color: str | None
     action_kind: ActionKind
     reason_code: ActionReasonCode
     paused: bool
@@ -252,6 +256,7 @@ class TickWindowResponseDto(ApiDto):
 @dataclass(frozen=True)
 class DashboardRuntimeMetadata:
     display_of: dict[str, str]
+    color_of: dict[str, str]
 
 
 class AnalysisStore:
@@ -278,7 +283,19 @@ class AnalysisStore:
 
 
 def extract_runtime_metadata(scheduler: WEScheduler) -> DashboardRuntimeMetadata:
-    return DashboardRuntimeMetadata(display_of=dict(scheduler.display_of))
+    return DashboardRuntimeMetadata(
+        display_of=dict(getattr(scheduler, "display_of", {})),
+        color_of=dict(getattr(scheduler, "color_of", {})),
+    )
+
+
+def _playlist_color(
+    playlist: str | None,
+    color_of: dict[str, str],
+) -> str | None:
+    if not playlist:
+        return None
+    return color_of.get(playlist)
 
 
 def _tag_weights(values: dict[str, float]) -> list[TagWeightDto]:
@@ -428,10 +445,18 @@ def map_tick_snapshot(
                 active_playlist_after,
                 metadata.display_of,
             ),
+            active_playlist_color=_playlist_color(
+                active_playlist_after,
+                metadata.color_of,
+            ),
             matched_playlist=matched_playlist,
             matched_playlist_display=_playlist_display(
                 matched_playlist,
                 metadata.display_of,
+            ),
+            matched_playlist_color=_playlist_color(
+                matched_playlist,
+                metadata.color_of,
             ),
             action_kind=trace.action.kind,
             reason_code=trace.action.reason_code,
@@ -465,6 +490,7 @@ def map_tick_snapshot(
                     playlist=playlist,
                     display=metadata.display_of.get(playlist, playlist),
                     score=_round_float(score),
+                    color=_playlist_color(playlist, metadata.color_of),
                 )
                 for playlist, score in trace.match.playlist_matches[:5]
             ],

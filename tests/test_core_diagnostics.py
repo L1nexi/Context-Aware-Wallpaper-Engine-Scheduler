@@ -85,7 +85,7 @@ def test_matcher_preserves_raw_resolved_and_fallback_vectors():
     )
 
     matcher = Matcher(
-        playlists=[PlaylistConfig(name="focus", tags={"#focus": 1.0})],
+        playlists=[PlaylistConfig(name="focus", color="#F5C518", tags={"#focus": 1.0})],
         policies=[stub_policy],
         tag_specs={"#stormy": TagSpec(fallback={"#focus": 1.0})},
     )

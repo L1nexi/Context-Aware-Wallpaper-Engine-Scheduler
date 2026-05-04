@@ -4,7 +4,7 @@ import { computed } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
-import { getPlaylistColor } from './playlistColors'
+import { getCssColor } from './cssColors'
 import ControllerSummary from './ControllerSummary.vue'
 import { formatWeight } from './formatting'
 import {
@@ -23,6 +23,7 @@ const { t, lang } = useI18n()
 const topMatches = computed(() => props.tick.act.topMatches.slice(0, 5))
 const decisionSummary = computed(() => getDecisionSummary(props.tick.act.decision, props.tick, t))
 const matchedPlaylistLabel = computed(() => getTickPlaylistLabel(props.tick, 'matched', t))
+const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
 </script>
 
 <template>
@@ -59,7 +60,7 @@ const matchedPlaylistLabel = computed(() => getTickPlaylistLabel(props.tick, 'ma
             <div class="flex min-w-0 items-center gap-3">
               <span
                 class="size-3 rounded-full border border-background/70"
-                :style="{ backgroundColor: getPlaylistColor(match.playlist) }"
+                :style="{ backgroundColor: match.color ?? mutedPlaylistColor }"
               />
               <span class="truncate font-medium">
                 {{ getTopMatchName(match, t) }}

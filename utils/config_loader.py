@@ -1,11 +1,27 @@
 import json
 import logging
 import os
+import re
 from typing import Dict, List, Any, Optional, Union
 
-from pydantic import BaseModel, Field, ConfigDict, ValidationError
+from pydantic import BaseModel, Field, ConfigDict, ValidationError, field_validator
 
 logger = logging.getLogger("WEScheduler.Config")
+
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+PLAYLIST_COLOR_PRESETS = {
+    "BRIGHT_FLOW": "#F5C518",
+    "CASUAL_ANIME": "#5BB8D4",
+    "SUNSET_GLOW": "#FF8C00",
+    "NIGHT_CHILL": "#7B68EE",
+    "NIGHT_FOCUS": "#2E5F8A",
+    "RAINY_MOOD": "#4A90D9",
+    "WINTER_VIBES": "#ADC8E0",
+    "SPRING_BLOOM": "#5CBE5C",
+    "SUMMER_GLOW": "#D83820",
+    "AUTUMN_DRIFT": "#C07830",
+}
 
 
 # ── Config models ────────────────────────────────────────────────────────────
@@ -19,7 +35,15 @@ class PlaylistConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1)
     display: str = ""
+    color: str
     tags: Dict[str, float] = Field(min_length=1)
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, value: str) -> str:
+        if not HEX_COLOR_RE.fullmatch(value):
+            raise ValueError("color must be a 6-digit hex string like #RRGGBB")
+        return value
 
 
 class _BasePolicyConfig(BaseModel):

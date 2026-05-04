@@ -272,6 +272,7 @@ class WEScheduler:
             history_logger=self.history_logger,
         )
         self.display_of = {pl.name: pl.display or pl.name for pl in config.playlists}
+        self.color_of = {pl.name: pl.color for pl in config.playlists}
 
     def _hot_reload(self) -> None:
         try:
