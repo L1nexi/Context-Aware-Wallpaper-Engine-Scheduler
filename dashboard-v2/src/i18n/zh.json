@@ -1,6 +1,8 @@
 {
   "appName": "WEScheduler",
   "title": "WEScheduler 仪表盘",
+  "app_shell_label": "工作台",
+  "app_shell_subtitle": "本地调度器工作台。",
   "running": "运行中",
   "paused": "已暂停",
   "fullscreen": "全屏",
@@ -45,6 +47,7 @@
   "dashboard_history": "历史",
   "dashboard_config": "配置",
   "dashboard_nav": "仪表盘",
+  "config_general": "通用",
   "dashboard_shell_label": "监控",
   "dashboard_shell_title": "仪表盘",
   "dashboard_shell_subtitle": "面向本地调度运行时的诊断工作台。",

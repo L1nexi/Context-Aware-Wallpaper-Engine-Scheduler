@@ -1,6 +1,8 @@
 {
   "appName": "WEScheduler",
   "title": "WEScheduler Dashboard",
+  "app_shell_label": "Workspace",
+  "app_shell_subtitle": "Local scheduler workbench.",
   "running": "Running",
   "paused": "Paused",
   "fullscreen": "Fullscreen",
@@ -45,6 +47,7 @@
   "dashboard_history": "History",
   "dashboard_config": "Config",
   "dashboard_nav": "Dashboard",
+  "config_general": "General",
   "dashboard_shell_label": "Monitoring",
   "dashboard_shell_title": "Dashboard",
   "dashboard_shell_subtitle": "A diagnosis workbench for the local scheduler runtime.",

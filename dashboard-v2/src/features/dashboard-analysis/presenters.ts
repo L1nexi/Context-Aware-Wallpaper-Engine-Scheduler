@@ -10,7 +10,7 @@ import type {
   TickSnapshot,
 } from '@/lib/dashboardAnalysis'
 
-import { formatPercent, formatSeconds, formatWeight } from './formatting'
+import { formatPercent, formatSeconds } from './formatting'
 
 type Translate = (key: string, params?: Record<string, string | number>) => string
 
