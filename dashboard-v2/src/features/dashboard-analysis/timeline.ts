@@ -428,6 +428,7 @@ export function buildTimelineOption(
         type: 'custom',
         xAxisIndex: 1,
         yAxisIndex: 2,
+        silent: true,
         z: 1,
         renderItem(params, api) {
           const start = api.value(0) as number
@@ -462,6 +463,7 @@ export function buildTimelineOption(
         type: 'custom',
         xAxisIndex: 1,
         yAxisIndex: 2,
+        silent: true,
         z: 1,
         renderItem(params, api) {
           const start = api.value(0) as number
