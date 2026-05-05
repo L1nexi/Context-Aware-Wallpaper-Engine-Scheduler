@@ -4,25 +4,49 @@ import os
 import re
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 logger = logging.getLogger("WEScheduler.Config")
 
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
-PLAYLIST_COLOR_PRESETS = {
-    "BRIGHT_FLOW": "#F5C518",
-    "CASUAL_ANIME": "#5BB8D4",
-    "SUNSET_GLOW": "#FF8C00",
-    "NIGHT_CHILL": "#7B68EE",
-    "NIGHT_FOCUS": "#2E5F8A",
-    "RAINY_MOOD": "#4A90D9",
-    "WINTER_VIBES": "#ADC8E0",
-    "SPRING_BLOOM": "#5CBE5C",
-    "SUMMER_GLOW": "#D83820",
-    "AUTUMN_DRIFT": "#C07830",
-}
+PLAYLIST_AUTO_COLOR_PALETTE = (
+    "#2563EB",  # blue
+    "#0891B2",  # cyan
+    "#059669",  # emerald
+    "#16A34A",  # green
+    "#65A30D",  # lime
+    "#CA8A04",  # amber
+    "#D97706",  # orange
+    "#EA580C",  # deep orange
+    "#DC2626",  # red
+    "#E11D48",  # rose
+    "#C026D3",  # fuchsia
+    "#7C3AED",  # violet
+)
+
+
+def _assign_missing_playlist_colors(playlists: list[Any]) -> list[Any]:
+    fallback_index = 0
+    palette_size = len(PLAYLIST_AUTO_COLOR_PALETTE)
+    normalized_playlists: list[Any] = []
+
+    for playlist in playlists:
+        if not isinstance(playlist, dict):
+            normalized_playlists.append(playlist)
+            continue
+
+        normalized_playlist = dict(playlist)
+        if normalized_playlist.get("color") is None:
+            normalized_playlist["color"] = PLAYLIST_AUTO_COLOR_PALETTE[
+                fallback_index % palette_size
+            ]
+            fallback_index += 1
+
+        normalized_playlists.append(normalized_playlist)
+
+    return normalized_playlists
 
 
 # ── Config models ────────────────────────────────────────────────────────────
@@ -119,6 +143,18 @@ class AppConfig(BaseModel):
     playlists: List[PlaylistConfig] = Field(default_factory=list)
     policies: PoliciesConfig = Field(default_factory=PoliciesConfig)
     scheduling: SchedulingConfig = Field(default_factory=SchedulingConfig)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_playlist_colors(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        playlists = normalized.get("playlists")
+        if isinstance(playlists, list):
+            normalized["playlists"] = _assign_missing_playlist_colors(playlists)
+        return normalized
 
 
 # ── ConfigLoader ─────────────────────────────────────────────────────────────

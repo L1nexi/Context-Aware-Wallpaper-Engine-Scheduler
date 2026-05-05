@@ -179,7 +179,7 @@ class ControllerDiagnosticDto(ApiDto):
 class PlaylistRefDto(ApiDto):
     name: str
     display: str        # fallback from name if no display
-    color: str          # required, fallback to default palette color if not found in metadata
+    color: str | None   # canonical config playlists have a color; unknown historical refs may not
 
 
 class ActionDecisionDto(ApiDto):

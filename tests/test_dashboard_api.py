@@ -36,6 +36,7 @@ from ui.dashboard import (
     _resolve_static_root,
 )
 from ui.dashboard_analysis import AnalysisStore, DashboardRuntimeMetadata, build_tick_snapshot
+from utils.config_loader import PLAYLIST_AUTO_COLOR_PALETTE
 
 
 @pytest.fixture
@@ -603,6 +604,28 @@ def test_api_config_returns_document_response(app):
     assert body["defaults"]["policies"]["weather"]["lon"] is None
 
 
+def test_api_config_returns_canonicalized_playlist_color_when_missing(
+    analysis_store,
+    history_logger,
+    tmp_path,
+):
+    path = os.path.join(str(tmp_path), "scheduler_config.json")
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(
+            {
+                "wallpaper_engine_path": "C:\\fake\\wallpaper64.exe",
+                "playlists": [{"name": "focus", "tags": {"#focus": 1.0}}],
+            },
+            file,
+        )
+
+    app = _build_app(analysis_store, history_logger, path)
+    status, body = wsgi_get(app, "/api/config")
+
+    assert "200" in status
+    assert body["current"]["playlists"][0]["color"] == PLAYLIST_AUTO_COLOR_PALETTE[0]
+
+
 def test_api_config_not_found(analysis_store, history_logger):
     app = _build_app(analysis_store, history_logger, "/nonexistent/config.json")
     status, body = wsgi_get(app, "/api/config")
@@ -638,6 +661,22 @@ def test_api_config_save_valid(app, config_path):
     assert saved["policies"]["activity"]["enabled"] is True
     assert saved["policies"]["weather"]["lat"] is None
     assert saved["scheduling"]["pause_on_fullscreen"] is True
+
+
+def test_api_config_save_assigns_missing_playlist_color(app, config_path):
+    payload = {
+        "wallpaper_engine_path": "C:\\valid\\wallpaper64.exe",
+        "playlists": [{"name": "pl", "tags": {"#focus": 1.0}}],
+    }
+
+    status, body = wsgi_post(app, "/api/config", payload)
+
+    assert "200" in status
+    assert body == {"ok": True}
+
+    with open(config_path, "r", encoding="utf-8") as file:
+        saved = json.load(file)
+    assert saved["playlists"][0]["color"] == PLAYLIST_AUTO_COLOR_PALETTE[0]
 
 
 def test_api_config_save_no_body(app):

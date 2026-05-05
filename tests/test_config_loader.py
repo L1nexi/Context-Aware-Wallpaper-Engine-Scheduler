@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from utils.config_loader import AppConfig, ConfigLoader
+from utils.config_loader import AppConfig, ConfigLoader, PLAYLIST_AUTO_COLOR_PALETTE
 
 
 def _write_config(tmp_path, config):
@@ -92,7 +92,7 @@ def test_config_loader_accepts_six_digit_hex_playlist_color(tmp_path):
     assert config.playlists[1].color == "#4a90d9"
 
 
-def test_config_loader_rejects_missing_playlist_color(tmp_path):
+def test_config_loader_assigns_palette_color_to_missing_playlist_color(tmp_path):
     path = _write_config(
         tmp_path,
         _base_config(
@@ -102,10 +102,72 @@ def test_config_loader_rejects_missing_playlist_color(tmp_path):
         ),
     )
 
-    with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(path).load()
+    config = ConfigLoader(path).load()
 
-    assert "playlists.0.color" in str(exc_info.value)
+    assert config.playlists[0].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
+
+
+def test_config_loader_assigns_palette_color_to_null_playlist_color(tmp_path):
+    path = _write_config(
+        tmp_path,
+        _base_config(
+            playlists=[
+                {"name": "focus", "color": None, "tags": {"#focus": 1.0}},
+            ]
+        ),
+    )
+
+    config = ConfigLoader(path).load()
+
+    assert config.playlists[0].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
+
+
+def test_config_loader_assigns_palette_colors_only_to_missing_entries(tmp_path):
+    path = _write_config(
+        tmp_path,
+        _base_config(
+            playlists=[
+                {"name": "focus", "color": "#F5C518", "tags": {"#focus": 1.0}},
+                {"name": "rainy", "tags": {"#rain": 1.0}},
+                {"name": "night", "color": "#2E5F8A", "tags": {"#night": 1.0}},
+                {"name": "weekend", "color": None, "tags": {"#weekend": 1.0}},
+            ]
+        ),
+    )
+
+    config = ConfigLoader(path).load()
+
+    assert [playlist.color for playlist in config.playlists] == [
+        "#F5C518",
+        PLAYLIST_AUTO_COLOR_PALETTE[0],
+        "#2E5F8A",
+        PLAYLIST_AUTO_COLOR_PALETTE[1],
+    ]
+
+
+def test_config_loader_restarts_auto_color_assignment_on_every_load(tmp_path):
+    path = _write_config(
+        tmp_path,
+        _base_config(
+            playlists=[
+                {"name": "focus", "tags": {"#focus": 1.0}},
+                {"name": "rainy", "tags": {"#rain": 1.0}},
+            ]
+        ),
+    )
+    loader = ConfigLoader(path)
+
+    first = loader.load()
+    second = loader.load()
+
+    assert [playlist.color for playlist in first.playlists] == [
+        PLAYLIST_AUTO_COLOR_PALETTE[0],
+        PLAYLIST_AUTO_COLOR_PALETTE[1],
+    ]
+    assert [playlist.color for playlist in second.playlists] == [
+        PLAYLIST_AUTO_COLOR_PALETTE[0],
+        PLAYLIST_AUTO_COLOR_PALETTE[1],
+    ]
 
 
 @pytest.mark.parametrize("color", ["#FFF", "rgb(255,0,0)", ""])

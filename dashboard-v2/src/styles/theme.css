@@ -17,6 +17,18 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-playlist-01: var(--playlist-01);
+  --color-playlist-02: var(--playlist-02);
+  --color-playlist-03: var(--playlist-03);
+  --color-playlist-04: var(--playlist-04);
+  --color-playlist-05: var(--playlist-05);
+  --color-playlist-06: var(--playlist-06);
+  --color-playlist-07: var(--playlist-07);
+  --color-playlist-08: var(--playlist-08);
+  --color-playlist-09: var(--playlist-09);
+  --color-playlist-10: var(--playlist-10);
+  --color-playlist-11: var(--playlist-11);
+  --color-playlist-12: var(--playlist-12);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -88,6 +100,20 @@
   --chart-3: oklch(0.706 0.169 146.338);
   --chart-4: oklch(0.732 0.174 85.552);
   --chart-5: oklch(0.665 0.202 24.073);
+
+  /* Keep in sync with utils.config_loader.PLAYLIST_AUTO_COLOR_PALETTE. */
+  --playlist-01: #2563eb;
+  --playlist-02: #0891b2;
+  --playlist-03: #059669;
+  --playlist-04: #16a34a;
+  --playlist-05: #65a30d;
+  --playlist-06: #ca8a04;
+  --playlist-07: #d97706;
+  --playlist-08: #ea580c;
+  --playlist-09: #dc2626;
+  --playlist-10: #e11d48;
+  --playlist-11: #c026d3;
+  --playlist-12: #7c3aed;
 
   --sidebar: oklch(0.979 0.005 247.858);
   --sidebar-foreground: oklch(0.228 0.018 256.927);
