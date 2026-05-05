@@ -381,7 +381,6 @@ type ConfigDocumentResponse = {
 
 验收标准：
 
-- `GET /api/config` 返回 `current/defaults/capabilities`。
 - `current` 中缺失的可选节点被 schema 补齐。
 - `defaults` 可用于 section restore 与 policy restore。
 - 未知 policy key 保存时返回 422。

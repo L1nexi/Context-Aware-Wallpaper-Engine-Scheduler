@@ -171,8 +171,8 @@ class WeatherSensor(Sensor):
 
     def __init__(self, config: WeatherPolicyConfig) -> None:
         self.api_key: str = config.api_key
-        self.lat: str = str(config.lat)
-        self.lon: str = str(config.lon)
+        self.lat: float = float(config.lat)
+        self.lon: float = float(config.lon)
         self.interval: float = config.fetch_interval
         self.timeout: float = config.request_timeout
 
@@ -265,7 +265,12 @@ class WeatherSensor(Sensor):
     def create(cls, config: AppConfig) -> Optional["WeatherSensor"]:
         """Return a new instance only when the sensor is enabled and an API key is present."""
         weather_cfg = config.policies.weather
-        if weather_cfg is None or not weather_cfg.enabled or not weather_cfg.api_key:
+        if (
+            not weather_cfg.enabled
+            or not weather_cfg.api_key
+            or weather_cfg.lat is None
+            or weather_cfg.lon is None
+        ):
             return None
         return cls(weather_cfg)
 

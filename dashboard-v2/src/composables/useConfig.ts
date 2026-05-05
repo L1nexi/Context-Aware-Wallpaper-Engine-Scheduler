@@ -2,9 +2,53 @@ import { ref, computed } from 'vue'
 
 export interface PlaylistConfig {
   name: string
-  display?: string
+  display: string
   color: string
   tags: Record<string, number>
+}
+
+export interface TagSpec {
+  fallback: Record<string, number>
+}
+
+export interface BasePolicyConfig {
+  enabled: boolean
+  weight_scale: number
+}
+
+export interface ActivityPolicyConfig extends BasePolicyConfig {
+  smoothing_window: number
+  process_rules: Record<string, string>
+  title_rules: Record<string, string>
+}
+
+export interface TimePolicyConfig extends BasePolicyConfig {
+  auto: boolean
+  day_start_hour: number
+  night_start_hour: number
+}
+
+export interface SeasonPolicyConfig extends BasePolicyConfig {
+  spring_peak: number
+  summer_peak: number
+  autumn_peak: number
+  winter_peak: number
+}
+
+export interface WeatherPolicyConfig extends BasePolicyConfig {
+  api_key: string
+  lat: number | null
+  lon: number | null
+  fetch_interval: number
+  request_timeout: number
+  warmup_timeout: number
+}
+
+export interface PoliciesConfig {
+  activity: ActivityPolicyConfig
+  time: TimePolicyConfig
+  season: SeasonPolicyConfig
+  weather: WeatherPolicyConfig
 }
 
 export interface SchedulingConfig {
@@ -20,21 +64,35 @@ export interface SchedulingConfig {
 
 export interface AppConfig {
   wallpaper_engine_path: string
-  language?: string | null
+  language: string | null
   playlists: PlaylistConfig[]
-  tags: Record<string, { fallback: Record<string, number> }>
-  policies: Record<string, unknown>
+  tags: Record<string, TagSpec>
+  policies: PoliciesConfig
   scheduling: SchedulingConfig
 }
 
-export interface FieldError {
-  field: string
+export interface ConfigValidationScope {
+  kind: 'policy' | 'playlist' | 'tag'
+  key?: string
+  index?: number
+}
+
+export interface ConfigValidationDetail {
+  path: Array<string | number>
   message: string
+  code: string
+  section: 'general' | 'scheduling' | 'playlists' | 'tags' | 'policies' | null
+  scope: ConfigValidationScope | null
+}
+
+export interface ConfigDocumentResponse {
+  current: AppConfig
+  defaults: AppConfig
 }
 
 export interface SaveResult {
   ok: boolean
-  errors?: FieldError[]
+  errors?: ConfigValidationDetail[]
   message?: string
 }
 
@@ -44,7 +102,7 @@ export interface ScanResult {
 }
 
 export function useConfig() {
-  const config = ref<AppConfig | null>(null)
+  const document = ref<ConfigDocumentResponse | null>(null)
   const loading = ref(false)
   const saveError = ref<string | null>(null)
   const saving = ref(false)
@@ -52,9 +110,11 @@ export function useConfig() {
   const wePlaylists = ref<string[]>([])
 
   let savedSnapshot = ''
+  const config = computed(() => document.value?.current ?? null)
+  const defaults = computed(() => document.value?.defaults ?? null)
 
   const isDirty = computed(() => {
-    if (!config.value) return false
+    if (!document.value) return false
     return JSON.stringify(config.value) !== savedSnapshot
   })
 
@@ -63,8 +123,8 @@ export function useConfig() {
     try {
       const res = await fetch('/api/config')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      config.value = await res.json()
-      savedSnapshot = JSON.stringify(config.value)
+      document.value = (await res.json()) as ConfigDocumentResponse
+      savedSnapshot = JSON.stringify(document.value.current)
     } catch (e) {
       saveError.value = e instanceof Error ? e.message : String(e)
     } finally {
@@ -86,8 +146,7 @@ export function useConfig() {
         saveError.value = result.details?.[0]?.message || result.error || 'Unknown error'
         return { ok: false, errors: result.details, message: result.error }
       }
-      config.value = data
-      savedSnapshot = JSON.stringify(data)
+      await fetchConfig()
       return { ok: true }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -120,7 +179,7 @@ export function useConfig() {
   }
 
   return {
-    config, loading, saveError, saving, isDirty,
+    document, config, defaults, loading, saveError, saving, isDirty,
     tagPresets, wePlaylists,
     fetchConfig, saveConfig, fetchTagPresets, scanPlaylists,
   }

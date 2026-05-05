@@ -28,7 +28,7 @@
 - 重构 `GET /api/config`
 - 重构 `POST /api/config`
 - 明确 weather 坐标类型
-- 建立稳定 field error contract
+- 建立稳定 validation detail contract
 - 更新相关 pytest
 
 不在 `R4` 范围内的内容：
@@ -61,7 +61,7 @@ type ConfigDocumentResponse = {
 
 4. `defaults` 直接来自 schema defaults；schema defaults 与产品推荐默认值是同一套语义。
 5. `POST /api/config` 保存完整 canonical config，而不是保留稀疏文件风格。
-6. `POST /api/config` 的错误明细返回 `path/field/message/code/section/scope`。
+6. `POST /api/config` 的错误明细返回 `path/message/code/section/scope`。
 7. `weather.lat` / `weather.lon` 使用 `float | null` 单一模型。
 
 ## 3. 核心实现决策
@@ -255,13 +255,7 @@ Weather 是重要的上下文策略，默认开启是合理的。
 - 保留字符串与数字层级
 - 不在后端把 `path` 折叠回单一字符串
 
-### 6.2 Field
-
-- 继续输出点路径字符串
-- 仅供日志、调试、兼容
-- 前端不应再解析 `field`
-
-### 6.3 Section
+### 6.2 Section
 
 派生规则固定为：
 
@@ -271,7 +265,7 @@ Weather 是重要的上下文策略，默认开启是合理的。
 - `tags.*` -> `tags`
 - `policies.*` -> `policies`
 
-### 6.4 Scope
+### 6.3 Scope
 
 派生规则固定为：
 
@@ -280,7 +274,7 @@ Weather 是重要的上下文策略，默认开启是合理的。
 - `tags.<tagKey>.*` -> `{ kind: "tag", key: <tagKey> }`
 - `general` / `scheduling` -> `null`
 
-### 6.5 Code
+### 6.4 Code
 
 - 直接复用 Pydantic error `type`
 - 不在 `R4` 自定义前端专属错误码枚举
@@ -329,7 +323,7 @@ Weather 是重要的上下文策略，默认开启是合理的。
 2. `current` 是完整 canonical config tree。
 3. `defaults` 直接来自 schema defaults，并可用于 section / policy restore。
 4. `POST /api/config` 保存后文件为完整 canonical config。
-5. `POST /api/config` 的错误明细包含 `path/field/message/code/section/scope`。
+5. `POST /api/config` 的错误明细包含 `path/message/code/section/scope`。
 6. `weather.lat/lon` 使用 `float | null`，不再接受字符串坐标。
 7. 前端不再需要自行补默认值。
 

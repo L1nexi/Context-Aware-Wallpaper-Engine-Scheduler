@@ -589,11 +589,18 @@ def test_api_history_aggregate_with_bucket_param(app, history_logger):
     assert "buckets" in body
 
 
-def test_api_config_returns_config(app):
+def test_api_config_returns_document_response(app):
     status, body = wsgi_get(app, "/api/config")
     assert "200" in status
-    assert body["wallpaper_engine_path"] == "C:\\fake\\wallpaper64.exe"
-    assert body["playlists"][0]["color"] == "#5BB8D4"
+    assert set(body) == {"current", "defaults"}
+    assert body["current"]["wallpaper_engine_path"] == "C:\\fake\\wallpaper64.exe"
+    assert body["current"]["playlists"][0]["color"] == "#5BB8D4"
+    assert body["current"]["scheduling"]["startup_delay"] == 30.0
+    assert body["current"]["policies"]["activity"]["enabled"] is True
+    assert body["current"]["policies"]["weather"]["lat"] is None
+    assert body["defaults"]["wallpaper_engine_path"] == ""
+    assert body["defaults"]["playlists"] == []
+    assert body["defaults"]["policies"]["weather"]["lon"] is None
 
 
 def test_api_config_not_found(analysis_store, history_logger):
@@ -626,6 +633,11 @@ def test_api_config_save_valid(app, config_path):
         saved = json.load(file)
     assert saved["wallpaper_engine_path"] == "C:\\valid\\wallpaper64.exe"
     assert saved["playlists"][0]["color"] == "#F5C518"
+    assert saved["playlists"][0]["display"] == ""
+    assert saved["tags"] == {}
+    assert saved["policies"]["activity"]["enabled"] is True
+    assert saved["policies"]["weather"]["lat"] is None
+    assert saved["scheduling"]["pause_on_fullscreen"] is True
 
 
 def test_api_config_save_no_body(app):
@@ -645,8 +657,73 @@ def test_api_config_save_validation_failed(analysis_store, history_logger, tmp_p
     assert "422" in status
     assert body["error"] == "validation_failed"
     assert len(body["details"]) > 0
-    assert any(detail["field"] == "playlists.0.color" for detail in body["details"])
+    color_error = next(detail for detail in body["details"] if detail["path"] == ["playlists", 0, "color"])
+    assert color_error == {
+        "path": ["playlists", 0, "color"],
+        "message": "Value error, color must be a 6-digit hex string like #RRGGBB",
+        "code": "value_error",
+        "section": "playlists",
+        "scope": {"kind": "playlist", "index": 0},
+    }
+    assert all("input" not in detail for detail in body["details"])
     assert not os.path.exists(path + ".tmp")
+
+
+def test_api_config_save_unknown_policy_key_returns_scoped_error(analysis_store, history_logger, tmp_path):
+    path = os.path.join(str(tmp_path), "temp_config.json")
+    app = _build_app(analysis_store, history_logger, path)
+    payload = {
+        "wallpaper_engine_path": "C:\\x\\wallpaper64.exe",
+        "playlists": [{"name": "focus", "color": "#F5C518", "tags": {"#focus": 1.0}}],
+        "policies": {
+            "moon": {
+                "enabled": True,
+            }
+        },
+    }
+
+    status, body = wsgi_post(app, "/api/config", payload)
+
+    assert "422" in status
+    detail = next(detail for detail in body["details"] if detail["path"] == ["policies", "moon"])
+    assert detail == {
+        "path": ["policies", "moon"],
+        "message": "Extra inputs are not permitted",
+        "code": "extra_forbidden",
+        "section": "policies",
+        "scope": {"kind": "policy", "key": "moon"},
+    }
+
+
+def test_api_config_save_out_of_range_weather_coordinate_returns_scoped_error(
+    analysis_store,
+    history_logger,
+    tmp_path,
+):
+    path = os.path.join(str(tmp_path), "temp_config.json")
+    app = _build_app(analysis_store, history_logger, path)
+    payload = {
+        "wallpaper_engine_path": "C:\\x\\wallpaper64.exe",
+        "playlists": [{"name": "focus", "color": "#F5C518", "tags": {"#focus": 1.0}}],
+        "policies": {
+            "weather": {
+                "lat": 91,
+                "lon": 121.5,
+            }
+        },
+    }
+
+    status, body = wsgi_post(app, "/api/config", payload)
+
+    assert "422" in status
+    detail = next(detail for detail in body["details"] if detail["path"] == ["policies", "weather", "lat"])
+    assert detail == {
+        "path": ["policies", "weather", "lat"],
+        "message": "Input should be less than or equal to 90",
+        "code": "less_than_equal",
+        "section": "policies",
+        "scope": {"kind": "policy", "key": "weather"},
+    }
 
 
 def test_api_tags_presets(app):
@@ -679,4 +756,12 @@ def test_flatten_errors_no_errors_attr():
         pass
 
     result = _flatten_errors(FakeExc("something broke"))
-    assert result == [{"field": "", "message": "something broke"}]
+    assert result == [
+        {
+            "path": [],
+            "message": "something broke",
+            "code": "unknown_error",
+            "section": None,
+            "scope": None,
+        }
+    ]

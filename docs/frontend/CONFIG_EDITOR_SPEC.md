@@ -534,7 +534,6 @@ type ConfigErrorScope =
 
 type ConfigValidationDetail = {
   path: Array<string | number>
-  field: string
   message: string
   code: string
   section: ConfigSection | null
@@ -551,8 +550,6 @@ type ConfigValidationErrorResponse = {
 
 - `path`
   - 机器可读路径，是错误定位的唯一真相源。
-- `field`
-  - 人类可读路径，仅用于日志、调试与兼容。
 - `message`
   - 当前校验消息。
 - `code`

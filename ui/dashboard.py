@@ -16,9 +16,10 @@ import threading
 from collections.abc import Callable
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 import bottle
+from pydantic import ValidationError
 
 from ui.dashboard_analysis import (
     AnalysisStore,
@@ -37,14 +38,88 @@ DASHBOARD_STATIC_APP_DIR = "dashboard-v2"
 DASHBOARD_STATIC_DIST_DIR = "dist"
 
 
-def _flatten_errors(exc) -> list[dict]:
-    """Flatten Pydantic ValidationError to [{field, message}]."""
-    if not hasattr(exc, "errors"):
-        return [{"field": "", "message": str(exc)}]
-    errors: list[dict] = []
+ConfigSection = Literal["general", "scheduling", "playlists", "tags", "policies"]
+ConfigPath = list[str | int]
+
+
+class PolicyValidationScope(TypedDict):
+    kind: Literal["policy"]
+    key: str
+
+
+class PlaylistValidationScope(TypedDict):
+    kind: Literal["playlist"]
+    index: int
+
+
+class TagValidationScope(TypedDict):
+    kind: Literal["tag"]
+    key: str
+
+
+ConfigValidationScope = PolicyValidationScope | PlaylistValidationScope | TagValidationScope
+
+
+class ConfigValidationDetail(TypedDict):
+    path: ConfigPath
+    message: str
+    code: str
+    section: ConfigSection | None
+    scope: ConfigValidationScope | None
+
+
+def _derive_error_section(path: ConfigPath) -> ConfigSection | None:
+    if not path:
+        return None
+
+    first = path[0]
+    if first in {"wallpaper_engine_path", "language"}:
+        return "general"
+    if first in {"scheduling", "playlists", "tags", "policies"}:
+        return str(first)
+    return None
+
+
+def _derive_error_scope(path: ConfigPath) -> ConfigValidationScope | None:
+    if len(path) < 2:
+        return None
+
+    root = path[0]
+    scope_key = path[1]
+    if root == "policies" and isinstance(scope_key, str):
+        return {"kind": "policy", "key": scope_key}
+    if root == "playlists" and isinstance(scope_key, int):
+        return {"kind": "playlist", "index": scope_key}
+    if root == "tags" and isinstance(scope_key, str):
+        return {"kind": "tag", "key": scope_key}
+    return None
+
+
+def _flatten_errors(exc: ValidationError | Exception) -> list[ConfigValidationDetail]:
+    """Flatten Pydantic ValidationError into structured config field errors."""
+    if not isinstance(exc, ValidationError):
+        return [
+            {
+                "path": [],
+                "message": str(exc),
+                "code": "unknown_error",
+                "section": None,
+                "scope": None,
+            }
+        ]
+
+    errors: list[ConfigValidationDetail] = []
     for err in exc.errors():
-        loc = ".".join(str(p) for p in err["loc"])
-        errors.append({"field": loc, "message": err["msg"]})
+        path = list(err.get("loc", ()))
+        errors.append(
+            {
+                "path": path,
+                "message": err["msg"],
+                "code": err.get("type", "unknown_error"),
+                "section": _derive_error_section(path),
+                "scope": _derive_error_scope(path),
+            }
+        )
     return errors
 
 
@@ -145,14 +220,20 @@ def _build_app(
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
-            AppConfig.model_validate(raw)
+            current = AppConfig.model_validate(raw)
+            defaults = AppConfig()
         except FileNotFoundError:
             bottle.response.status = 404
             return json.dumps({"error": "config_not_found"})
         except ValueError as exc:
             bottle.response.status = 500
             return json.dumps({"error": "invalid_config", "details": str(exc)})
-        return json.dumps(raw)
+        return json.dumps(
+            {
+                "current": current.model_dump(mode="json"),
+                "defaults": defaults.model_dump(mode="json"),
+            }
+        )
 
     @app.route("/api/config", method="POST")
     def api_config_save():
@@ -162,7 +243,7 @@ def _build_app(
             bottle.response.status = 400
             return json.dumps({"error": "no_json_body"})
         try:
-            AppConfig.model_validate(data)
+            canonical_config = AppConfig.model_validate(data).model_dump(mode="json")
         except ValueError as exc:
             bottle.response.status = 422
             return json.dumps(
@@ -175,7 +256,7 @@ def _build_app(
         tmp = config_path + ".tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+                json.dump(canonical_config, f, indent=2, ensure_ascii=False)
             os.replace(tmp, config_path)
         except OSError as exc:
             bottle.response.status = 500

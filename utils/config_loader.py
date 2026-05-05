@@ -2,9 +2,10 @@ import json
 import logging
 import os
 import re
-from typing import Dict, List, Any, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic_core import PydanticCustomError
 
 logger = logging.getLogger("WEScheduler.Config")
 
@@ -74,19 +75,28 @@ class SeasonPolicyConfig(_BasePolicyConfig):
 
 class WeatherPolicyConfig(_BasePolicyConfig):
     api_key: str = ""
-    lat: Union[str, float] = "0"
-    lon: Union[str, float] = "0"
+    lat: float | None = Field(default=None, ge=-90, le=90, allow_inf_nan=False)
+    lon: float | None = Field(default=None, ge=-180, le=180, allow_inf_nan=False)
     fetch_interval: float = Field(600.0, ge=60)
     request_timeout: float = Field(10.0, ge=1)
     warmup_timeout: float = Field(3.0, ge=0)
 
+    @field_validator("lat", "lon", mode="before")
+    @classmethod
+    def validate_coordinate_input(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, bool) or isinstance(value, str):
+            raise PydanticCustomError("float_type", "Input should be a valid number")
+        return value
+
 
 class PoliciesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    activity: Optional[ActivityPolicyConfig] = None
-    time: Optional[TimePolicyConfig] = None
-    season: Optional[SeasonPolicyConfig] = None
-    weather: Optional[WeatherPolicyConfig] = None
+    activity: ActivityPolicyConfig = Field(default_factory=ActivityPolicyConfig)
+    time: TimePolicyConfig = Field(default_factory=TimePolicyConfig)
+    season: SeasonPolicyConfig = Field(default_factory=SeasonPolicyConfig)
+    weather: WeatherPolicyConfig = Field(default_factory=WeatherPolicyConfig)
 
 
 class SchedulingConfig(BaseModel):
@@ -103,10 +113,10 @@ class SchedulingConfig(BaseModel):
 
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    wallpaper_engine_path: str = Field(min_length=1)
+    wallpaper_engine_path: str = ""
     language: Optional[str] = None
     tags: Dict[str, TagSpec] = Field(default_factory=dict)
-    playlists: List[PlaylistConfig] = Field(min_length=1)
+    playlists: List[PlaylistConfig] = Field(default_factory=list)
     policies: PoliciesConfig = Field(default_factory=PoliciesConfig)
     scheduling: SchedulingConfig = Field(default_factory=SchedulingConfig)
 
