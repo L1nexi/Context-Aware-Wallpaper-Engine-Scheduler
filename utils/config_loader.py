@@ -82,10 +82,7 @@ class WeatherPolicyConfig(_BasePolicyConfig):
 
 
 class PoliciesConfig(BaseModel):
-    # extra='allow' so that unknown / experimental policy names are passed
-    # through as-is rather than being rejected; they are silently ignored
-    # at runtime since they're absent from _POLICY_REGISTRY.
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
     activity: Optional[ActivityPolicyConfig] = None
     time: Optional[TimePolicyConfig] = None
     season: Optional[SeasonPolicyConfig] = None

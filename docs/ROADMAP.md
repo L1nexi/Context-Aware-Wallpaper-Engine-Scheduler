@@ -91,7 +91,7 @@ R0 App Shell / Routes
 
 ## 3. 阶段规划
 
-### R0 - App Shell 与路由骨架
+### R0 - App Shell 与路由骨架 - [DONE]
 
 目标：
 
@@ -160,37 +160,37 @@ GET /api/history/composition?from=<ISO>&to=<ISO>
 
 ```ts
 type HistoryBucket = {
-  bucketId: string
-  start: string
-  end: string
-  playlistSeconds: Record<string, number>
-  playlistRatio: Record<string, number>
-  switchCount: number
-  cycleCount: number
-  pauseSeconds: number
-}
+  bucketId: string;
+  start: string;
+  end: string;
+  playlistSeconds: Record<playlistRef, number>;
+  playlistRatio: Record<playlistRef, number>;
+  switchCount: number;
+  cycleCount: number;
+  pauseSeconds: number;
+};
 
 type HistoryCompositionResponse = {
   range: {
-    from: string
-    to: string
-    preset: "24h" | "7d" | "30d" | "90d" | "180d" | string | null
-  }
+    from: string;
+    to: string;
+    preset: "24h" | "7d" | "30d" | "90d" | "180d" | string | null;
+  };
   granularity: {
-    bucketSeconds: number
-    label: string
-    bucketCount: number
-  }
-  seriesOrder: string[]
-  buckets: HistoryBucket[]
+    bucketSeconds: number;
+    label: string;
+    bucketCount: number;
+  };
+  seriesOrder: string[];
+  buckets: HistoryBucket[];
   totals: {
-    playlistSeconds: Record<string, number>
-    playlistRatio: Record<string, number>
-    switchCount: number
-    cycleCount: number
-    pauseSeconds: number
-  }
-}
+    playlistSeconds: Record<playlistRef, number>;
+    playlistRatio: Record<playlistRef, number>;
+    switchCount: number;
+    cycleCount: number;
+    pauseSeconds: number;
+  };
+};
 ```
 
 建议实现：
@@ -353,27 +353,23 @@ Config Editor 是最大块，不应一次性完成全部 UI。路线应分成一
 
 建议改动：
 
-- 将 `PoliciesConfig.model_config` 从 `extra="allow"` 改为 `extra="forbid"`。
 - `GET /api/config` 返回：
 
 ```ts
 type ConfigDocumentResponse = {
-  current: AppConfig
-  defaults: AppConfig
-  capabilities: {
-    supportedPolicies: Array<"activity" | "time" | "season" | "weather">
-  }
-}
+  current: AppConfig;
+  defaults: AppConfig;
+};
 ```
 
 - `current` 必须是 normalized 完整配置。
 - `defaults` 必须来自同一 schema 的默认值树。
 - `POST /api/config` 继续保存完整 `AppConfig`，但校验错误应稳定返回 field errors。
 - 明确处理必填字段的 defaults：
-  - `wallpaper_engine_path` 可能没有真实默认值，需要设计可编辑但空值语义。
+  - `wallpaper_engine_path` 可能没有真实默认值。建议采用多级回退机制。如能成功自动检测则使用，否则设置为 `path/to/wallpaper_engine.exe` 之类的占位符。可以据此提示用户配置。
   - `playlists` 当前 schema 至少要求一个 playlist；若 GUI 需要支持空列表，需要同步修改 schema 与运行时处理。
 
-难度：中偏高。
+难度：中。
 
 任务量：中。
 
@@ -461,7 +457,7 @@ npm run build-only
 - 右侧 Playlist Detail：
   - `name`
   - `display`
-  - `color`
+  - `color` （并附取色盘）
   - tag vector list
   - add/remove tag
   - edit tag weight
@@ -605,8 +601,7 @@ pytest tests/test_config_loader.py tests/test_dashboard_api.py -q
 主要风险：
 
 - Activity 的规则编辑是嵌套字典，需要设计可维护的 list editor。
-- Weather API key 应使用 password input 或 reveal toggle，避免默认明文长时间展示。
-- `capabilities.supportedPolicies` 应作为渲染来源，不要前端散落硬编码。
+- Weather API key 需要脱敏处理。考虑这是本地应用，使用 password input 或 reveal toggle 即可满足要求，避免默认明文长时间展示。
 
 验收标准：
 
@@ -672,17 +667,17 @@ flowchart TD
 
 ## 7. 粗略排期与优先级
 
-| 阶段 | 优先级 | 任务量 | 难度 | 推荐 PR 粒度 |
-|---|---:|---:|---:|---|
-| R0 App Shell / Routes | P0 | 小到中 | 中 | 1 PR |
-| R1 History backend composition API | P0 | 中 | 中 | 1 PR |
-| R2 History frontend v1 | P0 | 中偏大 | 中偏高 | 1 PR |
-| R3 History drilldown / polish | P1 | 中 | 中 | 1 PR |
-| R4 Config backend contract | P0 | 中 | 中偏高 | 1 PR |
-| R5 Config General / Scheduling | P0 | 中 | 中 | 1 PR |
-| R6 Config Playlists | P1 | 中偏大 | 高 | 1 PR |
-| R7 Config Tags | P1 | 中 | 中偏高 | 1 PR |
-| R8 Config Policies | P1 | 大 | 高 | 1-2 PR |
+| 阶段                               | 优先级 | 任务量 |   难度 | 推荐 PR 粒度 |
+| ---------------------------------- | -----: | -----: | -----: | ------------ |
+| R0 App Shell / Routes              |     P0 | 小到中 |     中 | 1 PR         |
+| R1 History backend composition API |     P0 |     中 |     中 | 1 PR         |
+| R2 History frontend v1             |     P0 | 中偏大 | 中偏高 | 1 PR         |
+| R3 History drilldown / polish      |     P1 |     中 |     中 | 1 PR         |
+| R4 Config backend contract         |     P0 |     中 | 中偏高 | 1 PR         |
+| R5 Config General / Scheduling     |     P0 |     中 |     中 | 1 PR         |
+| R6 Config Playlists                |     P1 | 中偏大 |     高 | 1 PR         |
+| R7 Config Tags                     |     P1 |     中 | 中偏高 | 1 PR         |
+| R8 Config Policies                 |     P1 |     大 |     高 | 1-2 PR       |
 
 ## 8. 最终验收目标
 

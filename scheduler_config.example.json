@@ -138,8 +138,7 @@
       "lon": "0",
       "fetch_interval": 600,
       "request_timeout": 10
-    },
-    "mood": { "enabled": false, "weight_scale": 2.0 }
+    }
   },
   "scheduling": {
     "startup_delay": 15,

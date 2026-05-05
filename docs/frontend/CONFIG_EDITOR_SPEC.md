@@ -2,9 +2,11 @@
 
 本文档定义 `dashboard-v2` 中 Config 页的导航模型、页面骨架、编辑器布局与后端契约。
 
+[CONFIG_EDITOR_IMPLEMENTATION_SPEC.md](./CONFIG_EDITOR_IMPLEMENTATION_SPEC.md) 继续承担 `R4` 的具体实施计划；本文档保留为目标与正式 contract 文档。
+
 Config 页的目标不是“把 `scheduler_config.json` 可视化”，而是让用户在不理解 JSON 嵌套结构的前提下，完成对调度器的正式配置。
 
-## 0. 实施状态（2026-05-04）
+## 0. 实施状态（2026-05-05）
 
 本 spec 当前仍然基本处于“目标设计”阶段，尚未进入正式实现。
 
@@ -12,8 +14,8 @@ Config 页的目标不是“把 `scheduler_config.json` 可视化”，而是让
 
 - 当前运行时仍使用 legacy Dashboard 的配置页。
 - `dashboard-v2` 尚未接入本 spec 定义的 Config 路由、Sidebar 二级章节、browser/detail 工作台或 policies 顶部 selector。
-- 后端 `GET /api/config` 仍返回原始 JSON，而不是 `current + defaults + capabilities`。
-- `utils/config_loader.py` 当前仍允许 `policies` 下未知 key：`PoliciesConfig.model_config = ConfigDict(extra="allow")`。
+- 后端 `GET /api/config` 仍返回原始 JSON，而不是 `current + defaults`。
+- `utils/config_loader.py` 已收紧 `policies`：未知 policy key 不再允许保存。
 
 结论：
 
@@ -441,6 +443,18 @@ Sidebar 的特征：
 - 默认值属于后端 schema 语义，不应由前端手动补全。
 - 前端只应编辑完整模型，不应推测缺省字段。
 
+这里的 normalized 语义定义如下：
+
+- 原始 JSON 允许稀疏。
+- 后端 loader/schema 负责把稀疏输入规范化为完整 `AppConfig`。
+- `current` 返回的必须是完整 canonical config tree，而不是原始文件的稀疏形态。
+- GUI 一旦保存，应写回完整 canonical config，而不是继续保留稀疏写法。
+
+这意味着：
+
+- `enabled` 只表示启用/关闭，不承担“该 policy 是否缺失”的额外语义。
+- 前端永远围绕完整对象树工作，不为缺失 section 或缺失 policy 写分支逻辑。
+
 ### 8.2 同时返回 defaults
 
 为了支持“恢复默认”，后端需要同时返回默认值树。
@@ -451,9 +465,6 @@ Sidebar 的特征：
 type ConfigDocumentResponse = {
   current: AppConfig
   defaults: AppConfig
-  capabilities: {
-    supportedPolicies: Array<"activity" | "time" | "season" | "weather">
-  }
 }
 ```
 
@@ -461,9 +472,30 @@ type ConfigDocumentResponse = {
 
 - `current` 是 normalize 后的当前配置。
 - `defaults` 是同 schema 下的默认值树。
-- `capabilities.supportedPolicies` 用于前端显式渲染正式支持的策略。
+- 当前设计中，schema defaults 与产品默认值是同一套语义。
+- `defaults` 不代表“保守关闭”的降级配置，而代表推荐的正式默认配置。
 
-### 8.3 Restore Defaults 语义
+这意味着：
+
+- 前端不应自行发明另一套 recommended defaults。
+- 后端也不应再额外返回独立于 schema defaults 的第三套“推荐值”树。
+
+### 8.3 Canonical Save 语义
+
+`POST /api/config` 不应继续保存“用户最初写入时的稀疏形态”。
+
+正式要求：
+
+- 前端提交完整 `AppConfig` 草稿。
+- 后端验证通过后，按 canonical config 写回文件。
+- 不为了保留旧文件风格而重新压回稀疏结构。
+
+结果上应满足：
+
+- 第一次经由 GUI 保存后，配置文件会收敛为完整配置。
+- `GET -> POST -> GET` 后，同一份配置的结构形状应稳定。
+
+### 8.4 Restore Defaults 语义
 
 恢复默认不是“删除字段”，而是“用 defaults 中对应节点替换 current 节点”。
 
@@ -480,6 +512,76 @@ type ConfigDocumentResponse = {
 - policy 级 restore
 
 字段级 restore 不是首版必需。
+
+### 8.5 Validation Error Contract
+
+`POST /api/config` 的校验错误不应只返回扁平字符串路径。
+
+建议响应结构：
+
+```ts
+type ConfigSection =
+  | "general"
+  | "scheduling"
+  | "playlists"
+  | "tags"
+  | "policies"
+
+type ConfigErrorScope =
+  | { kind: "policy"; key: "activity" | "time" | "season" | "weather" }
+  | { kind: "playlist"; index: number }
+  | { kind: "tag"; key: string }
+
+type ConfigValidationDetail = {
+  path: Array<string | number>
+  field: string
+  message: string
+  code: string
+  section: ConfigSection | null
+  scope: ConfigErrorScope | null
+}
+
+type ConfigValidationErrorResponse = {
+  error: "validation_failed"
+  details: ConfigValidationDetail[]
+}
+```
+
+字段职责：
+
+- `path`
+  - 机器可读路径，是错误定位的唯一真相源。
+- `field`
+  - 人类可读路径，仅用于日志、调试与兼容。
+- `message`
+  - 当前校验消息。
+- `code`
+  - 稳定错误类型，例如 `missing`、`float_type`、`string_too_short`。
+- `section`
+  - section 级导航辅助信息。
+- `scope`
+  - section 内对象级定位辅助信息。
+
+派生规则：
+
+- `path[0]` 为 `wallpaper_engine_path` 或 `language` 时，`section = "general"`
+- `path[0] === "scheduling"` 时，`section = "scheduling"`
+- `path[0] === "playlists"` 时，`section = "playlists"`
+- `path[0] === "tags"` 时，`section = "tags"`
+- `path[0] === "policies"` 时，`section = "policies"`
+- 其他情况可返回 `section = null`
+
+`scope` 规则：
+
+- `policies.<policyKey>.*` -> `{ kind: "policy", key: <policyKey> }`
+- `playlists.<index>.*` -> `{ kind: "playlist", index: <index> }`
+- `tags.<tagKey>.*` -> `{ kind: "tag", key: <tagKey> }`
+- `general` 与 `scheduling` 不需要 `scope`
+
+特别要求：
+
+- `playlist` scope 使用 index，而不是 name。
+- 不返回原始输入值，避免敏感字段被回显。
 
 ## 9. Schema 约束
 
@@ -505,6 +607,21 @@ type ConfigDocumentResponse = {
 - 手动补默认值
 - 通过字段缺失推断语义
 - 用局部 fallback 代替正式 schema 默认值
+
+### 9.3 Weather 使用单一类型坐标模型
+
+`weather.lat` 与 `weather.lon` 不应继续同时支持字符串和数值。
+
+正式要求：
+
+- 两者使用单一数值模型。
+- 未配置状态使用 `null`，而不是 `"0"`、`"0.0"` 或 `0` 这种占位值。
+- 默认 `weather.enabled = true` 可保留，但“结构合法”与“功能已配置完成”是两回事。
+
+这意味着：
+
+- GUI 可以把 weather 视为默认启用的重要能力。
+- 但运行时是否真正启动 weather sensor，仍取决于 `api_key` 与坐标是否已完成配置。
 
 ## 10. 编辑交互原则
 
@@ -541,7 +658,7 @@ Config 页遵守以下交互原则：
 建议按以下顺序实现：
 
 1. 收紧后端 schema，禁止 `policies` 未知 key。
-2. 重构 `/api/config`，返回 `current + defaults + capabilities`。
+2. 重构 `/api/config`，返回 `current + defaults`，并写入 canonical config。
 3. 在 router 中引入 `config/<section>` 路由模型。
 4. 在 `WorkbenchSidebar` 中支持层级导航与缩进规则。
 5. 先实现 `General` 与 `Scheduling` 单例页。
