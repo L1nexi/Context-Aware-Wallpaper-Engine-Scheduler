@@ -18,15 +18,23 @@
   - `live / snapshot` 双态
   - hover scrub / click lock / keyboard step
 - `dashboard-v2` 已经具备 Vue 3、Vite、TypeScript、Tailwind CSS v4、Pinia、Vue Router、ECharts 与 workbench 原语。
+- App Shell 与正式路由骨架已经完成：
+  - `/dashboard`
+  - `/history`
+  - `/config/general`
+  - `/config/scheduling`
+  - `/config/playlists`
+  - `/config/tags`
+  - `/config/policies`
+- `GET /api/config` 已返回 `current + defaults`。
+- `POST /api/config` 已保存完整 canonical `AppConfig`。
+- `PoliciesConfig` 已禁止未知 policy key。
 
 尚未完成：
 
-- 应用级路由仍只有 `/`。
-- Sidebar 仍主要写在 `DashboardView.vue` 内，还不是统一 App Shell。
-- `History` v2 页面尚未实现。
-- `Config Editor` v2 页面尚未实现。
-- `GET /api/config` 仍返回裸 JSON，而不是 `current + defaults + capabilities`。
-- `PoliciesConfig` 仍允许未知 policy key。
+- `History` v2 页面尚未实现，`/history` 仍是 placeholder。
+- `Config Editor` v2 页面尚未实现，`/config/*` 仍是 placeholder。
+- Config 前端 draft store、dirty state、restore defaults 与 field error 映射尚未实现。
 
 ## 1. 总体原则
 
@@ -62,7 +70,7 @@
 迁移时应避免长期双轨：
 
 - `History` 主模型转向 `composition` 后，`segments` 不再作为主视图模型。
-- `Config` 返回 `current + defaults + capabilities` 后，前端不再依赖裸 `AppConfig` 响应。
+- `Config` 返回 `current + defaults` 后，前端不再依赖裸 `AppConfig` 响应。
 - 旧 composable 可以短期辅助迁移，但不应成为新页面长期状态层。
 
 ### 1.4 最小可验收阶段
@@ -343,7 +351,7 @@ npm run build-only
 
 Config Editor 是最大块，不应一次性完成全部 UI。路线应分成一个后端契约阶段和四个前端 section 阶段。
 
-### R4 - Config 后端契约
+### R4 - Config 后端契约 - [DONE]
 
 目标：
 
@@ -365,9 +373,6 @@ type ConfigDocumentResponse = {
 - `current` 必须是 normalized 完整配置。
 - `defaults` 必须来自同一 schema 的默认值树。
 - `POST /api/config` 继续保存完整 `AppConfig`，但校验错误应稳定返回 field errors。
-- 明确处理必填字段的 defaults：
-  - `wallpaper_engine_path` 可能没有真实默认值。建议采用多级回退机制。如能成功自动检测则使用，否则设置为 `path/to/wallpaper_engine.exe` 之类的占位符。可以据此提示用户配置。
-  - `playlists` 当前 schema 至少要求一个 playlist；若 GUI 需要支持空列表，需要同步修改 schema 与运行时处理。
 
 难度：中。
 
@@ -394,6 +399,8 @@ pytest tests/test_config_loader.py tests/test_dashboard_api.py -q
 
 ### R5 - Config General / Scheduling
 
+实施规格：[`docs/frontend/CONFIG_EDITOR_R5_SPEC.md`](frontend/CONFIG_EDITOR_R5_SPEC.md)
+
 目标：
 
 - 建立 Config 前端的编辑状态模型。
@@ -408,7 +415,7 @@ pytest tests/test_config_loader.py tests/test_dashboard_api.py -q
   - `ConfigGeneralSection.vue`
   - `ConfigSchedulingSection.vue`
 - 支持：
-  - load current/defaults/capabilities
+  - load current/defaults
   - local draft
   - dirty state
   - save
@@ -624,10 +631,9 @@ pytest tests/test_config_loader.py tests/test_dashboard_api.py -q
 
 原因：
 
-- 当前 `GET /api/config` 仍返回裸 JSON。
-- 前端会被迫补默认值。
-- 这会直接违反 `CONFIG_EDITOR_SPEC.md` 的核心约束。
-- 后续后端 contract 一变，前端编辑状态和类型会大面积返工。
+- Config Editor 的公共 draft、dirty、restore、field error 与离开保护模型尚未经过单例 section 验证。
+- Playlists / Tags / Policies 会共享同一套 Config draft 和错误映射；如果先一次性展开完整 UI，会把复杂集合编辑器建立在未验证的状态层上。
+- 正确顺序是先用 `General / Scheduling` 验证公共编辑模型，再进入集合型与策略型编辑器。
 
 ### 5.2 不推荐先把全部后端做完再回头做前端
 
