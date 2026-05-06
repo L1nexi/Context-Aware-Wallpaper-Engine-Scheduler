@@ -1,94 +1,26 @@
 import { ref, computed } from 'vue'
 
-export interface PlaylistConfig {
-  name: string
-  display: string
-  color: string
-  tags: Record<string, number>
-}
+import type {
+  AppConfig,
+  ConfigDocumentResponse,
+  ConfigValidationDetail,
+} from '@/lib/configDocument'
 
-export interface TagSpec {
-  fallback: Record<string, number>
-}
-
-export interface BasePolicyConfig {
-  enabled: boolean
-  weight_scale: number
-}
-
-export interface ActivityPolicyConfig extends BasePolicyConfig {
-  smoothing_window: number
-  process_rules: Record<string, string>
-  title_rules: Record<string, string>
-}
-
-export interface TimePolicyConfig extends BasePolicyConfig {
-  auto: boolean
-  day_start_hour: number
-  night_start_hour: number
-}
-
-export interface SeasonPolicyConfig extends BasePolicyConfig {
-  spring_peak: number
-  summer_peak: number
-  autumn_peak: number
-  winter_peak: number
-}
-
-export interface WeatherPolicyConfig extends BasePolicyConfig {
-  api_key: string
-  lat: number | null
-  lon: number | null
-  fetch_interval: number
-  request_timeout: number
-  warmup_timeout: number
-}
-
-export interface PoliciesConfig {
-  activity: ActivityPolicyConfig
-  time: TimePolicyConfig
-  season: SeasonPolicyConfig
-  weather: WeatherPolicyConfig
-}
-
-export interface SchedulingConfig {
-  startup_delay: number
-  idle_threshold: number
-  switch_cooldown: number
-  cycle_cooldown: number
-  force_after: number
-  cpu_threshold: number
-  cpu_sample_window: number
-  pause_on_fullscreen: boolean
-}
-
-export interface AppConfig {
-  wallpaper_engine_path: string
-  language: string | null
-  playlists: PlaylistConfig[]
-  tags: Record<string, TagSpec>
-  policies: PoliciesConfig
-  scheduling: SchedulingConfig
-}
-
-export interface ConfigValidationScope {
-  kind: 'policy' | 'playlist' | 'tag'
-  key?: string
-  index?: number
-}
-
-export interface ConfigValidationDetail {
-  path: Array<string | number>
-  message: string
-  code: string
-  section: 'general' | 'scheduling' | 'playlists' | 'tags' | 'policies' | null
-  scope: ConfigValidationScope | null
-}
-
-export interface ConfigDocumentResponse {
-  current: AppConfig
-  defaults: AppConfig
-}
+export type {
+  ActivityPolicyConfig,
+  AppConfig,
+  BasePolicyConfig,
+  ConfigDocumentResponse,
+  ConfigValidationDetail,
+  ConfigValidationScope,
+  PlaylistConfig,
+  PoliciesConfig,
+  SchedulingConfig,
+  SeasonPolicyConfig,
+  TagSpec,
+  TimePolicyConfig,
+  WeatherPolicyConfig,
+} from '@/lib/configDocument'
 
 export interface SaveResult {
   ok: boolean
@@ -179,8 +111,18 @@ export function useConfig() {
   }
 
   return {
-    document, config, defaults, loading, saveError, saving, isDirty,
-    tagPresets, wePlaylists,
-    fetchConfig, saveConfig, fetchTagPresets, scanPlaylists,
+    document,
+    config,
+    defaults,
+    loading,
+    saveError,
+    saving,
+    isDirty,
+    tagPresets,
+    wePlaylists,
+    fetchConfig,
+    saveConfig,
+    fetchTagPresets,
+    scanPlaylists,
   }
 }
