@@ -1,0 +1,24 @@
+time:
+  enabled: true
+  weight: 0.8
+  auto: true
+  day_start_hour: 8
+  night_start_hour: 20
+
+season:
+  enabled: true
+  weight: 0.65
+  spring_peak: 80
+  summer_peak: 172
+  autumn_peak: 265
+  winter_peak: 355
+
+weather:
+  enabled: true
+  weight: 1.5
+  api_key: ""
+  lat: 31.2964
+  lon: 121.5036
+  fetch_interval: 600
+  warmup_timeout: 3
+  request_timeout: 10

@@ -20,11 +20,13 @@ from core.diagnostics import (
     MatchEvaluation,
 )
 from core.matcher import Matcher
-from core.policies import ActivityPolicy, WeatherPolicy
+from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
 from core.scheduler import WEScheduler
+from ui.dashboard_analysis import DashboardRuntimeMetadata, map_tick_snapshot
 from utils.config_loader import (
     ActivityPolicyConfig,
     PlaylistConfig,
+    TimePolicyConfig,
     SchedulingConfig,
     TagSpec,
     WeatherPolicyConfig,
@@ -34,8 +36,8 @@ from utils.config_loader import (
 def test_activity_policy_distinguishes_title_and_process_rules():
     policy = ActivityPolicy(
         ActivityPolicyConfig(
-            process_rules={"chrome.exe": "#focus"},
-            title_rules={"YouTube": "#chill"},
+            process_rules={"chrome.exe": "focus"},
+            title_rules={"YouTube": "chill"},
             smoothing_window=1,
         )
     )
@@ -46,7 +48,7 @@ def test_activity_policy_distinguishes_title_and_process_rules():
     assert title_eval.active is True
     assert title_eval.details.match_source == "title"
     assert title_eval.details.matched_rule == "YouTube"
-    assert title_eval.dominant_tag == "#chill"
+    assert title_eval.dominant_tag == "chill"
 
     process_eval = policy.evaluate(
         Context(window=WindowData(title="Docs", process="chrome.exe"))
@@ -54,7 +56,25 @@ def test_activity_policy_distinguishes_title_and_process_rules():
     assert process_eval.active is True
     assert process_eval.details.match_source == "process"
     assert process_eval.details.matched_rule == "chrome.exe"
-    assert process_eval.dominant_tag == "#focus"
+    assert process_eval.dominant_tag == "focus"
+
+
+def test_time_policy_outputs_plain_tag_ids():
+    policy = TimePolicy(
+        TimePolicyConfig(
+            enabled=True,
+            weight_scale=1.0,
+            auto=False,
+            day_start_hour=8,
+            night_start_hour=20,
+        )
+    )
+
+    evaluation = policy.evaluate(Context(time=mock.Mock(tm_hour=9, tm_min=0, tm_yday=120)))
+
+    assert evaluation.active is True
+    assert evaluation.raw_contribution
+    assert all(not tag.startswith("#") for tag in evaluation.raw_contribution)
 
 
 def test_weather_policy_without_weather_is_inactive():
@@ -79,24 +99,64 @@ def test_matcher_preserves_raw_resolved_and_fallback_vectors():
         salience=1.0,
         intensity=1.0,
         effective_magnitude=1.0,
-        direction={"#stormy": 1.0},
-        raw_contribution={"#stormy": 1.0},
+        direction={"stormy": 1.0},
+        raw_contribution={"stormy": 1.0},
         details=ActivityPolicyDetails(),
     )
 
     matcher = Matcher(
-        playlists=[PlaylistConfig(name="focus", color="#F5C518", tags={"#focus": 1.0})],
+        playlists={"focus": PlaylistConfig(color="#F5C518", tags={"focus": 1.0})},
         policies=[stub_policy],
-        tag_specs={"#stormy": TagSpec(fallback={"#focus": 1.0})},
+        tag_specs={"stormy": TagSpec(fallback={"focus": 1.0})},
     )
 
     evaluation = matcher.evaluate(Context())
 
-    assert evaluation.raw_context_vector == {"#stormy": 1.0}
-    assert evaluation.resolved_context_vector == {"#focus": 1.0}
+    assert evaluation.raw_context_vector == {"stormy": 1.0}
+    assert evaluation.resolved_context_vector == {"focus": 1.0}
     assert evaluation.best_playlist == "focus"
-    assert evaluation.fallback_expansions == {"#stormy": {"#focus": 1.0}}
-    assert evaluation.policy_evaluations[0].resolved_contribution == {"#focus": 1.0}
+    assert evaluation.fallback_expansions == {"stormy": {"focus": 1.0}}
+    assert evaluation.policy_evaluations[0].resolved_contribution == {"focus": 1.0}
+
+
+def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
+    trace = mock.Mock()
+    trace.tick_id = 1
+    trace.ts = 1.0
+    trace.paused = False
+    trace.context = Context(window=WindowData(title="Docs", process="Code.exe"))
+    trace.match = MatchEvaluation(
+        best_playlist="focus",
+        playlist_matches=[("focus", 0.9)],
+        raw_context_vector={"focus": 1.0},
+        resolved_context_vector={"focus": 1.0},
+        policy_evaluations=[],
+    )
+    trace.action = ActuationOutcome(
+        decision=ControllerDecision(
+            kind=ActionKind.HOLD,
+            reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
+            matched_playlist="focus",
+            evaluation=None,
+        ),
+        active_playlist_before="focus",
+        active_playlist_after="focus",
+        executed=False,
+    )
+
+    snapshot = map_tick_snapshot(
+        trace,
+        DashboardRuntimeMetadata(
+            display_of={"focus": "Focus Flow"},
+            color_of={"focus": "#F5C518"},
+        ),
+    ).model_dump(mode="json", by_alias=True)
+
+    assert snapshot["summary"]["matchedPlaylist"] == {
+        "name": "focus",
+        "display": "Focus Flow",
+        "color": "#F5C518",
+    }
 
 
 def test_controller_evaluation_reports_all_blockers(monkeypatch):
@@ -281,8 +341,8 @@ def test_actuator_switch_logs_event():
         MatchEvaluation(
             best_playlist="rain",
             playlist_matches=[("rain", 0.9), ("focus", 0.5)],
-            raw_context_vector={"#rain": 1.0},
-            resolved_context_vector={"#rain": 1.0},
+            raw_context_vector={"rain": 1.0},
+            resolved_context_vector={"rain": 1.0},
             max_policy_magnitude=1.0,
         ),
         "focus",
@@ -332,7 +392,7 @@ def test_scheduler_tick_trace_uses_context_snapshot(monkeypatch):
 
     monkeypatch.setattr("core.scheduler.time.sleep", lambda _seconds: None)
 
-    scheduler = WEScheduler("scheduler_config.json", DummyHistory())
+    scheduler = WEScheduler("config", DummyHistory())
     live_context = Context(window=WindowData(title="Before", process="before.exe"), idle=5.0)
     scheduler.context_manager = FakeContextManager(live_context)
     scheduler.matcher = FakeMatcher()

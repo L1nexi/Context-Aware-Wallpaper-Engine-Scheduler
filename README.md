@@ -11,7 +11,7 @@
 - **系统托盘**：运行/暂停状态图标，支持按时段暂停（预设 30m–48h / 自定义 / 无限期）。`switch_on_start` 选项。
 - **国际化**：托盘 UI 根据系统语言自动切换中文 / 英文。
 - **实时仪表盘**：Vue 3 SPA，Live 标签页显示相似度/标签/上下文，History 标签页显示 Gantt 时间线 + 事件历史。
-- **热重载**：编辑 `scheduler_config.json` 后自动重载配置，无需重启。
+- **热重载**：编辑 `config/` 下的 YAML 文件后自动重载配置，无需重启。
 
 ## 快速开始
 
@@ -27,6 +27,7 @@
 ```
 
 构建后在 `dist/` 目录找到 `WEScheduler.exe`。
+配置目录不会随 exe 一起打包；运行前请在 exe 同级放置 `config/`。
 
 - 方案 C：从源码运行
 
@@ -38,99 +39,113 @@ python main.py --no-tray    # 控制台模式（调试用）
 
 ### 2. 配置
 
-完整示例见 `scheduler_config.example.json`。
+当前主配置入口是外部 `config/` 目录，固定包含 6 个 YAML 文件：
 
-#### 顶层字段
+- `scheduler.yaml`
+- `playlists.yaml`
+- `tags.yaml`
+- `activity.yaml`
+- `context.yaml`
+- `scheduling.yaml`
 
-| 字段                    | 说明                       |
-| ----------------------- | -------------------------- |
-| `wallpaper_engine_path` | `wallpaper64.exe` 完整路径 |
-| `playlists`             | 播放列表数组（见下）       |
-| `tags`                  | TagSpec fallback 图        |
-| `policies`              | 策略配置                   |
-| `scheduling`            | 调度与防打扰参数           |
+不再读取 `scheduler_config.json`，也不支持 `include`、anchors、aliases、merge keys。
 
-#### 播放列表 (`playlists`)
+#### `scheduler.yaml`
 
-```json
-{
-  "name": "RAINY_MOOD",
-  "display": "雨天氛围",
-  "tags": { "#rain": 1.0, "#chill": 0.4 }
-}
+```yaml
+version: 2
+
+runtime:
+  wallpaper_engine_path: null
+  language: null
 ```
 
-| 字段      | 说明                                                   |
-| --------- | ------------------------------------------------------ |
-| `name`    | 内部标识（需与 WE 播放列表名一致）                     |
-| `display` | 可选，UI 显示名（如中文名）                            |
-| `tags`    | 画风亲和度（起作用的是各标签之间的**比例**，非绝对值） |
+`wallpaper_engine_path: null` 会让运行时自动检测 Wallpaper Engine 路径。
 
-#### 策略 (`policies`)
+#### `playlists.yaml`
 
-所有 Policy 支持 `enabled` (bool) 和 `weight_scale` (float)。
-
-| Policy         | 配置键              | 输出标签                                           |
-| -------------- | ------------------- | -------------------------------------------------- |
-| ActivityPolicy | `policies.activity` | 自定义（由 `process_rules` / `title_rules` 映射）  |
-| TimePolicy     | `policies.time`     | `#dawn` `#day` `#sunset` `#night`                  |
-| SeasonPolicy   | `policies.season`   | `#spring` `#summer` `#autumn` `#winter`            |
-| WeatherPolicy  | `policies.weather`  | `#clear` `#cloudy` `#rain` `#storm` `#snow` `#fog` |
-
-**ActivityPolicy:**
-
-```json
-"activity": {
-  "enabled": true, "weight_scale": 1.2, "smoothing_window": 120,
-  "process_rules": { "Code.exe": "#focus", "steam.exe": "#chill" },
-  "title_rules": { "GitHub": "#focus", "YouTube": "#chill" }
-}
+```yaml
+playlists:
+  RAINY_MOOD:
+    display: 雨天氛围
+    color: "#4A90D9"
+    tags:
+      rain: 1.0
+      chill: 0.4
 ```
 
-**TimePolicy:**
+- `playlists` 使用 map，key 直接等于 Wallpaper Engine 播放列表名。
+- `display` 只用于 Diagnostics / UI 显示。
+- `tags` 表达播放列表和概念的亲和度比例。
 
-```json
-"time": { "enabled": true, "weight_scale": 0.8, "day_start_hour": 8, "night_start_hour": 20 }
+#### `tags.yaml`
+
+```yaml
+tags:
+  storm:
+    fallback:
+      rain: 1.0
 ```
 
-当 WeatherSensor 可用时，自动从 OWM `sunrise`/`sunset` 推算动态峰值。
+tag 不再使用 `#` 前缀。所有被 playlist、activity、time、season、weather 引用的 tag 都必须在这里声明。
 
-**WeatherPolicy:**
+#### `activity.yaml`
 
-```json
-"weather": {
-  "enabled": true, "weight_scale": 1.5,
-  "api_key": "YOUR_KEY", "lat": "39.9", "lon": "116.4",
-  "interval": 600, "request_timeout": 10
-}
+```yaml
+activity:
+  enabled: true
+  weight: 1.2
+  smoothing_window: 120
+  process_rules:
+    Code.exe: focus
+    steam.exe: chill
+  title_rules:
+    GitHub: focus
+    YouTube: chill
 ```
 
-天气强度四档模型：T1≈0.25（薄雾）→ T4=1.0（暴雷雨/晴天）。
+#### `context.yaml`
 
-#### 调度 (`scheduling`)
+```yaml
+time:
+  enabled: true
+  weight: 0.8
+  day_start_hour: 8
+  night_start_hour: 20
 
-```json
-"scheduling": {
-  "switch_on_start": false,
-  "idle_threshold": 60,
-  "switch_cooldown": 1800,
-  "cycle_cooldown": 600,
-  "force_after": 14400,
-  "cpu_threshold": 85,
-  "cpu_sample_window": 10,
-  "pause_on_fullscreen": true
-}
+season:
+  enabled: true
+  weight: 0.65
+
+weather:
+  enabled: true
+  weight: 1.5
+  api_key: ""
+  lat: 31.2964
+  lon: 121.5036
+  fetch_interval: 600
+  request_timeout: 10
 ```
 
-| 字段                  | 默认值  | 说明                       |
-| --------------------- | ------- | -------------------------- |
-| `switch_on_start`     | `false` | 启动时是否立即切换         |
-| `idle_threshold`      | `60`    | 空闲多少秒后才允许切换     |
-| `switch_cooldown`     | `1800`  | 播单切换最小间隔（秒）     |
-| `cycle_cooldown`      | `600`   | 播单内轮播间隔（秒）       |
-| `force_after`         | `14400` | 强制切换超时（秒）         |
-| `cpu_threshold`       | `85`    | CPU 超过此百分比则推迟切换 |
-| `pause_on_fullscreen` | `true`  | 全屏/演示模式时暂停切换    |
+固定 policy 输出的 tag 也是无前缀：
+
+- TimePolicy: `dawn` `day` `sunset` `night`
+- SeasonPolicy: `spring` `summer` `autumn` `winter`
+- WeatherPolicy: `clear` `cloudy` `rain` `storm` `snow` `fog`
+
+#### `scheduling.yaml`
+
+```yaml
+scheduling:
+  startup_delay: 15
+  idle_threshold: 20
+  switch_cooldown: 150
+  cycle_cooldown: 900
+  force_after: 3600
+  cpu_threshold: 85
+  cpu_sample_window: 10
+  pause_on_fullscreen: true
+```
 
 ## 仪表盘 (Dashboard)
 
@@ -166,7 +181,7 @@ Sensors → Context → Policies → Matcher → Controller → Actuator → WEE
 
 | 路径                             | 用途                      |
 | -------------------------------- | ------------------------- |
-| `scheduler_config.json`          | 主配置（热重载）          |
+| `config/`                        | 主配置目录（热重载）      |
 | `data/state.json`                | 持久化暂停/播放列表状态   |
 | `data/history-{YYYY}-{MM}.jsonl` | 按月分片事件日志          |
 | `logs/scheduler.log`             | 轮转日志（5 MB × 3 备份） |

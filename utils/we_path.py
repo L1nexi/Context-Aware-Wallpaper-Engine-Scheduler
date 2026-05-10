@@ -2,7 +2,7 @@
 WE installation path detection.
 
 Resolves wallpaper_engine_path in three tiers:
-1. From scheduler_config (already configured)
+1. From scheduler runtime config (already configured)
 2. Via Steam registry → libraryfolders.vdf search
 3. Returns None if not found
 
@@ -62,7 +62,7 @@ def _parse_library_folders(steam_path: str) -> list[str]:
 def find_wallpaper_engine(config_wallpaper_engine_path: str) -> str | None:
     """Find wallpaper64.exe, returning the full path or None.
 
-    Tier 1: Use the path from scheduler_config if it exists.
+    Tier 1: Use the configured path if it exists.
     Tier 2: Search Steam library folders for the WE installation.
     """
     # Tier 1: configured path
@@ -84,7 +84,7 @@ def find_wallpaper_engine(config_wallpaper_engine_path: str) -> str | None:
 
 
 def find_we_config_json(config_wallpaper_engine_path: str) -> str | None:
-    """Find WE's config.json given the wallpaper_engine_path from scheduler_config.
+    """Find WE's config.json given the configured wallpaper_engine_path.
 
     Returns the full path to WE's config.json, or None.
     """

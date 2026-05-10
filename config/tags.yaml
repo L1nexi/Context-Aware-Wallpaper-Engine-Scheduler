@@ -1,0 +1,67 @@
+tags:
+  focus:
+    fallback: {}
+
+  chill:
+    fallback: {}
+
+  dawn:
+    fallback:
+      day: 0.7
+      chill: 0.3
+
+  day:
+    fallback: {}
+
+  sunset:
+    fallback:
+      chill: 0.3
+      night: 0.7
+
+  night:
+    fallback: {}
+
+  spring:
+    fallback:
+      day: 0.5
+      chill: 0.5
+
+  summer:
+    fallback:
+      day: 0.7
+      clear: 0.3
+
+  autumn:
+    fallback:
+      sunset: 0.6
+      chill: 0.4
+
+  winter:
+    fallback:
+      night: 0.5
+      chill: 0.5
+
+  clear:
+    fallback: {}
+
+  cloudy:
+    fallback:
+      clear: 0.5
+      chill: 0.3
+
+  rain:
+    fallback: {}
+
+  storm:
+    fallback:
+      rain: 1.0
+
+  snow:
+    fallback:
+      winter: 0.6
+      rain: 0.6
+
+  fog:
+    fallback:
+      rain: 0.4
+      chill: 0.4

@@ -49,10 +49,6 @@ if %errorlevel% neq 0 (
 )
 
 echo [5/5] Preparing distribution folder...
-if not exist dist\scheduler_config.json (
-    echo Copying default config...
-    copy scheduler_config.example.json dist\scheduler_config.json
-)
 copy README.md dist\README.md
 
 echo ==========================================

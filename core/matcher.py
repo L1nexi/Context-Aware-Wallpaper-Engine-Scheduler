@@ -22,7 +22,7 @@ class Matcher:
 
     def __init__(
         self,
-        playlists: List[PlaylistConfig],
+        playlists: Dict[str, PlaylistConfig],
         policies: List[Policy],
         tag_specs: Optional[Dict[str, TagSpec]] = None,
     ):
@@ -30,7 +30,7 @@ class Matcher:
         self._tag_specs: Dict[str, TagSpec] = tag_specs or {}
 
         all_tags: set[str] = set()
-        for playlist in playlists:
+        for playlist in playlists.values():
             all_tags.update(playlist.tags.keys())
 
         self._known_tags: set[str] = set(all_tags)
@@ -41,7 +41,7 @@ class Matcher:
         self._warned_tags: set[str] = set()
 
         self.playlist_vectors: List[Tuple[str, List[float]]] = []
-        for playlist in playlists:
+        for playlist_name, playlist in playlists.items():
             vector = [0.0] * self.dim
             for tag, weight in playlist.tags.items():
                 if tag in self.tag_to_index:
@@ -49,9 +49,9 @@ class Matcher:
             norm = math.sqrt(sum(x * x for x in vector))
             if norm > 1e-6:
                 vector = [x / norm for x in vector]
-                self.playlist_vectors.append((playlist.name, vector))
+                self.playlist_vectors.append((playlist_name, vector))
             else:
-                logger.warning("Playlist '%s' has no valid tags or zero weights.", playlist.name)
+                logger.warning("Playlist '%s' has no valid tags or zero weights.", playlist_name)
 
     def evaluate(self, context: Context) -> MatchEvaluation:
         raw_context_vector: Dict[str, float] = {}

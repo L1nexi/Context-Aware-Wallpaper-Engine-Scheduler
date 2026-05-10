@@ -213,7 +213,7 @@ class ActivityPolicy(Policy):
 
 
 class TimePolicy(Policy):
-    """Maps time-of-day to #dawn/#day/#sunset/#night via Hann windows."""
+    """Maps time-of-day to dawn/day/sunset/night via Hann windows."""
 
     config_key = "time"
     evaluation_cls = TimePolicyEvaluation
@@ -233,13 +233,13 @@ class TimePolicy(Policy):
         day_span = (ns - ds) % 24
         night_span = 24 - day_span
         return {
-            "#dawn": ds,
-            "#day": (ds + day_span / 2) % 24,
-            "#sunset": ns % 24,
-            "#night": (ns + night_span / 2) % 24,
+            "dawn": ds,
+            "day": (ds + day_span / 2) % 24,
+            "sunset": ns % 24,
+            "night": (ns + night_span / 2) % 24,
         }
 
-    _TAG_ORDER = ["#dawn", "#day", "#sunset", "#night"]
+    _TAG_ORDER = ["dawn", "day", "sunset", "night"]
     _VIRTUAL_PEAKS = [0.0, 6.0, 12.0, 18.0]
 
     @staticmethod
@@ -312,7 +312,7 @@ class TimePolicy(Policy):
 
 
 class SeasonPolicy(Policy):
-    """Maps day-of-year to #spring/#summer/#autumn/#winter via Hann windows."""
+    """Maps day-of-year to spring/summer/autumn/winter via Hann windows."""
 
     config_key = "season"
     evaluation_cls = SeasonPolicyEvaluation
@@ -320,10 +320,10 @@ class SeasonPolicy(Policy):
     def __init__(self, config: SeasonPolicyConfig):
         super().__init__(config)
         self._peaks = {
-            "#spring": config.spring_peak,
-            "#summer": config.summer_peak,
-            "#autumn": config.autumn_peak,
-            "#winter": config.winter_peak,
+            "spring": config.spring_peak,
+            "summer": config.summer_peak,
+            "autumn": config.autumn_peak,
+            "winter": config.winter_peak,
         }
         self._H = 365 / len(self._peaks)
 
@@ -361,79 +361,79 @@ class WeatherPolicy(Policy):
     """Maps OWM condition codes to normalized weather tag contributions."""
 
     _ID_TAGS: Dict[int, Dict[str, float]] = {
-        210: {"#storm": 0.50, "#rain": 0.25},
-        211: {"#storm": 0.75, "#rain": 0.50},
-        212: {"#storm": 1.00, "#rain": 0.60},
-        221: {"#storm": 0.90, "#rain": 0.50},
-        200: {"#storm": 0.67, "#rain": 0.34},
-        201: {"#storm": 0.80, "#rain": 0.40},
-        202: {"#storm": 0.89, "#rain": 0.45},
-        230: {"#storm": 0.62, "#rain": 0.21},
-        231: {"#storm": 0.71, "#rain": 0.24},
-        232: {"#storm": 0.80, "#rain": 0.36},
-        300: {"#rain": 0.25},
-        301: {"#rain": 0.40},
-        302: {"#rain": 0.55},
-        310: {"#rain": 0.30},
-        311: {"#rain": 0.50},
-        312: {"#rain": 0.60},
-        313: {"#rain": 0.50},
-        314: {"#rain": 0.65},
-        321: {"#rain": 0.50},
-        500: {"#rain": 0.40},
-        501: {"#rain": 0.65},
-        502: {"#rain": 0.85},
-        503: {"#rain": 1.00},
-        504: {"#rain": 1.00},
-        511: {"#rain": 0.53, "#snow": 0.27},
-        520: {"#rain": 0.45},
-        521: {"#rain": 0.65},
-        522: {"#rain": 0.90},
-        531: {"#rain": 0.70},
-        600: {"#snow": 0.40},
-        601: {"#snow": 0.70},
-        602: {"#snow": 1.00},
-        611: {"#snow": 0.39, "#rain": 0.39},
-        612: {"#snow": 0.32, "#rain": 0.32},
-        613: {"#snow": 0.35, "#rain": 0.35},
-        615: {"#rain": 0.35, "#snow": 0.35},
-        616: {"#rain": 0.42, "#snow": 0.42},
-        620: {"#snow": 0.40},
-        621: {"#snow": 0.65},
-        622: {"#snow": 1.00},
-        701: {"#fog": 0.30},
-        711: {"#fog": 0.45},
-        721: {"#fog": 0.25},
-        731: {"#fog": 0.25},
-        741: {"#fog": 0.75},
-        751: {"#fog": 0.30},
-        761: {"#fog": 0.40},
-        762: {"#fog": 0.60},
-        771: {"#storm": 0.65},
-        781: {"#storm": 1.00},
-        800: {"#clear": 0.50},
-        801: {"#clear": 0.47, "#cloudy": 0.16},
-        802: {"#clear": 0.35, "#cloudy": 0.35},
-        803: {"#cloudy": 0.47, "#clear": 0.16},
-        804: {"#cloudy": 0.50},
+        210: {"storm": 0.50, "rain": 0.25},
+        211: {"storm": 0.75, "rain": 0.50},
+        212: {"storm": 1.00, "rain": 0.60},
+        221: {"storm": 0.90, "rain": 0.50},
+        200: {"storm": 0.67, "rain": 0.34},
+        201: {"storm": 0.80, "rain": 0.40},
+        202: {"storm": 0.89, "rain": 0.45},
+        230: {"storm": 0.62, "rain": 0.21},
+        231: {"storm": 0.71, "rain": 0.24},
+        232: {"storm": 0.80, "rain": 0.36},
+        300: {"rain": 0.25},
+        301: {"rain": 0.40},
+        302: {"rain": 0.55},
+        310: {"rain": 0.30},
+        311: {"rain": 0.50},
+        312: {"rain": 0.60},
+        313: {"rain": 0.50},
+        314: {"rain": 0.65},
+        321: {"rain": 0.50},
+        500: {"rain": 0.40},
+        501: {"rain": 0.65},
+        502: {"rain": 0.85},
+        503: {"rain": 1.00},
+        504: {"rain": 1.00},
+        511: {"rain": 0.53, "snow": 0.27},
+        520: {"rain": 0.45},
+        521: {"rain": 0.65},
+        522: {"rain": 0.90},
+        531: {"rain": 0.70},
+        600: {"snow": 0.40},
+        601: {"snow": 0.70},
+        602: {"snow": 1.00},
+        611: {"snow": 0.39, "rain": 0.39},
+        612: {"snow": 0.32, "rain": 0.32},
+        613: {"snow": 0.35, "rain": 0.35},
+        615: {"rain": 0.35, "snow": 0.35},
+        616: {"rain": 0.42, "snow": 0.42},
+        620: {"snow": 0.40},
+        621: {"snow": 0.65},
+        622: {"snow": 1.00},
+        701: {"fog": 0.30},
+        711: {"fog": 0.45},
+        721: {"fog": 0.25},
+        731: {"fog": 0.25},
+        741: {"fog": 0.75},
+        751: {"fog": 0.30},
+        761: {"fog": 0.40},
+        762: {"fog": 0.60},
+        771: {"storm": 0.65},
+        781: {"storm": 1.00},
+        800: {"clear": 0.50},
+        801: {"clear": 0.47, "cloudy": 0.16},
+        802: {"clear": 0.35, "cloudy": 0.35},
+        803: {"cloudy": 0.47, "clear": 0.16},
+        804: {"cloudy": 0.50},
     }
 
     _MAIN_FALLBACK: Dict[str, Dict[str, float]] = {
-        "thunderstorm": {"#storm": 0.67, "#rain": 0.34},
-        "drizzle": {"#rain": 0.40},
-        "rain": {"#rain": 0.65},
-        "snow": {"#snow": 0.65},
-        "mist": {"#fog": 0.30},
-        "smoke": {"#fog": 0.45},
-        "haze": {"#fog": 0.25},
-        "dust": {"#fog": 0.40},
-        "fog": {"#fog": 0.75},
-        "sand": {"#fog": 0.30},
-        "ash": {"#fog": 0.55},
-        "squall": {"#storm": 0.65},
-        "tornado": {"#storm": 1.00},
-        "clear": {"#clear": 0.50},
-        "clouds": {"#cloudy": 0.50},
+        "thunderstorm": {"storm": 0.67, "rain": 0.34},
+        "drizzle": {"rain": 0.40},
+        "rain": {"rain": 0.65},
+        "snow": {"snow": 0.65},
+        "mist": {"fog": 0.30},
+        "smoke": {"fog": 0.45},
+        "haze": {"fog": 0.25},
+        "dust": {"fog": 0.40},
+        "fog": {"fog": 0.75},
+        "sand": {"fog": 0.30},
+        "ash": {"fog": 0.55},
+        "squall": {"storm": 0.65},
+        "tornado": {"storm": 1.00},
+        "clear": {"clear": 0.50},
+        "clouds": {"cloudy": 0.50},
     }
 
     config_key = "weather"
@@ -493,10 +493,10 @@ class WeatherPolicy(Policy):
 
 
 KNOWN_TAGS: list[str] = sorted({
-    "#focus", "#chill",
-    "#dawn", "#day", "#sunset", "#night",
-    "#spring", "#summer", "#autumn", "#winter",
-    "#clear", "#cloudy", "#rain", "#storm", "#snow", "#fog",
+    "focus", "chill",
+    "dawn", "day", "sunset", "night",
+    "spring", "summer", "autumn", "winter",
+    "clear", "cloudy", "rain", "storm", "snow", "fog",
 })
 
 POLICY_REGISTRY: list[Type[Policy]] = [

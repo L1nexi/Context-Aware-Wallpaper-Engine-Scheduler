@@ -36,7 +36,7 @@ def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments.
 
     Host-mode flags (user-facing):
-        --config               Path to scheduler_config.json
+        --config               Path to the config directory
         --no-tray              Run without system tray icon (console mode)
         --dashboard-api-port   Local dashboard HTTP server port (0 = dynamic)
 
@@ -50,8 +50,8 @@ def _parse_args() -> argparse.Namespace:
         description="Context Aware Wallpaper Engine Scheduler"
     )
     parser.add_argument(
-        "--config", default="scheduler_config.json",
-        help="Path to the configuration file",
+        "--config", default="config",
+        help="Path to the configuration directory",
     )
     parser.add_argument(
         "--no-tray", action="store_true",
@@ -72,7 +72,7 @@ def _parse_args() -> argparse.Namespace:
 # ── Config helpers ──────────────────────────────────────────────
 
 def _resolve_config_path(config_arg: str) -> str:
-    """Resolve a config path to an absolute path.
+    """Resolve a config directory path to an absolute path.
 
     Relative paths are resolved against the application root.
     """
@@ -105,7 +105,7 @@ def _run_dashboard(port: int, locale: str) -> None:
     DashboardWindow(port, locale).create_and_block()
 
 
-def _run_console_mode(config_path: str, logger: logging.Logger) -> None:
+def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
     """Create scheduler and run in console mode (--no-tray).
 
     No HTTP server, no tray — just the scheduler loop on a background
@@ -115,7 +115,7 @@ def _run_console_mode(config_path: str, logger: logging.Logger) -> None:
     from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir
 
-    scheduler = WEScheduler(config_path, HistoryLogger(get_data_dir()))
+    scheduler = WEScheduler(config_dir, HistoryLogger(get_data_dir()))
     try:
         scheduler.initialize()
     except Exception as e:
@@ -131,7 +131,7 @@ def _run_console_mode(config_path: str, logger: logging.Logger) -> None:
         scheduler.stop()
 
 
-def _run_tray_mode(config_path: str, logger: logging.Logger, dashboard_api_port: int = 0) -> None:
+def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: int = 0) -> None:
     """Create scheduler, start the local dashboard API server, and block on
     the system tray icon.
 
@@ -145,7 +145,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger, dashboard_api_port:
     from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir
 
-    scheduler = WEScheduler(config_path, HistoryLogger(get_data_dir()))
+    scheduler = WEScheduler(config_dir, HistoryLogger(get_data_dir()))
     try:
         scheduler.initialize()
     except Exception as e:
@@ -163,7 +163,7 @@ def _run_tray_mode(config_path: str, logger: logging.Logger, dashboard_api_port:
     httpd = DashboardHTTPServer(
         analysis_store,
         scheduler.history_logger,
-        config_path,
+        config_dir,
         requested_port=dashboard_api_port,
         metadata_provider=lambda: extract_runtime_metadata(scheduler),
     )
@@ -193,12 +193,12 @@ def main() -> None:
         _run_dashboard(args.port, args.locale)
         return
 
-    config_path = _resolve_config_path(args.config)
+    config_dir = _resolve_config_path(args.config)
 
     if args.no_tray:
-        _run_console_mode(config_path, logger)
+        _run_console_mode(config_dir, logger)
     else:
-        _run_tray_mode(config_path, logger, args.dashboard_api_port)
+        _run_tray_mode(config_dir, logger, args.dashboard_api_port)
 
 
 if __name__ == "__main__":

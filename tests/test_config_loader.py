@@ -1,297 +1,250 @@
 from __future__ import annotations
 
-import json
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
+import yaml
 
-from utils.config_loader import AppConfig, ConfigLoader, PLAYLIST_AUTO_COLOR_PALETTE
-
-
-def _write_config(tmp_path, config):
-    path = tmp_path / "scheduler_config.json"
-    path.write_text(json.dumps(config), encoding="utf-8")
-    return str(path)
+from utils.config_loader import ConfigLoader, PLAYLIST_AUTO_COLOR_PALETTE
 
 
-def _base_config(*, playlists=None, policies=None):
+def _base_documents() -> dict[str, dict]:
+    tag_names = [
+        "focus",
+        "chill",
+        "dawn",
+        "day",
+        "sunset",
+        "night",
+        "spring",
+        "summer",
+        "autumn",
+        "winter",
+        "clear",
+        "cloudy",
+        "rain",
+        "storm",
+        "snow",
+        "fog",
+    ]
     return {
-        "wallpaper_engine_path": "C:\\fake\\wallpaper64.exe",
-        "tags": {},
-        "playlists": playlists
-        if playlists is not None
-        else [
-            {"name": "focus", "color": "#F5C518", "tags": {"#focus": 1.0}},
-        ],
-        "policies": {} if policies is None else policies,
+        "scheduler.yaml": {
+            "version": 2,
+            "runtime": {
+                "wallpaper_engine_path": None,
+                "language": None,
+            },
+        },
+        "playlists.yaml": {
+            "playlists": {
+                "FOCUS": {
+                    "display": "Focus",
+                    "tags": {
+                        "focus": 1.0,
+                        "day": 0.8,
+                        "clear": 0.4,
+                    },
+                },
+                "CHILL": {
+                    "display": "Chill",
+                    "color": "#4A90D9",
+                    "tags": {
+                        "chill": 1.0,
+                        "night": 0.7,
+                        "rain": 0.3,
+                    },
+                },
+            }
+        },
+        "tags.yaml": {
+            "tags": {
+                tag_name: {"fallback": {}}
+                for tag_name in tag_names
+            }
+        },
+        "activity.yaml": {
+            "activity": {
+                "enabled": True,
+                "weight": 1.2,
+                "smoothing_window": 120,
+                "process_rules": {
+                    "Code.exe": "focus",
+                },
+                "title_rules": {
+                    "YouTube": "chill",
+                },
+            }
+        },
+        "context.yaml": {
+            "time": {
+                "enabled": True,
+                "weight": 0.8,
+                "auto": True,
+                "day_start_hour": 8,
+                "night_start_hour": 20,
+            },
+            "season": {
+                "enabled": True,
+                "weight": 0.65,
+                "spring_peak": 80,
+                "summer_peak": 172,
+                "autumn_peak": 265,
+                "winter_peak": 355,
+            },
+            "weather": {
+                "enabled": True,
+                "weight": 1.5,
+                "api_key": "",
+                "lat": 31.2,
+                "lon": 121.5,
+                "fetch_interval": 600,
+                "request_timeout": 10,
+                "warmup_timeout": 3,
+            },
+        },
+        "scheduling.yaml": {
+            "scheduling": {
+                "startup_delay": 15,
+                "idle_threshold": 20,
+                "switch_cooldown": 150,
+                "cycle_cooldown": 900,
+                "force_after": 3600,
+                "cpu_threshold": 85,
+                "cpu_sample_window": 10,
+                "pause_on_fullscreen": True,
+            }
+        },
     }
 
 
-def test_app_config_defaults_form_complete_canonical_tree():
-    defaults = AppConfig()
-
-    assert defaults.wallpaper_engine_path == ""
-    assert defaults.language is None
-    assert defaults.playlists == []
-    assert defaults.tags == {}
-    assert defaults.policies.activity.enabled is True
-    assert defaults.policies.time.auto is True
-    assert defaults.policies.season.spring_peak == 80
-    assert defaults.policies.weather.lat is None
-    assert defaults.policies.weather.lon is None
-    assert defaults.scheduling.startup_delay == 30.0
+def _scratch_root() -> Path:
+    root = Path.cwd() / "data" / "pytest-config-loader"
+    root.mkdir(parents=True, exist_ok=True)
+    scratch = root / uuid4().hex
+    scratch.mkdir()
+    return scratch
 
 
-def test_config_loader_normalizes_sparse_config(tmp_path):
-    path = _write_config(
-        tmp_path,
-        {
-            "wallpaper_engine_path": "C:\\fake\\wallpaper64.exe",
-            "playlists": [{"name": "focus", "color": "#F5C518", "tags": {"#focus": 1.0}}],
-        },
-    )
+def _write_config_dir(overrides: dict[str, object] | None = None) -> Path:
+    config_dir = _scratch_root() / "config"
+    config_dir.mkdir()
+    documents = _base_documents()
+    if overrides:
+        for file_name, value in overrides.items():
+            if value is None:
+                documents.pop(file_name, None)
+            else:
+                documents[file_name] = value
 
-    config = ConfigLoader(path).load()
-
-    assert config.language is None
-    assert config.tags == {}
-    assert config.playlists[0].display == ""
-    assert config.policies.activity.enabled is True
-    assert config.policies.weather.enabled is True
-    assert config.policies.weather.lat is None
-    assert config.scheduling.pause_on_fullscreen is True
-
-
-def test_config_loader_allows_empty_general_and_playlist_sections(tmp_path):
-    config = _base_config(playlists=[], policies={})
-    config["wallpaper_engine_path"] = ""
-    path = _write_config(
-        tmp_path,
-        config,
-    )
-    loaded = ConfigLoader(path).load()
-
-    assert loaded.wallpaper_engine_path == ""
-    assert loaded.playlists == []
-    assert loaded.policies.time.enabled is True
+    for file_name, document in documents.items():
+        (config_dir / file_name).write_text(
+            yaml.safe_dump(document, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+    return config_dir
 
 
-def test_config_loader_accepts_six_digit_hex_playlist_color(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            playlists=[
-                {"name": "focus", "color": "#F5C518", "tags": {"#focus": 1.0}},
-                {"name": "rainy", "color": "#4a90d9", "tags": {"#rain": 1.0}},
-            ]
-        ),
-    )
-
-    config = ConfigLoader(path).load()
-
-    assert config.playlists[0].color == "#F5C518"
-    assert config.playlists[1].color == "#4a90d9"
-
-
-def test_config_loader_assigns_palette_color_to_missing_playlist_color(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            playlists=[
-                {"name": "focus", "tags": {"#focus": 1.0}},
-            ]
-        ),
-    )
-
-    config = ConfigLoader(path).load()
-
-    assert config.playlists[0].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
-
-
-def test_config_loader_assigns_palette_color_to_null_playlist_color(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            playlists=[
-                {"name": "focus", "color": None, "tags": {"#focus": 1.0}},
-            ]
-        ),
-    )
-
-    config = ConfigLoader(path).load()
-
-    assert config.playlists[0].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
-
-
-def test_config_loader_assigns_palette_colors_only_to_missing_entries(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            playlists=[
-                {"name": "focus", "color": "#F5C518", "tags": {"#focus": 1.0}},
-                {"name": "rainy", "tags": {"#rain": 1.0}},
-                {"name": "night", "color": "#2E5F8A", "tags": {"#night": 1.0}},
-                {"name": "weekend", "color": None, "tags": {"#weekend": 1.0}},
-            ]
-        ),
-    )
-
-    config = ConfigLoader(path).load()
-
-    assert [playlist.color for playlist in config.playlists] == [
-        "#F5C518",
-        PLAYLIST_AUTO_COLOR_PALETTE[0],
-        "#2E5F8A",
-        PLAYLIST_AUTO_COLOR_PALETTE[1],
-    ]
-
-
-def test_config_loader_restarts_auto_color_assignment_on_every_load(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            playlists=[
-                {"name": "focus", "tags": {"#focus": 1.0}},
-                {"name": "rainy", "tags": {"#rain": 1.0}},
-            ]
-        ),
-    )
-    loader = ConfigLoader(path)
-
-    first = loader.load()
-    second = loader.load()
-
-    assert [playlist.color for playlist in first.playlists] == [
-        PLAYLIST_AUTO_COLOR_PALETTE[0],
-        PLAYLIST_AUTO_COLOR_PALETTE[1],
-    ]
-    assert [playlist.color for playlist in second.playlists] == [
-        PLAYLIST_AUTO_COLOR_PALETTE[0],
-        PLAYLIST_AUTO_COLOR_PALETTE[1],
-    ]
-
-
-@pytest.mark.parametrize("color", ["#FFF", "rgb(255,0,0)", ""])
-def test_config_loader_rejects_invalid_playlist_color_format(tmp_path, color):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            playlists=[
-                {"name": "focus", "color": color, "tags": {"#focus": 1.0}},
-            ]
-        ),
-    )
+def test_config_loader_requires_all_six_yaml_files():
+    config_dir = _write_config_dir(overrides={"context.yaml": None})
 
     with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(path).load()
+        ConfigLoader(str(config_dir)).load()
 
-    assert "playlists.0.color" in str(exc_info.value)
-
-
-def test_config_loader_accepts_null_weather_coordinates(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            policies={
-                "weather": {
-                    "api_key": "abc",
-                    "lat": None,
-                    "lon": None,
-                }
-            }
-        ),
-    )
-
-    config = ConfigLoader(path).load()
-
-    assert config.policies.weather.api_key == "abc"
-    assert config.policies.weather.lat is None
-    assert config.policies.weather.lon is None
-
-
-def test_config_loader_accepts_numeric_weather_coordinates(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            policies={
-                "weather": {
-                    "lat": 31,
-                    "lon": 121.5,
-                }
-            }
-        ),
-    )
-
-    config = ConfigLoader(path).load()
-
-    assert config.policies.weather.lat == 31.0
-    assert config.policies.weather.lon == 121.5
-
-
-def test_config_loader_rejects_string_weather_coordinates(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            policies={
-                "weather": {
-                    "lat": "31.2",
-                    "lon": 121.5,
-                }
-            }
-        ),
-    )
-
-    with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(path).load()
-
-    assert "policies.weather.lat" in str(exc_info.value)
+    assert "context.yaml" in str(exc_info.value)
+    assert "missing required file" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
-    ("field", "value", "message_fragment"),
+    "scheduler_document",
     [
-        ("lat", 90.1, "less than or equal to 90"),
-        ("lat", -90.1, "greater than or equal to -90"),
-        ("lon", 180.1, "less than or equal to 180"),
-        ("lon", -180.1, "greater than or equal to -180"),
+        {"runtime": {"wallpaper_engine_path": None}},
+        {"version": 1, "runtime": {"wallpaper_engine_path": None}},
     ],
 )
-def test_config_loader_rejects_out_of_range_weather_coordinates(
-    tmp_path,
-    field,
-    value,
-    message_fragment,
+def test_config_loader_requires_version_2(scheduler_document: dict):
+    config_dir = _write_config_dir(overrides={"scheduler.yaml": scheduler_document})
+
+    with pytest.raises(ValueError) as exc_info:
+        ConfigLoader(str(config_dir)).load()
+
+    error_text = str(exc_info.value)
+    assert "scheduler.yaml" in error_text
+    assert "version" in error_text
+
+
+@pytest.mark.parametrize(
+    ("file_name", "content", "message"),
+    [
+        (
+            "tags.yaml",
+            "tags:\n  focus: &base\n    fallback: {}\n",
+            "YAML anchors are not supported",
+        ),
+        (
+            "tags.yaml",
+            "tags:\n  focus:\n    fallback: *base\n",
+            "YAML aliases are not supported",
+        ),
+        (
+            "playlists.yaml",
+            "playlists:\n  BASE:\n    display: Base\n    tags:\n      focus: 1.0\n  COPY:\n    <<:\n      display: Base\n      tags:\n        focus: 1.0\n",
+            "YAML merge keys are not supported",
+        ),
+    ],
+)
+def test_config_loader_rejects_yaml_advanced_features(
+    file_name: str,
+    content: str,
+    message: str,
 ):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            policies={
-                "weather": {
-                    field: value,
-                }
-            }
-        ),
-    )
+    config_dir = _write_config_dir()
+    (config_dir / file_name).write_text(content, encoding="utf-8")
 
     with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(path).load()
+        ConfigLoader(str(config_dir)).load()
 
-    assert f"policies.weather.{field}" in str(exc_info.value)
-    assert message_fragment in str(exc_info.value)
+    error_text = str(exc_info.value)
+    assert file_name in error_text
+    assert message in error_text
 
 
-def test_config_loader_rejects_unknown_policy_key(tmp_path):
-    path = _write_config(
-        tmp_path,
-        _base_config(
-            policies={
-                "moon": {
-                    "enabled": True,
-                }
-            }
-        ),
-    )
+def test_config_loader_parses_playlist_map_and_assigns_missing_colors():
+    config_dir = _write_config_dir()
+
+    config = ConfigLoader(str(config_dir)).load()
+
+    assert config.wallpaper_engine_path == ""
+    assert set(config.playlists) == {"FOCUS", "CHILL"}
+    assert config.playlists["FOCUS"].display == "Focus"
+    assert config.playlists["FOCUS"].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
+    assert config.playlists["CHILL"].color == "#4A90D9"
+    assert config.policies.activity.process_rules["Code.exe"] == "focus"
+
+
+def test_config_loader_rejects_undeclared_tag_references():
+    documents = _base_documents()
+    documents["playlists.yaml"]["playlists"]["FOCUS"]["tags"]["unknown"] = 0.2
+    config_dir = _write_config_dir(overrides={"playlists.yaml": documents["playlists.yaml"]})
 
     with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(path).load()
+        ConfigLoader(str(config_dir)).load()
 
-    assert "policies.moon" in str(exc_info.value)
+    error_text = str(exc_info.value)
+    assert "playlists.yaml" in error_text
+    assert "playlists.FOCUS.tags.unknown" in error_text
+    assert "must be declared in tags.yaml" in error_text
+
+
+def test_config_loader_error_includes_source_file_and_field_path():
+    documents = _base_documents()
+    documents["activity.yaml"]["activity"]["process_rules"]["Code.exe"] = "#focus"
+    config_dir = _write_config_dir(overrides={"activity.yaml": documents["activity.yaml"]})
+
+    with pytest.raises(ValueError) as exc_info:
+        ConfigLoader(str(config_dir)).load()
+
+    error_text = str(exc_info.value)
+    assert "activity.yaml" in error_text
+    assert "activity.process_rules['Code.exe']" in error_text
+    assert "must not use a '#' prefix" in error_text

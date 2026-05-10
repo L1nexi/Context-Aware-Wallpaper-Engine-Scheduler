@@ -27,7 +27,7 @@ from ui.dashboard_analysis import (
     build_tick_window_response,
 )
 from utils.app_context import get_app_root
-from utils.config_loader import AppConfig
+from utils.config_loader import ConfigLoader
 
 if TYPE_CHECKING:
     from core.event_logger import EventLogger
@@ -147,10 +147,19 @@ def _empty_metadata() -> DashboardRuntimeMetadata:
     return DashboardRuntimeMetadata(display_of={}, color_of={})
 
 
+def _runtime_wallpaper_engine_path(config_dir: str) -> str:
+    try:
+        runtime = ConfigLoader.load_runtime_settings(config_dir)
+    except Exception as exc:
+        logger.warning("Failed to read scheduler runtime settings: %s", exc)
+        return ""
+    return runtime.wallpaper_engine_path or ""
+
+
 def _build_app(
     analysis_store: AnalysisStore,
     history_logger: EventLogger | None = None,
-    config_path: str = "",
+    config_dir: str = "",
     metadata_provider: MetadataProvider | None = None,
 ) -> bottle.Bottle:
     app = bottle.Bottle()
@@ -217,52 +226,14 @@ def _build_app(
     @app.route("/api/config")
     def api_config():
         bottle.response.content_type = "application/json; charset=utf-8"
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                raw = json.load(f)
-            current = AppConfig.model_validate(raw)
-            defaults = AppConfig()
-        except FileNotFoundError:
-            bottle.response.status = 404
-            return json.dumps({"error": "config_not_found"})
-        except ValueError as exc:
-            bottle.response.status = 500
-            return json.dumps({"error": "invalid_config", "details": str(exc)})
-        return json.dumps(
-            {
-                "current": current.model_dump(mode="json"),
-                "defaults": defaults.model_dump(mode="json"),
-            }
-        )
+        bottle.response.status = 410
+        return json.dumps({"error": "config_api_removed"})
 
     @app.route("/api/config", method="POST")
     def api_config_save():
         bottle.response.content_type = "application/json; charset=utf-8"
-        data = bottle.request.json
-        if data is None:
-            bottle.response.status = 400
-            return json.dumps({"error": "no_json_body"})
-        try:
-            canonical_config = AppConfig.model_validate(data).model_dump(mode="json")
-        except ValueError as exc:
-            bottle.response.status = 422
-            return json.dumps(
-                {
-                    "error": "validation_failed",
-                    "details": _flatten_errors(exc),
-                }
-            )
-
-        tmp = config_path + ".tmp"
-        try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(canonical_config, f, indent=2, ensure_ascii=False)
-            os.replace(tmp, config_path)
-        except OSError as exc:
-            bottle.response.status = 500
-            return json.dumps({"error": "write_failed", "details": str(exc)})
-        logger.info("Config saved via API")
-        return json.dumps({"ok": True})
+        bottle.response.status = 410
+        return json.dumps({"error": "config_api_removed"})
 
     @app.route("/api/tags/presets")
     def api_tags_presets():
@@ -274,13 +245,7 @@ def _build_app(
     @app.route("/api/playlists/scan")
     def api_playlists_scan():
         bottle.response.content_type = "application/json; charset=utf-8"
-        wallpaper_engine_path = ""
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                raw = json.load(f)
-            wallpaper_engine_path = raw.get("wallpaper_engine_path", "")
-        except Exception as exc:
-            logger.warning("Failed to read config for playlist scan: %s", exc)
+        wallpaper_engine_path = _runtime_wallpaper_engine_path(config_dir)
 
         from utils.we_path import find_we_config_json
 
@@ -312,13 +277,7 @@ def _build_app(
     @app.route("/api/we-path")
     def api_we_path():
         bottle.response.content_type = "application/json; charset=utf-8"
-        wallpaper_engine_path = ""
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                raw = json.load(f)
-            wallpaper_engine_path = raw.get("wallpaper_engine_path", "")
-        except Exception:
-            pass
+        wallpaper_engine_path = _runtime_wallpaper_engine_path(config_dir)
 
         from utils.we_path import find_wallpaper_engine
 
@@ -349,7 +308,7 @@ class DashboardHTTPServer:
         self,
         analysis_store: AnalysisStore,
         history_logger: EventLogger | None = None,
-        config_path: str = "",
+        config_dir: str = "",
         requested_port: int = 0,
         metadata_provider: MetadataProvider | None = None,
     ):
@@ -358,7 +317,7 @@ class DashboardHTTPServer:
         """
         self._analysis_store = analysis_store
         self._history: EventLogger | None = history_logger
-        self._config_path = config_path
+        self._config_dir = config_dir
         self._requested_port = requested_port
         self._metadata_provider = metadata_provider
         self._httpd: _ThreadingWSGIServer | None = None
@@ -370,7 +329,7 @@ class DashboardHTTPServer:
         app = _build_app(
             self._analysis_store,
             self._history,
-            self._config_path,
+            self._config_dir,
             self._metadata_provider,
         )
 

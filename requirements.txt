@@ -4,6 +4,7 @@ requests
 pystray
 Pillow
 pydantic
+PyYAML
 pyinstaller
 pywebview
 bottle

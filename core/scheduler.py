@@ -62,8 +62,8 @@ class SchedulerState(BaseModel):
 
 
 class WEScheduler:
-    def __init__(self, config_path: str, history_logger: EventLogger):
-        self.config_path = config_path
+    def __init__(self, config_dir: str, history_logger: EventLogger):
+        self.config_dir = config_dir
         self.history_logger: EventLogger = history_logger
         self.initialized = False
         self.running = False
@@ -85,12 +85,12 @@ class WEScheduler:
         self.last_status_line: str = ""
         self.last_tick_trace: Optional[SchedulerTickTrace] = None
         self.tick_id: int = 0
-        self._config_mtime: float = 0.0
+        self._config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
 
     def initialize(self) -> bool:
-        self.config_loader = ConfigLoader(self.config_path)
+        self.config_loader = ConfigLoader(self.config_dir)
         config = self.config_loader.load()
-        self._config_mtime = os.path.getmtime(self.config_path)
+        self._config_fingerprint = self.config_loader.fingerprint()
         logger.info("Loaded %d playlists.", len(config.playlists))
 
         self.executor = WEExecutor(config.wallpaper_engine_path)
@@ -243,12 +243,9 @@ class WEScheduler:
                 logger.exception("on_tick hook failed")
 
     def _check_hot_reload(self) -> None:
-        try:
-            mtime = os.path.getmtime(self.config_path)
-        except OSError:
-            return
-        if mtime != self._config_mtime:
-            self._config_mtime = mtime
+        fingerprint = self.config_loader.fingerprint()
+        if fingerprint != self._config_fingerprint:
+            self._config_fingerprint = fingerprint
             self._hot_reload()
 
     def _build_runtime_components(self) -> None:
@@ -271,8 +268,14 @@ class WEScheduler:
             SchedulingController(config.scheduling),
             history_logger=self.history_logger,
         )
-        self.display_of = {pl.name: pl.display or pl.name for pl in config.playlists}
-        self.color_of = {pl.name: pl.color for pl in config.playlists}
+        self.display_of = {
+            playlist_name: playlist.display or playlist_name
+            for playlist_name, playlist in config.playlists.items()
+        }
+        self.color_of = {
+            playlist_name: playlist.color
+            for playlist_name, playlist in config.playlists.items()
+        }
 
     def _hot_reload(self) -> None:
         try:
