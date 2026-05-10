@@ -84,7 +84,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
   - `scheduling.yaml`
 - 缺任一文件时报 validate error。
 - `scheduler.yaml > version` 必填且必须为 `2`。
-- 禁止 anchors、aliases、merge keys。
+- 不禁止 anchors、aliases、merge keys。
 - 不支持 `include`。
 - 不读取旧 JSON。
 - 产出中间 YAML domain model 或 raw dict。
@@ -107,7 +107,6 @@ pytest tests/test_config_loader.py -q
 
 - 6 文件缺失报错。
 - version 缺失 / 不等于 2 报错。
-- YAML anchors / aliases / merge keys 被拒绝。
 - example 配置能被解析。
 - source file + field path 出现在错误中。
 

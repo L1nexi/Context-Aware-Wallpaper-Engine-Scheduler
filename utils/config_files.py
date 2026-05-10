@@ -324,24 +324,6 @@ class SchedulingFileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scheduling: SchedulingFileEntry = Field(default_factory=SchedulingFileEntry)
 
-
-def _validate_plain_tag(
-    tag: str,
-    source_file: str,
-    field_path: tuple[str | int, ...],
-    issues: list[ConfigIssue],
-) -> None:
-    if tag.startswith("#"):
-        issues.append(
-            ConfigIssue(
-                source_file=source_file,
-                field_path=field_path,
-                message="tag ids must not use a '#' prefix",
-                code="tag_prefix_forbidden",
-            )
-        )
-
-
 def _validate_declared_tag(
     tag: str,
     declared_tags: set[str],
@@ -349,7 +331,6 @@ def _validate_declared_tag(
     field_path: tuple[str | int, ...],
     issues: list[ConfigIssue],
 ) -> None:
-    _validate_plain_tag(tag, source_file, field_path, issues)
     if tag not in declared_tags:
         issues.append(
             ConfigIssue(
@@ -420,7 +401,6 @@ class ConfigFiles:
         declared_tags = set(self.tags.tags.keys())
 
         for tag_name, tag_spec in self.tags.tags.items():
-            _validate_plain_tag(tag_name, "tags.yaml", ("tags", tag_name), issues)
             for fallback_tag in tag_spec.fallback:
                 _validate_declared_tag(
                     fallback_tag,

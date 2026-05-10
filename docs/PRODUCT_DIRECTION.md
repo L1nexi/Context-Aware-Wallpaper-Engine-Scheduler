@@ -86,8 +86,8 @@
    - GitHub Release zip 附带最小可运行的 6 文件 YAML example 配置。
    - 示例配置必须覆盖 playlist、tag、activity、context、scheduling 的常见路径。
 
-2. YAML loader 与受限解析
-   - 只接受受限 YAML 子集，禁止 anchors、aliases、merge keys 等不利于诊断的能力。
+2. YAML loader
+   - 不做 YAML 子集，不过度工程。
    - 不读取 include，固定文件名是阶段 2 的配置契约。
    - 解析结果不得直接进入运行时，必须进入 Pydantic 校验和 normalize。
 
