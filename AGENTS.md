@@ -135,7 +135,7 @@ npm run dev
 
 这意味着：
 
-- 如果你在做配置系统重构，应优先参考 `docs/frontend/CONFIGURATION_SPEC.md`，推进固定 6 文件 YAML、打包 example 配置、严格 tag、playlist runtime map、Activity matcher、validate before swap 和配置辅助工具；不要实现运行时 builtin preset + override 或 include
+- 如果你在做配置系统重构，应优先参考 `docs/frontend/CONFIGURATION_SPEC.md`，推进固定 6 文件 YAML、Release zip 分发的 example 配置、严格 tag、playlist runtime map、Activity matcher、validate before swap 和配置辅助工具；不要实现运行时 builtin preset + override 或 include
 - 不要继续以完整 GUI Config Editor 为默认目标扩展 `/config/*`
 - 如果你在做 Dashboard 分析页重构，应直接基于 `SchedulerTickTrace` 新建更正确的分析接口，而不是继续扩展旧 `TickState`
 - 如果你在做 History 相关工作，应优先保留轻量事件日志和 Diagnostics 中的近期事件说明，不要扩展独立长期 History 页面
@@ -198,7 +198,7 @@ npm run build-only
 - 先判断任务是在修“当前运行时”，还是在推进“前端重写目标”。这两类任务的着力点不同。
 - 如果任务属于新前端建设，优先在 `dashboard/`、`docs/frontend/*` 对齐的数据模型和 `ui/dashboard.py` 的新接口上动手。
 - 如果任务属于 Dashboard 重写的下一阶段，默认假设 core 诊断链已经完成；除非发现 spec 与实现冲突，否则不要回退去重做 `core/controller.py`、`core/actuator.py`、`core/diagnostics.py` 的基础建模。
-- 如果任务属于配置体验，默认走文本配置工作流：固定 6 文件 YAML、打包 example 配置、Pydantic normalized runtime config、validate before swap。GUI 只做打开、验证、重载、错误展示、扫描播放列表等辅助能力；tray 的 `Apply Current Match Now` 是独立手动调度入口，不应和 reload 混在一起。
+- 如果任务属于配置体验，默认走文本配置工作流：固定 6 文件 YAML、Release zip 分发的 example 配置、Pydantic normalized runtime config、validate before swap。GUI 只做打开、验证、重载、错误展示、扫描播放列表等辅助能力；tray 的 `Apply Current Match Now` 是独立手动调度入口，不应和 reload 混在一起。
 - 如果任务属于 History，默认先质疑是否应该进入独立页面；近期应优先保留事件日志和 Diagnostics 辅助信息。
 - 当前阶段路线顺序是：打包减重 -> 配置体验改线 -> Diagnostics 收敛 -> History 降级。具体见 `docs/PRODUCT_DIRECTION.md`。
 - 如果任务需要 breaking change，就连同调用方、测试、静态资源接线一起改，不要把过渡态长期留在主线上。

@@ -64,14 +64,14 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 
 ## 3. 阶段 1：YAML 目录 loader 与 example 配置
 
-目标：建立固定 6 文件 YAML 的解析、错误定位和 example 配置，但暂不切换 scheduler 主运行入口。
+目标：建立固定 6 文件 YAML 的解析、错误定位和 GitHub Release zip 分发用 example 配置，但暂不切换 scheduler 主运行入口。
 
 文件范围：
 
 - 新增或重构 `utils/config_loader.py` 附近的 YAML domain loader。
-- 新增打包 example 配置目录，具体路径由实现时结合打包资源确定。
+- 新增 Release zip 分发用 example 配置目录，作为 exe 旁边的普通文件进入发布压缩包。
 - `tests/test_config_loader.py` 或新增配置 loader 测试文件。
-- 打包脚本 / spec 中的资源收集配置。
+- Release 打包脚本中压缩包文件布局配置。
 
 工作内容：
 
@@ -114,7 +114,7 @@ pytest tests/test_config_loader.py -q
 完成标准：
 
 - YAML 文件契约可测试。
-- example 配置作为资源存在。
+- example 配置作为 Release zip 中的普通文件存在，不内嵌到 exe。
 - 旧 JSON 不参与 YAML loader。
 
 ## 4. 阶段 2：Runtime 配置模型切换
@@ -376,7 +376,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py -q
 - 保留 Reload Config。
 - 保留 Show Last Config Error。
 - 保留 Scan Wallpaper Engine Playlists。
-- 可提供 Open / View Example Config。
+- 不需要提供打开 exe 内嵌 example 的入口；配置辅助入口只需要打开用户配置目录。
 - 不做完整多页表单式 Config Editor。
 
 阶段边界：
@@ -469,7 +469,7 @@ pytest tests/test_core_diagnostics.py -q
 - `docs/PRODUCT_DIRECTION.md`
 - `docs/frontend/CONFIGURATION_SPEC.md`
 - `docs/archived/frozen/*` 如需加冻结说明
-- 示例配置与打包资源
+- 示例配置与 Release zip 文件布局
 - 测试夹具
 
 工作内容：
@@ -479,7 +479,7 @@ pytest tests/test_core_diagnostics.py -q
 - 确认 runtime preset / override 相关措辞不存在。
 - 确认 include 相关措辞只作为“不支持”出现。
 - 删除临时 adapter、legacy test fixture 或 dead route。
-- 打包资源包含 example 配置。
+- Release zip 包含 example 配置文件。
 - 文档说明 reload 不会立即切换，tray Manual Apply 才是手动应用入口。
 
 验证：

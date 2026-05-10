@@ -66,7 +66,7 @@ config/
   scheduling.yaml
 ```
 
-阶段 2 固定读取这 6 个文件。打包产物应附带完整 example 配置，用户从 example 手动建立自己的配置目录。缺少任一文件都是 validate error；不因为文件缺失自动补齐，也不从旧 JSON 自动迁移。
+阶段 2 固定读取这 6 个文件。GitHub Release zip 应附带完整 example 配置文件，用户从这些普通文件手动建立自己的配置目录。缺少任一文件都是 validate error；不因为文件缺失自动补齐，也不从旧 JSON 自动迁移。
 
 ### 3.1 `scheduler.yaml`
 
@@ -275,7 +275,7 @@ Tag id 使用无前缀的 lower-kebab-case。
 正式规则：
 
 - 不使用 `#focus` 这种前缀形式。
-- 不做隐藏 builtin tag 词表；打包 example 可以提供推荐 tag 覆盖。
+- 不做隐藏 builtin tag 词表；Release zip 中的 example 配置可以提供推荐 tag 覆盖。
 - 未知 tag 一律 validate 失败，避免拼写错误静默变成新 tag。
 - playlist tag vector、activity matcher、tag fallback 都只能引用已声明 tag。
 - Time / Season / Weather 输出固定 tag 名；这些固定 tag 也必须在 `tags.yaml` 中显式声明。
@@ -315,21 +315,21 @@ color: "#F5C518"
 阶段 2 不做运行时 builtin preset + user override。正式模型是：
 
 ```text
-packaged example config
+Release zip example config
   -> user copies / edits YAML files
   -> load fixed 6 files
   -> Pydantic validation
   -> normalized runtime AppConfig
 ```
 
-打包 example 是分发和文档资源，不是隐藏运行时 layer。用户运行时看到的 YAML 文件就是配置语义本身。
+Release zip 中的 example 配置是分发文件和文档资源，不是 exe 内嵌资源，也不是隐藏运行时 layer。用户运行时看到的 YAML 文件就是配置语义本身。
 
 Pydantic schema defaults 仍然存在，但只用于字段级默认值，例如 policy `enabled`、调度参数默认值或可选字段默认值。它不提供隐藏 playlist、tag、activity rule 或 policy preset。
 
 设计约束：
 
 - 运行时只读取用户配置目录中的固定 6 个 YAML 文件。
-- 不读取 packaged example 作为 fallback。
+- 不读取 Release zip 中的 example 配置作为 runtime fallback。
 - 不读取旧 `scheduler_config.json`。
 - 不做 include、deep merge、override 删除语义等配置层能力。
 - 禁用资源或策略使用显式 `enabled: false`。
@@ -395,7 +395,7 @@ GUI 不承担完整配置编辑。
 - Reload Config
 - Validate Config
 - Show Last Config Error
-- Open / View Example Config
+- 打开配置目录
 - Scan Wallpaper Engine Playlists
 
 正式要求：
@@ -447,7 +447,7 @@ Tray 后续应提供 `Apply Current Match Now` / `立即应用当前匹配`。
 5. 将固定 YAML domain model 转换为 runtime `AppConfig`。
 6. 接入 WE path resolve、executor readiness 和 actuation outcome。
 7. 接入 validate before swap reload，并迁移允许保留的 runtime state。
-8. 更新打包 example 配置、README 和测试。
+8. 更新 Release zip example 配置、README 和测试。
 
 后续可分步落地：
 
@@ -472,7 +472,7 @@ Tray 后续应提供 `Apply Current Match Now` / `立即应用当前匹配`。
 11. reload 成功后保留 pause、current playlist、controller cooldown 和过滤后的 ActivityPolicy EMA。
 12. `wallpaper_engine_path: null` 能触发自动检测；检测失败时 actuation disabled 但宿主不退出。
 13. 内部运行时仍使用 Pydantic normalized `AppConfig`。
-14. 打包 example 配置能通过 validate 并启动调度器。
+14. Release zip 中的 example 配置能通过 validate 并启动调度器。
 
 ## 13. 访谈决策记录（2026-05-10）
 
@@ -483,7 +483,7 @@ Tray 后续应提供 `Apply Current Match Now` / `立即应用当前匹配`。
 - 不提供旧 `scheduler_config.json` 到新 YAML 目录的自动迁移工具。
 - 旧 JSON 不参与运行时加载、不参与自动转换、不作为 fallback。
 - 旧字段对照表只帮助用户手动重建配置，不是迁移工具承诺。
-- 打包产物直接附带完整 example 配置。用户从 example 复制和修改，建立自己的配置目录。
+- GitHub Release zip 直接附带完整 example 配置文件。用户从这些普通文件复制和修改，建立自己的配置目录。
 - 不需要在启动时根据旧 JSON 生成 starter config。
 - 阶段 2 可以分步实现。第一批先完成配置运行时核心：
   - 固定 6 文件 YAML loader。
@@ -541,7 +541,7 @@ Tray 后续应提供 `Apply Current Match Now` / `立即应用当前匹配`。
 - playlist tag vector、activity matcher、tag fallback 都只能引用已声明 tag。
 - 不允许在 playlist 或 activity 中隐式创建 tag。
 - 不做隐藏 builtin tag 词表。
-- 打包 example 应提供完整推荐 tag 覆盖，降低用户新增 tag 的负担。
+- Release zip 中的 example 配置应提供完整推荐 tag 覆盖，降低用户新增 tag 的负担。
 - `tags.yaml` 是完整 tag 词表和 fallback 图。
 - tag fallback 是重要自定义扩展点，必须支持用户自定义。
 - Time / Season / Weather 在阶段 2 输出固定 tag 名，不做 signal-to-tag mapping。
@@ -696,6 +696,6 @@ Tray 后续提供 `Apply Current Match Now` / `立即应用当前匹配`。
 - 保留 Reload Config。
 - 保留 Show Last Config Error。
 - 保留 Scan Wallpaper Engine Playlists。
-- 可保留打开 / 查看打包 example 配置的入口。
+- GUI 不需要提供打开 exe 内嵌 example 的入口；example 是 Release zip 中的普通文件。
 - 不继续扩展多页表单式 Config Editor。
 - 不把 History 扩展成独立长期分析产品。

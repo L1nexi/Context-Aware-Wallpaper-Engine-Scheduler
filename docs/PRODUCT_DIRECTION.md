@@ -57,7 +57,7 @@
 
 - 不提供旧 `scheduler_config.json` 到新 YAML 目录的自动迁移工具。
 - 不保留长期 JSON / YAML 双轨加载模型。
-- 打包产物直接附带完整 example 配置；旧字段对照只帮助用户手动重建配置。
+- GitHub Release 压缩包直接附带完整 example 配置文件；旧字段对照只帮助用户手动重建配置。
 - 旧 `GET /api/config` / `POST /api/config` 如果暂时保留，只能视为 legacy 或内部调试接口，不能继续牵引完整 GUI Config Editor。
 - GUI 只做配置辅助，不承担配置事实源；配置文件才是一等入口。
 
@@ -68,7 +68,7 @@
 - playlist key 直接等于 Wallpaper Engine 播放列表名。
 - tag id 去掉 `#` 前缀，使用无前缀 lower-kebab-case。
 - 颜色可选，手写时优先支持命名色或无 `#` hex。
-- 不做运行时 builtin preset + user override；使用打包 example 配置 + Pydantic schema defaults。
+- 不做运行时 builtin preset + user override；使用 Release zip 中的 example 配置文件 + Pydantic schema defaults。
 - 阶段 2 不做 `include`；固定读取 6 个必需 YAML 文件，缺失即 validate error。
 - `playlists` 在配置和 runtime `AppConfig` 中都使用 map，key 直接等于 Wallpaper Engine 播放列表名。
 - tag 必须显式声明；Time / Season / Weather 输出固定 tag 名，也必须在 `tags.yaml` 中声明。
@@ -83,7 +83,7 @@
 
 1. 新配置目录与 example config
    - 明确默认配置目录位置。
-   - 打包附带最小可运行的 6 文件 YAML example 配置。
+   - GitHub Release zip 附带最小可运行的 6 文件 YAML example 配置。
    - 示例配置必须覆盖 playlist、tag、activity、context、scheduling 的常见路径。
 
 2. YAML loader 与受限解析
@@ -99,7 +99,7 @@
 4. Runtime adapter
    - 将新 YAML 语义转换为当前运行时可消费的 raw dict。
    - 继续以 normalized `AppConfig` 作为 scheduler、policy、executor 的运行时契约。
-   - breaking change 要一次性更新调用方、测试、示例配置和打包资源。
+   - breaking change 要一次性更新调用方、测试、示例配置和 Release 分发文件。
 
 5. Validate before swap
    - reload 时先完整读取、转换、校验、normalize。
@@ -120,13 +120,13 @@ GUI 边界：
 - 保留 Reload Config。
 - 保留 Show Last Config Error。
 - 保留 Scan Wallpaper Engine Playlists。
-- 可保留打开 / 查看打包 example 配置的入口。
+- GUI 不需要提供打开 exe 内嵌 example 的入口；example 是 Release zip 中的普通文件。
 - 不做完整表单式 Config Editor。
 
 建议实施顺序：
 
 1. 在 `utils/config_loader.py` 附近建立新 YAML loader 与 source location 错误模型。
-2. 建立打包 example 配置和 YAML 示例资源。
+2. 建立 Release zip 分发用 example 配置和 YAML 示例文件。
 3. 完成 playlist map、严格 tag、Activity matcher 到 runtime `AppConfig` 的 adapter。
 4. 接入 WE path resolve、executor readiness 和 validate before swap reload。
 5. 收缩 dashboard 配置页面为配置辅助工具面板。
@@ -144,7 +144,7 @@ GUI 边界：
 - 配置错误能定位到具体文件和字段路径。
 - 配置 reload 失败不破坏当前运行状态。
 - 用户能看出当前 effective config 来自哪个配置目录、最后一次 reload 是否成功。
-- 打包 example 配置能通过 validate 并启动调度器。
+- Release zip 中的 example 配置能通过 validate 并启动调度器。
 - 旧 JSON 配置不会被自动迁移；需要手动重建时，文档给出字段对照和最小示例。
 - 旧 Config Editor 文档和页面不会继续牵引主线。
 
