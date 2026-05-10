@@ -1,4 +1,8 @@
-# Config Editor Spec
+# Config Editor Spec - Frozen
+
+> 2026-05-10 状态：本规格已冻结，保留为历史设计记录。当前配置方向以 [CONFIGURATION_SPEC.md](./CONFIGURATION_SPEC.md) 为准。
+>
+> 完整 GUI Config Editor 不再是当前主线。后续配置工作应优先实现分层 YAML、preset + override、validate before swap 和轻量配置辅助工具。除非明确恢复 GUI Editor 路线，不应继续按本文档扩展 `dashboard-v2` Config 页面。
 
 本文档定义 `dashboard-v2` 中 Config 页的导航模型、页面骨架、编辑器布局与后端契约。
 

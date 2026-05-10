@@ -1,4 +1,6 @@
-# Dashboard Analysis Spec -[DONE]
+# Dashboard / Diagnostics Analysis Spec -[DONE]
+
+> 2026-05-10 说明：产品语义上，Dashboard 应收敛为 `Diagnostics`。它不是通用管理后台，也不是长期 History 页面；它只负责解释调度器近期为什么切换或为什么没有切换。
 
 本文档定义 `dashboard-v2` 中 Dashboard 页的目标、信息架构、交互模型与后端数据契约。
 

@@ -1,4 +1,8 @@
-# History Spec
+# History Spec - Frozen
+
+> 2026-05-10 状态：本规格已冻结，保留为历史设计记录。当前产品路线不再把完整 History 页面作为主线。
+>
+> `HistoryLogger` 和事件日志仍可作为运行证据保留，但前端 History 页面、长期趋势图、Gantt / composition 分析不应继续扩展为独立产品模块。近期如需历史信息，应优先在 Diagnostics 中展示轻量 `Recent Events`。
 
 本文档定义 `dashboard-v2` 中 `History` 页的正式产品定位、时间粒度模型、页面结构与后端数据契约。
 

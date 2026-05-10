@@ -1,11 +1,12 @@
 # AGENTS.md
 
-本文件为在本仓库中工作的编码代理提供协作约束。内容基于 2026-05-04 的代码现状编写。
+本文件为在本仓库中工作的编码代理提供协作约束。内容基于 2026-05-10 的代码现状与产品方向编写。
 
 ## 0. 工作立场
 
 - 当前项目仍处于 `0.x`。允许 breaking change；如果旧接口、旧数据模型、旧页面心智已经妨碍正确设计，直接改，不要为了维持错误抽象而堆兼容层。
-- 当前处于前端重写期。所有前端工程规范、UI 分层、组件边界、状态管理约定，以 `dashboard-v2/` 为准。
+- 产品定位为面向高级 Wallpaper Engine 用户的本地上下文调度器。核心价值是自动调度、可解释诊断和可配置文本工作流，不是通用桌面管理后台。
+- 当前前端基座仍以 `dashboard-v2/` 为准，但完整 Config Editor 与完整 History 页面已经暂停；不要继续把项目扩成管理后台。
 - 做 breaking change 时，优先一次性把调用方、测试、静态资源接线和打包链一起改完，不要留下长期双轨并存的半迁移状态。
 
 ## 1. 信息优先级
@@ -16,17 +17,18 @@
 2. 本文件 `AGENTS.md`
 3. `dashboard-v2/docs/UI_ENGINEERING_SPEC.md`
 4. `docs/frontend/DASHBOARD_ANALYSIS_SPEC.md`
-5. `docs/frontend/CONFIG_EDITOR_SPEC.md`
+5. `docs/frontend/CONFIGURATION_SPEC.md`
+6. `docs/frontend/CONFIG_EDITOR_SPEC.md`（已冻结，仅作历史记录）
 
 ## 2. 当前代码现状
 
 - 项目是 Windows-only Python 桌面应用：托盘宿主进程 + 本地 HTTP API + pywebview dashboard 子进程。
 - `main.py` 是组合根。托盘模式下会创建 `WEScheduler`、`StateStore`、`DashboardHTTPServer`，并通过 `scheduler.on_tick` 推送实时状态。
 - `scheduler.on_tick` 当前接收的是 `SchedulerTickTrace`
-- Dashboard 仍然是双进程结构：
+- Dashboard / Diagnostics 仍然是双进程结构：
   - 托盘宿主维护 scheduler、history logger 和 Bottle HTTP server
-  - Dashboard 子进程只负责打开 pywebview 窗口
-- `ui/webview.py` 关闭窗口时只退出 dashboard 子进程，不应影响托盘宿主。
+  - Dashboard / Diagnostics 子进程只负责打开 pywebview 窗口
+- `ui/webview.py` 关闭窗口时只退出 dashboard / diagnostics 子进程，不应影响托盘宿主。
 
 ### 2.1 `dashboard-v2` 是新的前端基座，但仍处在建设中
 
@@ -42,14 +44,18 @@
 - dashboard 应用已基本完成实现
 - pywebview 已经接入 `dashboard-v2/dist/` 目录并能正常加载
 
-但它仍然不是功能完成态：
+当前事实：
 
-- 路由目前只有 `/`
-- History 和 Config Editor 页面还没做
+- 路由已经包含 `/dashboard`、`/history` 与 `/config/*`
+- `/dashboard` 是正式诊断入口
+- `/config/general` 与 `/config/scheduling` 已有部分 GUI 实现
+- `/history`、`/config/playlists`、`/config/tags`、`/config/policies` 仍是占位或未完成态
+- 完整 GUI Config Editor 与完整 History 页面已经暂停，不应继续作为主线推进
 
 结论：
 
-- `dashboard-v2` 是当前前端开发标准和重写主战场
+- `dashboard-v2` 是当前前端开发标准
+- 近期前端主线应聚焦 Diagnostics 与轻量配置辅助，不应继续扩展完整管理后台式页面
 
 ### 2.2 Dashboard 分析后端重构已完成第一阶段
 
@@ -71,11 +77,12 @@
 
 结论：
 
-- Dashboard 分析相关的新后端事实源已经在 `core/*` 中建立完成。
+- Dashboard / Diagnostics 分析相关的新后端事实源已经在 `core/*` 中建立完成。
 
 ### 2.3 Dashboard DTO 模型已经重构完成
 
 - `GET /api/analysis/window` 已经重构为返回 `TickSnapshot` 列表，每个 `TickSnapshot` 由 `SchedulerTickTrace` 转换而来，具体定义参考 `ui/dashboard_analysis.py`
+- 产品语义上该页面应视为 `Diagnostics`，不是通用 Dashboard。
 
 ### 2.4 Dashboard 的前后端联调辅助设施已上线
 
@@ -92,7 +99,9 @@ npm run dev
 - 前端工程规范以 `dashboard-v2/docs/UI_ENGINEERING_SPEC.md` 为准。
 - 页面级目标与后端契约目标以这两份文档为准：
   - `docs/frontend/DASHBOARD_ANALYSIS_SPEC.md`
-  - `docs/frontend/CONFIG_EDITOR_SPEC.md`
+  - `docs/frontend/CONFIGURATION_SPEC.md`
+- `docs/frontend/CONFIG_EDITOR_SPEC.md`、`CONFIG_EDITOR_IMPLEMENTATION_SPEC.md`、`CONFIG_EDITOR_R5_SPEC.md` 已冻结，只作历史设计记录。
+- `docs/frontend/HISTORY_SPEC.md` 已冻结，完整 History 页面不再是当前主线。
 - 如果旧 `/api/state`、`/api/ticks`、裸 `GET /api/config` 契约妨碍新模型，允许直接 redesign。
 - 只要 redesign 是为了建立更正确的分析模型或配置模型，就不要因为“怕 breaking change”而退回旧结构。
 
@@ -121,12 +130,14 @@ npm run dev
 相关事实：
 
 - `HistoryLogger` 已支持 `read()`、`aggregate()`、月度分片 JSONL 和 `last_event_id`
-- `utils/config_loader.py` 当前仍允许 `policies` 下未知 key：`PoliciesConfig.model_config = ConfigDict(extra="allow")`
+- `utils/config_loader.py` 当前已收紧 `policies` 下未知 key：`PoliciesConfig.model_config = ConfigDict(extra="forbid")`
 
 这意味着：
 
-- 如果你在做 GUI Config 重构，可以按 `docs/frontend/CONFIG_EDITOR_SPEC.md` 把未知 policy key 收紧为禁止，但要同步改后端、前端和测试
+- 如果你在做配置系统重构，应优先参考 `docs/frontend/CONFIGURATION_SPEC.md`，推进分层 YAML、preset + override、validate before swap 和配置辅助工具
+- 不要继续以完整 GUI Config Editor 为默认目标扩展 `/config/*`
 - 如果你在做 Dashboard 分析页重构，应直接基于 `SchedulerTickTrace` 新建更正确的分析接口，而不是继续扩展旧 `TickState`
+- 如果你在做 History 相关工作，应优先保留轻量事件日志和 Diagnostics 中的近期事件说明，不要扩展独立长期 History 页面
 
 ## 5. 目录地图
 
@@ -183,6 +194,8 @@ npm run build-only
 - 先判断任务是在修“当前运行时”，还是在推进“前端重写目标”。这两类任务的着力点不同。
 - 如果任务属于新前端建设，优先在 `dashboard-v2/`、`docs/frontend/*` 对齐的数据模型和 `ui/dashboard.py` 的新接口上动手。
 - 如果任务属于 Dashboard 重写的下一阶段，默认假设 core 诊断链已经完成；除非发现 spec 与实现冲突，否则不要回退去重做 `core/controller.py`、`core/actuator.py`、`core/diagnostics.py` 的基础建模。
+- 如果任务属于配置体验，默认走文本配置工作流：分层 YAML、preset + override、Pydantic normalized runtime config、validate before swap。GUI 只做打开、验证、重载、错误展示、扫描播放列表等辅助能力。
+- 如果任务属于 History，默认先质疑是否应该进入独立页面；近期应优先保留事件日志和 Diagnostics 辅助信息。
 - 如果任务需要 breaking change，就连同调用方、测试、静态资源接线一起改，不要把过渡态长期留在主线上。
 - 不要把 `dashboard-v2` 的工程规范退化回旧式做法：大段 scoped CSS、页面私有全局类、绕开 token 的硬编码颜色/尺寸、用局部状态假装全局状态。
 - 尽量复用 `dashboard-v2/src/components/ui/workbench/*`、现有 token、Tailwind utility 和 Pinia 方向。

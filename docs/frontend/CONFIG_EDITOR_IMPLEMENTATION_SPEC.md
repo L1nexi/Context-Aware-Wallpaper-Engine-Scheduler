@@ -1,4 +1,8 @@
-# Config Editor Implementation Spec - R4
+# Config Editor Implementation Spec - R4 - Frozen
+
+> 2026-05-10 状态：本实施规格已冻结，保留为历史设计记录。当前配置方向以 [CONFIGURATION_SPEC.md](./CONFIGURATION_SPEC.md) 为准。
+>
+> 后续不要继续以完整 GUI Config Editor contract 为主线扩展本规格。已完成或仍有价值的后端能力可以被新配置系统复用，但产品目标已经转向分层 YAML、preset + override 和配置辅助工具。
 
 本文档收敛 `Config Editor v2` 的 `R4` 实现计划。  
 [CONFIG_EDITOR_SPEC.md](./CONFIG_EDITOR_SPEC.md) 继续承担整体目标、信息架构与正式 contract 定义；本文档只负责把 `R4 Config backend contract` 的落地顺序、改动边界、风险控制与验收写清，避免实现时再次回到“先糊前端表单，再补后端模型”的旧路线。
