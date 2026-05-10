@@ -51,7 +51,7 @@
 
 目标：停止推进完整 GUI Config Editor，改为高级用户友好的文本配置工作流，并把配置系统变成后续 Diagnostics 可解释性的事实基础。
 
-正式方向见 [CONFIGURATION_SPEC.md](./frontend/CONFIGURATION_SPEC.md)。阶段 2 细化访谈结论已记录在该文档的“访谈决策记录（2026-05-10）”章节。
+正式方向见 [CONFIGURATION_SPEC.md](./frontend/CONFIGURATION_SPEC.md)。阶段 2 细化访谈结论已记录在该文档的“访谈决策记录（2026-05-10）”章节；实施阶段拆分见 [CONFIGURATION_PHASE_PLAN.md](./CONFIGURATION_PHASE_PLAN.md)。
 
 范围边界：
 
