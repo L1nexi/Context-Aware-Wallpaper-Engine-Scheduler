@@ -1,6 +1,6 @@
 # Config Editor Implementation Spec - R4 - Frozen
 
-> 2026-05-10 状态：本实施规格已冻结，保留为历史设计记录。当前配置方向以 [CONFIGURATION_SPEC.md](./CONFIGURATION_SPEC.md) 为准。
+> 2026-05-10 状态：本实施规格已冻结，保留为历史设计记录。当前配置方向以 [CONFIGURATION_SPEC.md](../../frontend/CONFIGURATION_SPEC.md) 为准。
 >
 > 后续不要继续以完整 GUI Config Editor contract 为主线扩展本规格。已完成或仍有价值的后端能力可以被新配置系统复用，但产品目标已经转向分层 YAML、preset + override 和配置辅助工具。
 

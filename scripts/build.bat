@@ -1,5 +1,5 @@
 @echo off
-set DASHBOARD_APP_DIR=dashboard-v2
+set DASHBOARD_APP_DIR=dashboard
 set DASHBOARD_DIST_DIR=%DASHBOARD_APP_DIR%\dist
 
 echo ==========================================
@@ -14,12 +14,12 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
-echo [2/5] Building dashboard-v2...
+echo [2/5] Building dashboard...
 pushd %DASHBOARD_APP_DIR%
 call npm run build-only
 if %errorlevel% neq 0 (
     popd
-    echo Failed to build dashboard-v2.
+    echo Failed to build dashboard.
     pause
     exit /b %errorlevel%
 )

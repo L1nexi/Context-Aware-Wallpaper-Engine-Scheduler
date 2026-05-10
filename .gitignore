@@ -37,3 +37,5 @@ data/
 docs/superpowers/
 
 .playwright*/
+
+venv313/

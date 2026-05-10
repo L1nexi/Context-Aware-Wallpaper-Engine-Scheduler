@@ -6,7 +6,7 @@
 
 - 当前项目仍处于 `0.x`。允许 breaking change；如果旧接口、旧数据模型、旧页面心智已经妨碍正确设计，直接改，不要为了维持错误抽象而堆兼容层。
 - 产品定位为面向高级 Wallpaper Engine 用户的本地上下文调度器。核心价值是自动调度、可解释诊断和可配置文本工作流，不是通用桌面管理后台。
-- 当前前端基座仍以 `dashboard-v2/` 为准，但完整 Config Editor 与完整 History 页面已经暂停；不要继续把项目扩成管理后台。
+- 当前前端基座仍以 `dashboard/` 为准，但完整 Config Editor 与完整 History 页面已经暂停；不要继续把项目扩成管理后台。
 - 做 breaking change 时，优先一次性把调用方、测试、静态资源接线和打包链一起改完，不要留下长期双轨并存的半迁移状态。
 
 ## 1. 信息优先级
@@ -15,10 +15,11 @@
 
 1. 实际代码与测试
 2. 本文件 `AGENTS.md`
-3. `dashboard-v2/docs/UI_ENGINEERING_SPEC.md`
-4. `docs/frontend/DASHBOARD_ANALYSIS_SPEC.md`
+3. `docs/PRODUCT_DIRECTION.md`
+4. `dashboard/docs/UI_ENGINEERING_SPEC.md`
 5. `docs/frontend/CONFIGURATION_SPEC.md`
-6. `docs/frontend/CONFIG_EDITOR_SPEC.md`（已冻结，仅作历史记录）
+6. `docs/archived/done/DASHBOARD_ANALYSIS_SPEC.md`（Diagnostics 细节参考）
+7. `docs/archived/frozen/*`（仅作历史记录）
 
 ## 2. 当前代码现状
 
@@ -30,9 +31,9 @@
   - Dashboard / Diagnostics 子进程只负责打开 pywebview 窗口
 - `ui/webview.py` 关闭窗口时只退出 dashboard / diagnostics 子进程，不应影响托盘宿主。
 
-### 2.1 `dashboard-v2` 是新的前端基座，但仍处在建设中
+### 2.1 `dashboard` 是新的前端基座，但仍处在建设中
 
-`dashboard-v2/` 当前已经具备这些基础：
+`dashboard/` 当前已经具备这些基础：
 
 - Vue 3 + Vite + TypeScript
 - Tailwind CSS v4
@@ -42,7 +43,7 @@
 - `vue-router` hash 路由
 - `base: './'`
 - dashboard 应用已基本完成实现
-- pywebview 已经接入 `dashboard-v2/dist/` 目录并能正常加载
+- pywebview 已经接入 `dashboard/dist/` 目录并能正常加载
 
 当前事实：
 
@@ -54,7 +55,7 @@
 
 结论：
 
-- `dashboard-v2` 是当前前端开发标准
+- `dashboard` 是当前前端开发标准
 - 近期前端主线应聚焦 Diagnostics 与轻量配置辅助，不应继续扩展完整管理后台式页面
 
 ### 2.2 Dashboard 分析后端重构已完成第一阶段
@@ -86,22 +87,22 @@
 
 ### 2.4 Dashboard 的前后端联调辅助设施已上线
 
-通过以下命令可以在指定端口启动 http 服务。然后在 [text](dashboard-v2/vite.config.ts) 中配置服务代理即可在本地浏览器中进行开发调试，无需每次用 `python main.py` 启动
+通过以下命令可以在指定端口启动 http 服务。然后在 [text](dashboard/vite.config.ts) 中配置服务代理即可在本地浏览器中进行开发调试，无需每次用 `python main.py` 启动
 
 ```bash
 python main.py --dashboard-api-port 38417
-cd dashboard-v2
+cd dashboard
 npm run dev
 ```
 
 ## 3. 前端重写准则
 
-- 前端工程规范以 `dashboard-v2/docs/UI_ENGINEERING_SPEC.md` 为准。
-- 页面级目标与后端契约目标以这两份文档为准：
-  - `docs/frontend/DASHBOARD_ANALYSIS_SPEC.md`
-  - `docs/frontend/CONFIGURATION_SPEC.md`
-- `docs/frontend/CONFIG_EDITOR_SPEC.md`、`CONFIG_EDITOR_IMPLEMENTATION_SPEC.md`、`CONFIG_EDITOR_R5_SPEC.md` 已冻结，只作历史设计记录。
-- `docs/frontend/HISTORY_SPEC.md` 已冻结，完整 History 页面不再是当前主线。
+- 产品路线以 `docs/PRODUCT_DIRECTION.md` 为准。
+- 前端工程规范以 `dashboard/docs/UI_ENGINEERING_SPEC.md` 为准。
+- 配置系统目标与契约以 `docs/frontend/CONFIGURATION_SPEC.md` 为准。
+- Diagnostics 细节可参考 `docs/archived/done/DASHBOARD_ANALYSIS_SPEC.md` 与同目录 implementation spec。
+- `docs/archived/frozen/CONFIG_EDITOR_SPEC.md`、`CONFIG_EDITOR_IMPLEMENTATION_SPEC.md`、`CONFIG_EDITOR_R5_SPEC.md` 已冻结，只作历史设计记录。
+- `docs/archived/frozen/HISTORY_SPEC.md` 已冻结，完整 History 页面不再是当前主线。
 - 如果旧 `/api/state`、`/api/ticks`、裸 `GET /api/config` 契约妨碍新模型，允许直接 redesign。
 - 只要 redesign 是为了建立更正确的分析模型或配置模型，就不要因为“怕 breaking change”而退回旧结构。
 
@@ -134,7 +135,7 @@ npm run dev
 
 这意味着：
 
-- 如果你在做配置系统重构，应优先参考 `docs/frontend/CONFIGURATION_SPEC.md`，推进分层 YAML、preset + override、validate before swap 和配置辅助工具
+- 如果你在做配置系统重构，应优先参考 `docs/frontend/CONFIGURATION_SPEC.md`，推进固定 6 文件 YAML、打包 example 配置、严格 tag、playlist runtime map、Activity matcher、validate before swap 和配置辅助工具；不要实现运行时 builtin preset + override 或 include
 - 不要继续以完整 GUI Config Editor 为默认目标扩展 `/config/*`
 - 如果你在做 Dashboard 分析页重构，应直接基于 `SchedulerTickTrace` 新建更正确的分析接口，而不是继续扩展旧 `TickState`
 - 如果你在做 History 相关工作，应优先保留轻量事件日志和 Diagnostics 中的近期事件说明，不要扩展独立长期 History 页面
@@ -144,8 +145,11 @@ npm run dev
 - `core/`: 调度核心，包含 sensor / policy / matcher / controller / actuator / executor
 - `ui/`: 托盘 UI、Bottle dashboard server、pywebview 窗口
 - `utils/`: 配置、日志、i18n、路径解析、历史记录
-- `dashboard-v2/`: 新前端工作区与工程基座
-- `docs/frontend/`: 新前端页面级规格
+- `dashboard/`: 新前端工作区与工程基座
+- `docs/PRODUCT_DIRECTION.md`: 当前产品路线与阶段优先级
+- `docs/frontend/`: 当前仍活跃的前端 / 配置规格
+- `docs/archived/done/`: 已完成的历史规格和参考设计
+- `docs/archived/frozen/`: 已冻结、不再作为主线推进的历史规格
 - `tests/`: Python pytest 测试
 
 ## 6. 常用命令
@@ -159,10 +163,10 @@ python main.py --no-tray
 pytest -q
 ```
 
-### `dashboard-v2/` 新前端工作区
+### `dashboard/` 新前端工作区
 
 ```bash
-cd dashboard-v2
+cd dashboard
 npm install
 npm run lint
 npm run type-check
@@ -180,22 +184,23 @@ npm run build-only
 - 2026-05-04 的本地基线：
   - `pytest -q` 通过
   - 结果为 `92 passed`
-- ``dashboard-v2/` 能分别通过：
+- `dashboard/` 能分别通过：
   - `npm run type-check`
   - `npm run build-only`
 
 改动时的最低验证要求：
 
 - 改 `ui/dashboard.py`、`utils/history_logger.py`、`utils/we_path.py`、`utils/config_loader.py` 后，至少跑相关 pytest；能跑全量时优先跑全量
-- 改 `dashboard-v2/` 后，至少跑 `npm run type-check`；涉及 UI 结构或资源产物时再跑 `npm run build-only`
+- 改 `dashboard/` 后，至少跑 `npm run type-check`；涉及 UI 结构或资源产物时再跑 `npm run build-only`
 
 ## 8. 面向代理的行动建议
 
 - 先判断任务是在修“当前运行时”，还是在推进“前端重写目标”。这两类任务的着力点不同。
-- 如果任务属于新前端建设，优先在 `dashboard-v2/`、`docs/frontend/*` 对齐的数据模型和 `ui/dashboard.py` 的新接口上动手。
+- 如果任务属于新前端建设，优先在 `dashboard/`、`docs/frontend/*` 对齐的数据模型和 `ui/dashboard.py` 的新接口上动手。
 - 如果任务属于 Dashboard 重写的下一阶段，默认假设 core 诊断链已经完成；除非发现 spec 与实现冲突，否则不要回退去重做 `core/controller.py`、`core/actuator.py`、`core/diagnostics.py` 的基础建模。
-- 如果任务属于配置体验，默认走文本配置工作流：分层 YAML、preset + override、Pydantic normalized runtime config、validate before swap。GUI 只做打开、验证、重载、错误展示、扫描播放列表等辅助能力。
+- 如果任务属于配置体验，默认走文本配置工作流：固定 6 文件 YAML、打包 example 配置、Pydantic normalized runtime config、validate before swap。GUI 只做打开、验证、重载、错误展示、扫描播放列表等辅助能力；tray 的 `Apply Current Match Now` 是独立手动调度入口，不应和 reload 混在一起。
 - 如果任务属于 History，默认先质疑是否应该进入独立页面；近期应优先保留事件日志和 Diagnostics 辅助信息。
+- 当前阶段路线顺序是：打包减重 -> 配置体验改线 -> Diagnostics 收敛 -> History 降级。具体见 `docs/PRODUCT_DIRECTION.md`。
 - 如果任务需要 breaking change，就连同调用方、测试、静态资源接线一起改，不要把过渡态长期留在主线上。
-- 不要把 `dashboard-v2` 的工程规范退化回旧式做法：大段 scoped CSS、页面私有全局类、绕开 token 的硬编码颜色/尺寸、用局部状态假装全局状态。
-- 尽量复用 `dashboard-v2/src/components/ui/workbench/*`、现有 token、Tailwind utility 和 Pinia 方向。
+- 不要把 `dashboard` 的工程规范退化回旧式做法：大段 scoped CSS、页面私有全局类、绕开 token 的硬编码颜色/尺寸、用局部状态假装全局状态。
+- 尽量复用 `dashboard/src/components/ui/workbench/*`、现有 token、Tailwind utility 和 Pinia 方向。

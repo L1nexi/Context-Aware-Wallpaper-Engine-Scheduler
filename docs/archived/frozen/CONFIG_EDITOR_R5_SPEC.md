@@ -1,6 +1,6 @@
 # Config Editor R5 Spec - General / Scheduling - Frozen
 
-> 2026-05-10 状态：本实施规格已冻结，保留为历史设计记录。当前配置方向以 [CONFIGURATION_SPEC.md](./CONFIGURATION_SPEC.md) 为准。
+> 2026-05-10 状态：本实施规格已冻结，保留为历史设计记录。当前配置方向以 [CONFIGURATION_SPEC.md](../../frontend/CONFIGURATION_SPEC.md) 为准。
 >
 > `/config/general` 与 `/config/scheduling` 已有实现可作为既有事实参考，但完整 GUI Config Editor 不再是当前主线。后续配置体验应收敛为文本配置 + 轻量辅助工具。
 

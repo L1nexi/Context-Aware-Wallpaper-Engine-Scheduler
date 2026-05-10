@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("WEScheduler.Dashboard")
 
-DASHBOARD_STATIC_APP_DIR = "dashboard-v2"
+DASHBOARD_STATIC_APP_DIR = "dashboard"
 DASHBOARD_STATIC_DIST_DIR = "dist"
 
 
