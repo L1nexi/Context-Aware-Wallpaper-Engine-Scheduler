@@ -68,12 +68,20 @@ def _base_documents() -> dict[str, dict]:
                 "enabled": True,
                 "weight": 1.2,
                 "smoothing_window": 120,
-                "process_rules": {
-                    "Code.exe": "focus",
+                "process": {
+                    "Code": "focus",
                 },
-                "title_rules": {
+                "title": {
                     "YouTube": "chill",
                 },
+                "matchers": [
+                    {
+                        "source": "title",
+                        "match": "regex",
+                        "pattern": "^GitHub .* Actions$",
+                        "tag": "focus",
+                    }
+                ],
             }
         },
         "context.yaml": {
@@ -191,6 +199,11 @@ def test_config_loader_requires_version_2(scheduler_document: dict):
             "playlists:\n  BASE:\n    display: Base\n    tags:\n      focus: 1.0\n  COPY:\n    <<:\n      display: Base\n      tags:\n        focus: 1.0\n",
             "YAML merge keys are not supported",
         ),
+        (
+            "tags.yaml",
+            "tags:\n  focus:\n    fallback: {}\n  focus:\n    fallback: {}\n",
+            "duplicate YAML key 'focus'",
+        ),
     ],
 )
 def test_config_loader_rejects_yaml_advanced_features(
@@ -219,7 +232,23 @@ def test_config_loader_parses_playlist_map_and_assigns_missing_colors():
     assert config.playlists["FOCUS"].display == "Focus"
     assert config.playlists["FOCUS"].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
     assert config.playlists["CHILL"].color == "#4A90D9"
+    assert config.policies.activity.process_rules["Code"] == "focus"
     assert config.policies.activity.process_rules["Code.exe"] == "focus"
+    assert config.policies.activity.title_rules["YouTube"] == "chill"
+    assert config.policies.activity.matchers[0].pattern == "Code"
+    assert config.policies.activity.matchers[2].match == "regex"
+
+
+def test_config_loader_normalizes_named_and_hashless_playlist_colors():
+    documents = _base_documents()
+    documents["playlists.yaml"]["playlists"]["FOCUS"]["color"] = "amber"
+    documents["playlists.yaml"]["playlists"]["CHILL"]["color"] = "2e5f8a"
+    config_dir = _write_config_dir(overrides={"playlists.yaml": documents["playlists.yaml"]})
+
+    config = ConfigLoader(str(config_dir)).load()
+
+    assert config.playlists["FOCUS"].color == "#CA8A04"
+    assert config.playlists["CHILL"].color == "#2E5F8A"
 
 
 def test_config_loader_rejects_undeclared_tag_references():
@@ -238,7 +267,7 @@ def test_config_loader_rejects_undeclared_tag_references():
 
 def test_config_loader_error_includes_source_file_and_field_path():
     documents = _base_documents()
-    documents["activity.yaml"]["activity"]["process_rules"]["Code.exe"] = "#focus"
+    documents["activity.yaml"]["activity"]["process"]["Code"] = "#focus"
     config_dir = _write_config_dir(overrides={"activity.yaml": documents["activity.yaml"]})
 
     with pytest.raises(ValueError) as exc_info:
@@ -246,5 +275,32 @@ def test_config_loader_error_includes_source_file_and_field_path():
 
     error_text = str(exc_info.value)
     assert "activity.yaml" in error_text
-    assert "activity.process_rules['Code.exe']" in error_text
+    assert "activity.process.Code" in error_text
     assert "must not use a '#' prefix" in error_text
+
+
+def test_config_loader_collects_errors_across_files_before_cross_validation():
+    config_dir = _write_config_dir()
+    (config_dir / "scheduler.yaml").write_text(
+        yaml.safe_dump({"runtime": {"wallpaper_engine_path": None}}, sort_keys=False),
+        encoding="utf-8",
+    )
+    (config_dir / "playlists.yaml").write_text(
+        yaml.safe_dump({"playlists": {"": {"tags": {"focus": 1.0}}}}, sort_keys=False),
+        encoding="utf-8",
+    )
+    (config_dir / "activity.yaml").write_text(
+        yaml.safe_dump({"activity": {"process_rules": {"Code.exe": "focus"}}}, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ConfigLoader(str(config_dir)).load()
+
+    error_text = str(exc_info.value)
+    assert "scheduler.yaml" in error_text
+    assert "version" in error_text
+    assert "playlists.yaml" in error_text
+    assert "playlist name must not be empty" in error_text
+    assert "activity.yaml" in error_text
+    assert "process_rules" in error_text

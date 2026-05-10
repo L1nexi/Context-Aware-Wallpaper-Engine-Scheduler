@@ -2,26 +2,27 @@ activity:
   enabled: true
   weight: 1.2
   smoothing_window: 120
-  process_rules:
-    Code.exe: focus
-    Obsidian.exe: focus
-    POWERPNT.EXE: focus
-    Acrobat.exe: focus
-    DingTalk.exe: focus
-    Feishu.exe: focus
-    Wemeet.exe: focus
-    steam.exe: chill
-    explorer.exe: chill
-    chrome.exe: chill
-    firefox.exe: chill
-    cloudmusic.exe: chill
-    ui32.exe: chill
-    QQ.exe: chill
-    WindowsTerminal.exe: focus
-  title_rules:
+  process:
+    Code: focus
+    Obsidian: focus
+    POWERPNT: focus
+    Acrobat: focus
+    DingTalk: focus
+    Feishu: focus
+    Wemeet: focus
+    steam: chill
+    explorer: chill
+    chrome: chill
+    firefox: chill
+    cloudmusic: chill
+    ui32: chill
+    QQ: chill
+    WindowsTerminal: focus
+  title:
     GitHub: focus
     Stack Overflow: focus
     Docs: focus
     Jupyter: focus
     YouTube: chill
     直播: chill
+  matchers: []

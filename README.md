@@ -96,12 +96,13 @@ activity:
   enabled: true
   weight: 1.2
   smoothing_window: 120
-  process_rules:
-    Code.exe: focus
-    steam.exe: chill
-  title_rules:
+  process:
+    Code: focus
+    steam: chill
+  title:
     GitHub: focus
     YouTube: chill
+  matchers: []
 ```
 
 #### `context.yaml`

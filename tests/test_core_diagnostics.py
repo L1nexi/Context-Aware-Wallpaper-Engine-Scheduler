@@ -63,7 +63,7 @@ def test_time_policy_outputs_plain_tag_ids():
     policy = TimePolicy(
         TimePolicyConfig(
             enabled=True,
-            weight_scale=1.0,
+            weight=1.0,
             auto=False,
             day_start_hour=8,
             night_start_hour=20,

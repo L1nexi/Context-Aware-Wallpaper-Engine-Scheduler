@@ -64,7 +64,7 @@ class Policy(ABC):
     def __init__(self, config: _BasePolicyConfig):
         self.config = config
         self.enabled = config.enabled
-        self.weight_scale = config.weight_scale
+        self.weight = config.weight
 
     def _make_evaluation(
         self,
@@ -89,7 +89,7 @@ class Policy(ABC):
                     tag: weight / norm
                     for tag, weight in raw_direction.items()
                 }
-                effective_magnitude = salience * intensity * self.weight_scale
+                effective_magnitude = salience * intensity * self.weight
                 raw_contribution = {
                     tag: weight * effective_magnitude
                     for tag, weight in direction.items()
@@ -99,7 +99,7 @@ class Policy(ABC):
             policy_id=self.config_key,
             enabled=self.enabled,
             active=active,
-            weight_scale=self.weight_scale,
+            weight_scale=self.weight,
             salience=max(salience, 0.0) if self.enabled else 0.0,
             intensity=max(intensity, 0.0) if self.enabled else 0.0,
             effective_magnitude=effective_magnitude,

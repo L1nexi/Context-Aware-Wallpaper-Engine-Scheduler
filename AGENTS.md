@@ -154,6 +154,8 @@ npm run dev
 
 ## 6. 常用命令
 
+项目已经启用了虚拟环境，位于 `venv313/`.
+
 ### Python / backend
 
 ```bash
