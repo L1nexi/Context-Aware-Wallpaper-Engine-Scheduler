@@ -234,17 +234,17 @@ scheduling:
 
 本表只用于说明新模型如何承接旧概念，帮助用户手动重建配置；它不是自动迁移工具的实现承诺。
 
-| 当前 JSON 字段 | 新配置位置 |
-| --- | --- |
+| 当前 JSON 字段          | 新配置位置                                          |
+| ----------------------- | --------------------------------------------------- |
 | `wallpaper_engine_path` | `scheduler.yaml` 的 `runtime.wallpaper_engine_path` |
-| `language` | `scheduler.yaml` 的 `runtime.language` |
-| `playlists[]` | `playlists.yaml` 的 `playlists.<WE playlist name>` |
-| `tags` | `tags.yaml` |
-| `policies.activity` | `activity.yaml` |
-| `policies.time` | `context.yaml` 的 `time` |
-| `policies.season` | `context.yaml` 的 `season` |
-| `policies.weather` | `context.yaml` 的 `weather` |
-| `scheduling` | `scheduling.yaml` |
+| `language`              | `scheduler.yaml` 的 `runtime.language`              |
+| `playlists[]`           | `playlists.yaml` 的 `playlists.<WE playlist name>`  |
+| `tags`                  | `tags.yaml`                                         |
+| `policies.activity`     | `activity.yaml`                                     |
+| `policies.time`         | `context.yaml` 的 `time`                            |
+| `policies.season`       | `context.yaml` 的 `season`                          |
+| `policies.weather`      | `context.yaml` 的 `weather`                         |
+| `scheduling`            | `scheduling.yaml`                                   |
 
 ## 5. 标识符规则
 
@@ -642,7 +642,7 @@ activity:
 
 - Reload Config 是配置操作，不是调度操作。
 - Reload 成功后永不自动 switch 或 cycle。
-- 用户想立即应用新配置，应使用 tray 的 `Apply Current Match Now`。
+- 用户想立即应用新配置进行匹配与切换，应使用 tray 的 `Apply Current Match Now`。
 - Reload 必须 validate before swap。
 - Reload 失败时旧 runtime 完全保留。
 - Reload 阶段同样完成 Wallpaper Engine 路径解析；解析失败时整次 reload 失败。

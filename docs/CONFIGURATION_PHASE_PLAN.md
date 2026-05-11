@@ -308,64 +308,141 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - 配置 reload 边界稳定。
 - 运行状态迁移规则可测试。
 
-## 8. 阶段 6：Dashboard 配置辅助收缩
+## 8. 阶段 6：Diagnostics-only 收口
 
-目标：把现有 Config Editor 心智收缩为文本配置辅助工具，不继续扩展完整表单编辑器。
+目标：将 Dashboard / WebView 收敛为 Diagnostics-only 界面。配置编辑、配置辅助和 History 产品面退出 Dashboard，不再以 WebView 页面或 dashboard HTTP API 作为默认入口。
 
 文件范围：
 
 - `ui/dashboard.py`
 - `dashboard/src/**`
-- `dashboard/docs/UI_ENGINEERING_SPEC.md` 如需补充 UI 约束
 - `tests/test_dashboard_api.py`
 - Dashboard type-check / build 相关文件
 
 工作内容：
 
-- 明确旧 `GET /api/config` / `POST /api/config` 的 legacy 或内部工具定位。
-- 配置相关 API 优先服务：
-  - validate
-  - reload
-  - last error
-  - effective config summary
-  - config folder path
-  - scan playlists
-  - detect WE path
-- 前端配置页降级为工具面板。
-- 保留 Open Config Folder。
-- 保留 Validate Config。
-- 保留 Reload Config。
-- 保留 Show Last Config Error。
-- 保留 Scan Wallpaper Engine Playlists。
-- 不需要提供打开 exe 内嵌 example 的入口；配置辅助入口只需要打开用户配置目录。
-- 不做完整多页表单式 Config Editor。
+- 清理旧 `GET /api/config` / `POST /api/config` 接口及其前端消费者。
+- 清理旧 History 相关 WebView 入口与 dashboard HTTP 暴露：
+  - `/history` 路由与导航
+  - `GET /api/history`
+  - `GET /api/history/aggregate`
+- 清理前端配置页、配置路由、配置导航、配置 store、配置文案和相关组件。
+- 清理仅服务旧 WebView 配置面的 dashboard API 暴露，例如：
+  - `GET /api/tags/presets`
+  - `GET /api/playlists/scan`
+  - `GET /api/we-path`
+- 审查现有配置辅助能力：
+  - `validate`
+  - `reload`
+  - `last error`
+  - `effective config summary`
+  - `config folder path`
+  - `scan playlists`
+  - `detect WE path`
+- 上述能力不承诺在本阶段提供新的 WebView 承载形式；如后续仍需保留，可由 tray、本地工具或独立辅助入口承接。
+- Dashboard 只保留 Diagnostics 所需页面与接口。
 
 阶段边界：
 
-- 不在 Diagnostics 放副作用按钮。
-- 不扩展 History 页面。
+- 不实现新的 WebView 配置工具面板。
+- 不实现新的 GUI Config Editor。
+- 不要求在本阶段把所有配置辅助能力重新挂到 tray。
+- 不要求删除 `HistoryLogger` 等内部运行能力；本阶段清理的是 WebView 与 dashboard HTTP 暴露。
+- 不在本阶段扩展独立 History 页面。
 
-验证：
+本阶段无需验证
+
+完成标准：
+
+- WebView 中不存在配置编辑、配置辅助或 History 入口。
+- 旧 `/api/config` 契约及其调用链被清理。
+- 旧 `/api/history` / `/api/history/aggregate` 及其前端消费者被清理。
+- Dashboard 运行时只服务 Diagnostics。
+- 配置辅助能力若仍保留，不再以 Dashboard 为默认承载面。
+
+## 9. 阶段 7：文本配置辅助入口
+
+目标：为文本配置工作流提供一个轻量、离线、可双击的配置辅助入口。该入口不依赖 Dashboard / WebView，不恢复 GUI Config Editor，也不启动 `WEScheduler` runtime；它只复用底层配置解析、WE 路径探测和播放列表扫描能力。
+
+发布布局：
+
+- `WEScheduler.exe`
+- `Config Tools.bat`
+- `config/`
+
+文件范围：
+
+- `main.py`
+- 新增 `utils/config_tools.py`
+- 可能新增 `ui/config_cli.py` 或 `utils/config_cli.py`
+- `utils/config_loader.py`
+- `utils/we_path.py`
+- `ui/tray.py` 如需添加运行中快捷入口
+- `utils/i18n.py` 如需补文案
+- `scripts/build.bat`
+
+工作内容：
+
+- 新增 `WEScheduler.exe config` 子命令，默认进入简单 numbered TUI。
+- `config` 子命令必须在创建 scheduler、tray、dashboard server 之前分流。
+- `config` 子命令不创建 `WEScheduler`，不启动调度循环，不启动 Dashboard。
+- 对 windowed / no-console 构建，在 `config` 子命令下主动 attach parent console；没有 parent console 时 allocate console。
+- Release zip 附带 `Config Tools.bat`，内容只包装 `WEScheduler.exe config`：
+
+WEScheduler.exe config numbered TUI 大致设想：
 
 ```bash
-pytest tests/test_dashboard_api.py -q
-cd dashboard
-npm run type-check
+1. Scan Wallpaper Engine playlists
+2. Detect Wallpaper Engine path
+3. Validate config
+4. Show last config error
+5. Show effective config summary
+q. Exit
 ```
 
-如涉及构建产物或 UI 结构：
+- scan playlists：
+  - 从 Wallpaper Engine config.json 读取播放列表名。
+  - 输出纯列表和 copy-ready playlists.yaml snippet。
+  - 不写回 YAML。
+  - 不自动生成 tag 。
+- detect WE path：
+  - 显示 configured value。
+  - 显示 resolved executable path。
+  - 显示 WE config.json 是否找到。
+  - 不写回 scheduler.yaml。
+- validate config：
+  - 使用与启动 / reload 同一套 ConfigLoader 校验。
+  - 成功时输出 OK。
+  - 失败时输出 source file、field path、message、code。
+- show last config error：
+  - 显示最近一次启动配置失败或 reload 配置失败记录。
+  - （可选）启动 fast fail 时写入持久化 last_config_error.json，供离线工具读取。
+  - 运行中 reload error 仍由 scheduler 维护，但不要求启动失败后 tray 可用。
+- effective config summary：
+  - 显示 config folder path。
+  - 显示 resolved WE path。
+  - 显示 playlist count / playlist names。
+  - 显示 enabled policies。
+  - 显示最近 config error 摘要。
+  - 不展示完整配置树，不提供编辑控件。
 
-```bash
-cd dashboard
-npm run build-only
+```bat
+@echo off
+cd /d "%~dp0"
+WEScheduler.exe config
+echo.
+pause
 ```
 
 完成标准：
 
-- 配置 UI 服务文本工作流。
-- 旧 Config Editor 页面不再牵引主线。
+- 用户可以双击 Config Tools.bat 进入配置辅助 TUI。
+- 高级用户仍可直接运行 WEScheduler.exe config ...。
+- Scan / Detect / Validate / Last Error / Summary 都不依赖 Dashboard。
+- 主程序双击无黑框启动。
+- 配置辅助入口不会重新牵引完整 GUI Config Editor。
 
-## 9. 阶段 7：Tray Manual Apply
+## 10. 阶段 8：Tray Manual Apply
 
 目标：提供一个明确的手动调度入口，让用户“按当前上下文执行一次切换判断”，但不把内部 cooldown 暴露成产品功能。
 
@@ -418,7 +495,7 @@ pytest tests/test_core_diagnostics.py -q
 - 用户有明确的一次性手动调度入口。
 - 自动调度 gate 与手动调度语义分离。
 
-## 10. 阶段 8：清理、文档和发布检查
+## 11. 阶段 9：清理、文档和发布检查
 
 目标：删除阶段性临时代码，更新用户文档，确认没有旧 Config Editor / History 方向重新牵引主线。
 
@@ -457,7 +534,7 @@ npm run build-only
 - 文档与实现一致。
 - 没有长期双轨模型残留。
 
-## 11. 建议合并节奏
+## 12. 建议合并节奏
 
 推荐按下面节奏合并：
 
@@ -465,12 +542,12 @@ npm run build-only
 2. 阶段 2 单独合并，因为 playlist map / tag id 是最大 breaking change。
 3. 阶段 3 单独合并，因为 ActivityPolicy 规则语义需要独立审查。
 4. 阶段 4 + 阶段 5 可以分开，若改动过大则必须分开。
-5. 阶段 6 和阶段 7 分别作为 UI / tray 后续任务。
-6. 阶段 8 作为收尾 PR。
+5. 阶段 6 阶段 7 和阶段8 分别作为 UI / tray 后续任务。
+6. 阶段 9 作为收尾 PR。
 
-不要把阶段 2、3、4、5、6、7 合成一个 PR。那会导致测试失败定位困难，也会让产品语义审查失去焦点。
+不要把阶段 2、3、4、5、6、7、8合成一个 PR。那会导致测试失败定位困难，也会让产品语义审查失去焦点。
 
-## 12. 总体验证基线
+## 13. 总体验证基线
 
 配置运行时核心完成后至少运行：
 
