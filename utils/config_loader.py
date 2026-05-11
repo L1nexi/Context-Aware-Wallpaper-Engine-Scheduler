@@ -106,8 +106,8 @@ class ConfigLoader:
             scheduling=documents["scheduling.yaml"],
         )
 
-    def load(self) -> SchedulerConfig:
+    def load_verified_config(self) -> SchedulerConfig:
         files = self.load_files()
-        self.config = files.to_scheduler_config()
+        self.config = files.to_verified_scheduler_config()
         logger.info("Config loaded from directory: %s", self.config_dir)
         return self.config

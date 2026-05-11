@@ -28,8 +28,8 @@ from core.matcher import Matcher
 from core.policies import POLICY_REGISTRY, Policy
 from core.sensors import SENSOR_REGISTRY
 from utils.app_context import get_data_dir
+from utils.config_errors import ConfigLoadError
 from utils.config_loader import ConfigLoader
-from utils.we_path import resolve_wallpaper_engine_path
 
 logger = logging.getLogger("WEScheduler.Core")
 
@@ -75,6 +75,7 @@ class WEScheduler:
 
         self.on_auto_resume: Optional[Callable[[], None]] = None
         self.on_tick: Optional[Callable[[SchedulerTickTrace], None]] = None
+        self.on_reload_error: Optional[Callable[[ConfigLoadError], None]] = None
 
         self.config_loader: Optional[ConfigLoader] = None
         self.executor: Optional[WEExecutor] = None
@@ -85,12 +86,13 @@ class WEScheduler:
         self.current_playlist: str = ""
         self.last_status_line: str = ""
         self.last_tick_trace: Optional[SchedulerTickTrace] = None
+        self.last_reload_error: Optional[ConfigLoadError] = None
         self.tick_id: int = 0
         self._config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
 
     def initialize(self) -> bool:
         self.config_loader = ConfigLoader(self.config_dir)
-        config = self.config_loader.load()
+        config = self.config_loader.load_verified_config()
         self._config_fingerprint = self.config_loader.fingerprint()
         logger.info("Loaded %d playlists.", len(config.playlists))
 
@@ -245,27 +247,11 @@ class WEScheduler:
     def _check_hot_reload(self) -> None:
         fingerprint = self.config_loader.fingerprint()
         if fingerprint != self._config_fingerprint:
-            self._config_fingerprint = fingerprint
-            self._hot_reload()
-
-    def _require_resolved_wallpaper_engine_path(self, configured_path: str) -> str:
-        resolved_path = resolve_wallpaper_engine_path(configured_path)
-        if resolved_path:
-            logger.info("Resolved Wallpaper Engine executable: %s", resolved_path)
-            return resolved_path
-        if configured_path:
-            raise RuntimeError(
-                f"Wallpaper Engine executable not found at configured path: {configured_path}"
-            )
-        raise RuntimeError(
-            "Wallpaper Engine executable could not be auto-detected. "
-            "Try setting wallpaper_engine_path in scheduler.yaml."
-        )
+            self._hot_reload(fingerprint)
 
     def _build_runtime_components(self) -> None:
         config = self.config_loader.config
-
-        self.executor = WEExecutor(self._require_resolved_wallpaper_engine_path(config.wallpaper_engine_path))
+        executor = WEExecutor(config.wallpaper_engine_path)
 
         context_manager = ContextManager()
         for sensor_cls in SENSOR_REGISTRY:
@@ -277,23 +263,30 @@ class WEScheduler:
             if getattr(config.policies, cls.config_key) is not None
         ]
 
-        self.context_manager = context_manager
-        self.matcher = Matcher(config.playlists, policies, config.tags)
-        self.actuator = Actuator(
-            self.executor,
+        matcher = Matcher(config.playlists, policies, config.tags)
+        actuator = Actuator(
+            executor,
             SchedulingController(config.scheduling),
             history_logger=self.history_logger,
         )
-        self.display_of = {
+        display_of = {
             playlist_name: playlist.display or playlist_name
             for playlist_name, playlist in config.playlists.items()
         }
-        self.color_of = {
+        color_of = {
             playlist_name: playlist.color
             for playlist_name, playlist in config.playlists.items()
         }
 
-    def _hot_reload(self) -> None:
+        self.executor=executor
+        self.context_manager=context_manager
+        self.matcher=matcher
+        self.actuator=actuator
+        self.display_of=display_of
+        self.color_of=color_of
+
+    def _hot_reload(self, fingerprint: tuple[tuple[str, bool, int], ...]) -> None:
+        previous_config = self.config_loader.config
         try:
             policy_states: Dict[str, Dict] = {
                 type(policy).__name__: policy.export_state()
@@ -301,7 +294,7 @@ class WEScheduler:
             }
             controller_state = self.actuator.controller.export_state()
 
-            self.config_loader.load()
+            self.config_loader.load_verified_config()
             config = self.config_loader.config
             logger.info("Hot reload: config changed, rebuilding components.")
 
@@ -313,10 +306,24 @@ class WEScheduler:
                     policy.import_state(saved)
 
             self.actuator.controller.import_state(controller_state)
+            self.last_reload_error = None
 
             logger.info("Hot reload complete. %d playlists loaded.", len(config.playlists))
+        except ConfigLoadError as exc:
+            self.config_loader.config = previous_config
+            self.last_reload_error = exc
+            logger.warning("Hot reload rejected. Keeping previous runtime.\n%s", exc)
+            if self.on_reload_error:
+                try:
+                    self.on_reload_error(exc)
+                except Exception:
+                    logger.exception("on_reload_error hook failed")
         except Exception:
-            logger.exception("Hot reload failed, keeping previous config")
+            self.config_loader.config = previous_config
+            logger.exception("Hot reload failed unexpectedly, keeping previous runtime")
+        finally:
+            # in all cases, we update fingerprint to avoid repeated reloads.
+            self._config_fingerprint = fingerprint
 
     def _build_state(self) -> SchedulerState:
         controller = self.actuator.controller

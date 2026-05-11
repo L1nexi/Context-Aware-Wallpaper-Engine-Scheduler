@@ -56,6 +56,11 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "startup_error_title":     {"en": "Startup Failed",                    "zh": "启动失败"},
     "startup_error_body":      {"en": "Scheduler failed to start.\n\n{detail}\n\nCheck the log for details.",
                                 "zh": "调度器启动失败。\n\n{detail}\n\n请查看日志获取详情。"},
+    "reload_error_title":      {"en": "Config Reload Failed",              "zh": "配置重载失败"},
+    "reload_error_body":       {
+        "en": "The updated config is invalid.\n\n{detail}\n\nThe scheduler will continue using the previous valid runtime.",
+        "zh": "更新后的配置无效。\n\n{detail}\n\n调度器将继续使用上一份有效的运行时配置。",
+    },
 
     # -- Dashboard --
     "dashboard_show":          {"en": "Dashboard",              "zh": "仪表盘"},

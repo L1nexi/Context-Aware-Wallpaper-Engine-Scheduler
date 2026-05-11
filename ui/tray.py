@@ -166,6 +166,26 @@ class TrayIcon:
         except Exception:
             pass  # tkinter unavailable — error already in log
 
+    @staticmethod
+    def show_reload_error(detail: str) -> None:
+        """Show a warning dialog when hot reload rejects the new config."""
+
+        def _show() -> None:
+            try:
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                from tkinter import messagebox
+                messagebox.showwarning(
+                    t("reload_error_title"),
+                    t("reload_error_body", detail=detail),
+                )
+                root.destroy()
+            except Exception:
+                pass
+
+        threading.Thread(target=_show, daemon=True).start()
+
     # ── Helpers ──────────────────────────────────────────────────
 
     def _open_file(self, path: str):

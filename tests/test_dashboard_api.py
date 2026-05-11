@@ -650,7 +650,7 @@ def test_api_playlists_scan_no_config(analysis_store, history_logger, monkeypatc
 
 
 def test_api_we_path_no_config(analysis_store, history_logger, tmp_path, monkeypatch):
-    monkeypatch.setattr("utils.we_path.find_wallpaper_engine", lambda path: None)
+    monkeypatch.setattr("utils.we_path.resolve_wallpaper_engine_path", lambda path: None)
     path = os.path.join(str(tmp_path), "no_config")
     app = _build_app(analysis_store, history_logger, path)
     status, body = wsgi_get(app, "/api/we-path")

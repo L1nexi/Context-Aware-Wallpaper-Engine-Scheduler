@@ -152,6 +152,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
         logger.critical("Failed to initialize scheduler: %s", e)
         TrayIcon.show_startup_error(str(e))
         sys.exit(1)
+    scheduler.on_reload_error = lambda exc: TrayIcon.show_reload_error(str(exc))
 
     scheduler.start()
 

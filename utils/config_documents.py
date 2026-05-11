@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, Literal
@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_core import PydanticCustomError
 
 from core.policies import get_policy_fixed_output_tags
+from utils.we_path import resolve_wallpaper_engine_path
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
     ActivityMatcherConfig,
@@ -25,6 +26,7 @@ from utils.runtime_config import (
     WeatherPolicyConfig,
 )
 
+logger = logging.getLogger("WEScheduler.ConfigDocuments")
 
 HEX_COLOR_WITHOUT_HASH_RE = re.compile(r"^[0-9A-Fa-f]{6}$")
 
@@ -372,24 +374,38 @@ class ConfigFiles:
     def collect_issues(self) -> list[ConfigIssue]:
         issues: list[ConfigIssue] = []
         issues.extend(self.playlists.collect_issues())
-        issues.extend(self._collect_runtime_path_issues())
+        issues.extend(self._collect_runtime_we_path_issues())
         issues.extend(self._collect_tag_reference_issues())
         return issues
 
-    def _collect_runtime_path_issues(self) -> list[ConfigIssue]:
+    def _collect_runtime_we_path_issues(self) -> list[ConfigIssue]:
         configured_path = self.scheduler.runtime.wallpaper_engine_path
-        if not configured_path:
+
+        resolved_path = resolve_wallpaper_engine_path(configured_path)
+        if resolved_path is not None:
+            if configured_path != resolved_path:
+                logger.info("Auto-detected Wallpaper Engine at: %s", resolved_path)
             return []
-        if os.path.isfile(configured_path):
-            return []
-        return [
-            ConfigIssue(
-                source_file="scheduler.yaml",
-                field_path=("runtime", "wallpaper_engine_path"),
-                message="wallpaper_engine_path must point to an existing executable file",
-                code="invalid_wallpaper_engine_path",
-            )
-        ]
+
+        if configured_path:
+            return [
+                ConfigIssue(
+                    source_file="scheduler.yaml",
+                    field_path=("runtime", "wallpaper_engine_path"),
+                    message="wallpaper_engine_path must point to an existing executable file",
+                    code="invalid_wallpaper_engine_path",
+                )]
+        else:
+            return [
+                ConfigIssue(
+                    source_file="scheduler.yaml",
+                    field_path=("runtime", "wallpaper_engine_path"),
+                    message=(
+                        "Wallpaper Engine executable could not be auto-detected on this machine; "
+                        "set runtime.wallpaper_engine_path explicitly"
+                    ),
+                    code="wallpaper_engine_path_unresolved",
+                )]
 
     def _collect_tag_reference_issues(self) -> list[ConfigIssue]:
         issues: list[ConfigIssue] = []
@@ -457,7 +473,7 @@ class ConfigFiles:
 
         return issues
 
-    def to_scheduler_config(self) -> SchedulerConfig:
+    def to_verified_scheduler_config(self) -> SchedulerConfig:
         issues = self.collect_issues()
         if issues:
             raise ConfigLoadError(issues)
@@ -465,7 +481,7 @@ class ConfigFiles:
         try:
             return SchedulerConfig.model_validate(
                 {
-                    "wallpaper_engine_path": self.scheduler.runtime.wallpaper_engine_path or "",
+                    "wallpaper_engine_path": resolve_wallpaper_engine_path(self.scheduler.runtime.wallpaper_engine_path),
                     "language": self.scheduler.runtime.language,
                     "tags": self.tags.to_runtime_config(),
                     "playlists": self.playlists.to_runtime_config(),

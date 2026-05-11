@@ -23,6 +23,7 @@ from core.matcher import Matcher
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
 from core.scheduler import WEScheduler
 from ui.dashboard_analysis import DashboardRuntimeMetadata, map_tick_snapshot
+from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
     ActivityPolicyConfig,
     PlaylistConfig,
@@ -366,6 +367,54 @@ def test_actuator_switch_logs_event():
     controller.notify_playlist_switch.assert_called_once()
     history.write.assert_called_once()
     assert history.write.call_args.args[1]["reason_code"] == "switch_allowed"
+
+
+def test_hot_reload_config_error_keeps_previous_runtime_and_notifies():
+    class DummyHistory:
+        last_event_id = 0
+
+        def write(self, *_args, **_kwargs):
+            return None
+
+    scheduler = WEScheduler("config", DummyHistory())
+    old_executor = object()
+    old_context_manager = object()
+    old_matcher = mock.Mock()
+    old_matcher.policies = []
+    old_actuator = mock.Mock()
+    old_actuator.controller.export_state.return_value = {}
+
+    scheduler.executor = old_executor
+    scheduler.context_manager = old_context_manager
+    scheduler.matcher = old_matcher
+    scheduler.actuator = old_actuator
+    scheduler.display_of = {"focus": "Focus"}
+    scheduler.color_of = {"focus": "#F5C518"}
+    scheduler.config_loader = mock.Mock()
+    scheduler.config_loader.config = mock.Mock()
+    scheduler.config_loader.load.side_effect = ConfigLoadError(
+        [
+            ConfigIssue(
+                source_file="scheduler.yaml",
+                field_path=("runtime", "wallpaper_engine_path"),
+                message="Wallpaper Engine executable could not be auto-detected",
+                code="wallpaper_engine_path_unresolved",
+            )
+        ]
+    )
+
+    captured: list[ConfigLoadError] = []
+    scheduler.on_reload_error = captured.append
+
+    fingerprint = (("scheduler.yaml", True, 2),)
+    scheduler._hot_reload(fingerprint)
+
+    assert scheduler.executor is old_executor
+    assert scheduler.context_manager is old_context_manager
+    assert scheduler.matcher is old_matcher
+    assert scheduler.actuator is old_actuator
+    assert scheduler.last_reload_error is captured[0]
+    assert scheduler._config_fingerprint == fingerprint
 
 
 def test_scheduler_tick_trace_uses_context_snapshot(monkeypatch):

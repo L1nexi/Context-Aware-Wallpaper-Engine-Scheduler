@@ -12,6 +12,20 @@ from utils.config_loader import ConfigLoader
 from utils.runtime_config import PLAYLIST_AUTO_COLOR_PALETTE
 
 
+@pytest.fixture(autouse=True)
+def mock_resolved_wallpaper_engine_path(monkeypatch, tmp_path):
+    fake_exe = tmp_path / "wallpaper64.exe"
+    fake_exe.write_text("fake", encoding="utf-8")
+
+    def _resolve(path: str) -> str | None:
+        if path:
+            return path if Path(path).is_file() else None
+        return str(fake_exe)
+
+    monkeypatch.setattr("utils.config_loader.resolve_wallpaper_engine_path", _resolve)
+    return str(fake_exe)
+
+
 def _base_documents() -> dict[str, dict]:
     tag_names = [
         "focus",
@@ -156,7 +170,7 @@ def test_config_loader_requires_all_six_yaml_files():
     config_dir = _write_config_dir(overrides={"context.yaml": None})
 
     with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(str(config_dir)).load()
+        ConfigLoader(str(config_dir)).load_verified_config()
 
     assert "context.yaml" in str(exc_info.value)
     assert "missing required file" in str(exc_info.value)
@@ -173,7 +187,7 @@ def test_config_loader_requires_version_2(scheduler_document: dict):
     config_dir = _write_config_dir(overrides={"scheduler.yaml": scheduler_document})
 
     with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(str(config_dir)).load()
+        ConfigLoader(str(config_dir)).load_verified_config()
 
     error_text = str(exc_info.value)
     assert "scheduler.yaml" in error_text
@@ -196,7 +210,7 @@ def test_config_loader_allows_yaml_merge_alias_and_anchor_features():
         encoding="utf-8",
     )
 
-    config = ConfigLoader(str(config_dir)).load()
+    config = ConfigLoader(str(config_dir)).load_verified_config()
 
     assert config.playlists["BASE"].display == "Base"
     assert config.playlists["COPY"].display == "Base"
@@ -212,7 +226,7 @@ def test_config_loader_rejects_duplicate_yaml_keys_with_location():
     )
 
     with pytest.raises(ConfigLoadError) as exc_info:
-        ConfigLoader(str(config_dir)).load()
+        ConfigLoader(str(config_dir)).load_verified_config()
 
     assert len(exc_info.value.issues) == 1
     issue = exc_info.value.issues[0]
@@ -231,12 +245,14 @@ def test_policy_fixed_output_tags_come_from_policy_registry_metadata():
     }
 
 
-def test_config_loader_parses_playlist_map_and_assigns_missing_colors():
+def test_config_loader_parses_playlist_map_and_assigns_missing_colors(
+    mock_resolved_wallpaper_engine_path,
+):
     config_dir = _write_config_dir()
 
-    config = ConfigLoader(str(config_dir)).load()
+    config = ConfigLoader(str(config_dir)).load_verified_config()
 
-    assert config.wallpaper_engine_path == ""
+    assert config.wallpaper_engine_path == mock_resolved_wallpaper_engine_path
     assert set(config.playlists) == {"FOCUS", "CHILL"}
     assert config.playlists["FOCUS"].display == "Focus"
     assert config.playlists["FOCUS"].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
@@ -256,7 +272,7 @@ def test_config_loader_allows_empty_playlist_tag_vector():
     documents["playlists.yaml"]["playlists"]["FOCUS"]["tags"] = {}
     config_dir = _write_config_dir(overrides={"playlists.yaml": documents["playlists.yaml"]})
 
-    config = ConfigLoader(str(config_dir)).load()
+    config = ConfigLoader(str(config_dir)).load_verified_config()
 
     assert config.playlists["FOCUS"].tags == {}
 
@@ -267,7 +283,7 @@ def test_config_loader_normalizes_named_and_hashless_playlist_colors():
     documents["playlists.yaml"]["playlists"]["CHILL"]["color"] = "2e5f8a"
     config_dir = _write_config_dir(overrides={"playlists.yaml": documents["playlists.yaml"]})
 
-    config = ConfigLoader(str(config_dir)).load()
+    config = ConfigLoader(str(config_dir)).load_verified_config()
 
     assert config.playlists["FOCUS"].color == "#CA8A04"
     assert config.playlists["CHILL"].color == "#2E5F8A"
@@ -279,7 +295,7 @@ def test_config_loader_rejects_undeclared_tag_references():
     config_dir = _write_config_dir(overrides={"playlists.yaml": documents["playlists.yaml"]})
 
     with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(str(config_dir)).load()
+        ConfigLoader(str(config_dir)).load_verified_config()
 
     error_text = str(exc_info.value)
     assert "playlists.yaml" in error_text
@@ -293,7 +309,7 @@ def test_config_loader_error_includes_source_file_and_field_path():
     config_dir = _write_config_dir(overrides={"activity.yaml": documents["activity.yaml"]})
 
     with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(str(config_dir)).load()
+        ConfigLoader(str(config_dir)).load_verified_config()
 
     error_text = str(exc_info.value)
     assert "activity.yaml" in error_text
@@ -317,7 +333,7 @@ def test_config_loader_collects_errors_across_files_before_cross_validation():
     )
 
     with pytest.raises(ValueError) as exc_info:
-        ConfigLoader(str(config_dir)).load()
+        ConfigLoader(str(config_dir)).load_verified_config()
 
     error_text = str(exc_info.value)
     assert "scheduler.yaml" in error_text
@@ -334,3 +350,18 @@ def test_load_configured_wallpaper_engine_path_reads_scheduler_yaml():
     configured_path = ConfigLoader.load_configured_wallpaper_engine_path(str(config_dir))
 
     assert configured_path is None
+
+
+def test_config_loader_rejects_unresolved_auto_detect(monkeypatch):
+    monkeypatch.setattr("utils.config_loader.resolve_wallpaper_engine_path", lambda _path: None)
+    config_dir = _write_config_dir()
+
+    with pytest.raises(ConfigLoadError) as exc_info:
+        ConfigLoader(str(config_dir)).load_verified_config()
+
+    assert len(exc_info.value.issues) == 1
+    issue = exc_info.value.issues[0]
+    assert issue.source_file == "scheduler.yaml"
+    assert issue.field_path == ("runtime", "wallpaper_engine_path")
+    assert issue.code == "wallpaper_engine_path_unresolved"
+    assert "could not be auto-detected" in issue.message
