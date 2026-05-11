@@ -73,7 +73,7 @@
 - `playlists` 在配置和 runtime `AppConfig` 中都使用 map，key 直接等于 Wallpaper Engine 播放列表名。
 - tag 必须显式声明；Time / Season / Weather 输出固定 tag 名，也必须在 `tags.yaml` 中声明。
 - ActivityPolicy 使用简写入口加完整 matcher：`process` 简写默认 exact，`title` 简写默认 contains，完整 matcher 支持 exact / regex / contains。
-- `runtime.wallpaper_engine_path: null` 表示自动检测；显式路径无效时 validate 失败，检测成功不自动写回 YAML。
+- `runtime.wallpaper_engine_path: null` 表示自动检测；显式路径无效时 validate 失败，自动检测失败时启动 / reload 失败，检测成功不自动写回 YAML。
 - 运行时仍消费 Pydantic normalized `AppConfig`。
 - reload 必须 validate before swap；失败时继续使用上一份有效配置。
 - 配置错误需要携带 source file 与字段路径，便于 GUI 和 Diagnostics 展示。
@@ -128,7 +128,7 @@ GUI 边界：
 1. 在 `utils/config_loader.py` 附近建立新 YAML loader 与 source location 错误模型。
 2. 建立 Release zip 分发用 example 配置和 YAML 示例文件。
 3. 完成 playlist map、严格 tag、Activity matcher 到 runtime `AppConfig` 的 adapter。
-4. 接入 WE path resolve、executor readiness 和 validate before swap reload。
+4. 接入 WE path resolve、executor 简化和 validate before swap reload。
 5. 收缩 dashboard 配置页面为配置辅助工具面板。
 6. 后续独立实现 tray `Apply Current Match Now`，不阻塞配置运行时核心落地。
 7. 清理旧 Config Editor 牵引的路由、文档引用和测试假设。

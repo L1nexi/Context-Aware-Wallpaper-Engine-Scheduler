@@ -86,7 +86,7 @@ runtime:
 - `runtime.wallpaper_engine_path: null` 表示由应用自动检测 Wallpaper Engine 路径。
 - `runtime.wallpaper_engine_path` 如果是非空字符串，必须指向存在的可执行文件；无效路径是 validate error。
 - 自动检测成功只影响当前 runtime，不自动写回 `scheduler.yaml`。
-- 自动检测失败时配置本身仍可 valid，但 actuation disabled，Diagnostics / 配置辅助入口应显示 path unresolved。
+- 自动检测失败时启动 / reload 失败；不进入 diagnostics-only 降级运行。
 
 ### 3.2 `playlists.yaml`
 
@@ -358,13 +358,15 @@ YAML 配置不是运行时直接消费的模型。运行时继续消费 normaliz
 
 - 检测成功后，runtime 使用检测到的路径。
 - 检测成功不自动写回 YAML。
-- 检测失败不应导致托盘宿主退出，但 actuation disabled。
-- 执行器不应静默 no-op；执行命令必须返回明确结果，例如 success、path unresolved、start failed、command failed。
+- 检测失败时启动 / reload 失败；旧 runtime 不应继续被替换成 unresolved 状态。
+- 执行器不应静默 no-op；它只接收已解析路径，并以简单成功 / 失败语义返回执行结果。
 - 只有真实执行成功后，Actuator 才能更新 active playlist 和 controller cooldown。
 
 ### 8.2 Reload 状态迁移
 
 Reload 必须 validate before swap。失败时旧 runtime 完全保留。
+
+Reload 阶段同样完成 Wallpaper Engine 路径解析；显式路径无效或 `null` 自动检测失败都视为整次 reload 失败。
 
 成功 reload 时全量重建 runtime components，但允许迁移以下状态：
 
@@ -416,7 +418,7 @@ Tray 后续应提供 `Apply Current Match Now` / `立即应用当前匹配`。
 - 只放 tray，不放 Diagnostics，避免 Diagnostics 变成副作用控制台。
 - 如果 best playlist 与 current playlist 不同，执行 playlist switch。
 - 如果 best playlist 与 current playlist 相同，执行 cycle。
-- 如果 no match、WE path unresolved 或 executor command failed，则不伪装成功。
+- 如果 no match 或 executor command failed，则不伪装成功。
 - 手动 apply 绕过所有 controller gates，包括 cooldown、idle、fullscreen、CPU。
 - 手动 apply 在 scheduler paused 时允许执行，但不取消 paused。
 - 手动 apply 成功后按真实副作用更新状态：switch 更新 playlist / wallpaper timestamps，cycle 更新 wallpaper timestamp。
@@ -445,7 +447,7 @@ Tray 后续应提供 `Apply Current Match Now` / `立即应用当前匹配`。
 3. 将 playlist 从 array 语义改为 config + runtime map 语义。
 4. 将 ActivityPolicy 改为简写入口 + normalized matcher 模型。
 5. 将固定 YAML domain model 转换为 runtime `AppConfig`。
-6. 接入 WE path resolve、executor readiness 和 actuation outcome。
+6. 接入 WE path resolve、executor 简化和 actuation outcome。
 7. 接入 validate before swap reload，并迁移允许保留的 runtime state。
 8. 更新 Release zip example 配置、README 和测试。
 
@@ -470,7 +472,7 @@ Tray 后续应提供 `Apply Current Match Now` / `立即应用当前匹配`。
 9. 配置错误能定位到具体文件和字段路径。
 10. reload 失败时，调度器继续使用上一次有效配置。
 11. reload 成功后保留 pause、current playlist、controller cooldown 和过滤后的 ActivityPolicy EMA。
-12. `wallpaper_engine_path: null` 能触发自动检测；检测失败时 actuation disabled 但宿主不退出。
+12. `wallpaper_engine_path: null` 能触发自动检测；检测失败时启动 / reload 失败。
 13. 内部运行时仍使用 Pydantic normalized `AppConfig`。
 14. Release zip 中的 example 配置能通过 validate 并启动调度器。
 
@@ -614,7 +616,7 @@ activity:
 - regex 多条命中时，按配置声明顺序。
 - “声明顺序”只用于 tie-break，不应覆盖 source 和 match 类型优先级。
 
-### 13.8 Wallpaper Engine 路径和 executor readiness
+### 13.8 Wallpaper Engine 路径和简化 executor
 
 `runtime.wallpaper_engine_path` 使用两种清楚模式：
 
@@ -629,12 +631,11 @@ activity:
 - 自动检测成功后，runtime 使用检测到的路径。
 - 自动检测成功不自动写回 YAML。
 - 后续可以提供复制检测路径或明确写入配置的手动入口，但阶段 2 不要求。
-- 自动检测失败时，配置本身仍可 valid，托盘宿主不退出，scheduler 可以继续 Sense / Think / Diagnostics。
-- 自动检测失败时 actuation disabled，动作结果应说明 `wallpaper_engine_path_unresolved` 或等价原因。
+- 自动检测失败时，启动 / reload 失败；不保留 diagnostics-only 降级运行。
 - 显式路径必须存在且可执行。显式路径无效是 validate error。
 - 显式路径无效时不 fallback 自动检测，因为这会隐藏用户配置错误。
 - Executor 不应自行静默 no-op。
-- Executor 应接收已解析的执行状态，并为命令返回明确结果。
+- Executor 应只接收已解析的 exe 路径，命令接口只返回 `bool` 表示成功或失败。
 - Actuator 只有在真实执行成功后，才能更新 active playlist 和 controller cooldown。
 
 ### 13.9 Reload 行为和状态迁移
@@ -644,6 +645,7 @@ activity:
 - 用户想立即应用新配置，应使用 tray 的 `Apply Current Match Now`。
 - Reload 必须 validate before swap。
 - Reload 失败时旧 runtime 完全保留。
+- Reload 阶段同样完成 Wallpaper Engine 路径解析；解析失败时整次 reload 失败。
 - Reload 成功时全量重建 runtime components。
 - Reload 成功后迁移以下状态：
   - pause / pause_until
@@ -679,7 +681,7 @@ Tray 后续提供 `Apply Current Match Now` / `立即应用当前匹配`。
 - 如果 best playlist 与 current playlist 相同，按现有自动调度语义执行 cycle。
 - 如果 no match，不执行副作用并记录原因。
 - 手动 apply 绕过所有 controller gates，包括 cooldown、idle、fullscreen、CPU。
-- 手动 apply 仍受硬条件限制，例如 WE path unresolved、executor command failed。
+- 手动 apply 仍受硬条件限制，例如 executor command failed。
 - Scheduler paused 时允许手动 apply，但不取消 paused。
 - 手动 apply 成功后按真实副作用更新状态：
   - switch 成功：更新 current playlist、last playlist switch time、last wallpaper switch time。

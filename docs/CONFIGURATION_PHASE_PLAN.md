@@ -215,21 +215,20 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - ActivityPolicy runtime 不再直接依赖旧 `process_rules` / `title_rules` map。
 - Diagnostics 能解释 matched source、rule、tag。
 
-## 6. 阶段 4：WE path、executor readiness 与 actuation outcome
+## 6. 阶段 4：WE path、启动期 resolve 与 actuation outcome
 
-目标：把 Wallpaper Engine 路径解析从 executor 隐式 no-op 改成明确 runtime readiness 和可诊断执行结果。
+目标：把 Wallpaper Engine 路径问题从 executor 隐式 no-op 改成启动 / reload 前的硬校验，并把执行层收缩成简单的成功 / 失败语义。
 
 文件范围：
 
+- `main.py`
 - `utils/we_path.py`
 - `utils/config_loader.py`
 - `core/executor.py`
 - `core/actuator.py`
 - `core/diagnostics.py`
+- `core/event_logger.py`
 - `core/scheduler.py`
-- `tests/test_config_loader.py`
-- `tests/test_core_diagnostics.py`
-- 可能涉及 `tests/test_dashboard_api.py`
 
 工作内容：
 
@@ -237,15 +236,13 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - 显式路径必须存在且可执行；无效时报 validate error。
 - 显式路径无效时不 fallback 自动检测。
 - 自动检测成功不写回 YAML。
-- 自动检测失败时 scheduler 不退出，但 actuation disabled。
+- 自动检测失败时启动失败；scheduler 不进入运行态。
 - Executor 不再静默 no-op。
-- Executor 命令返回明确结果：
-  - success
-  - path unresolved
-  - start failed
-  - command failed
+- Scheduler 在 initialize / reload 前完成 WE path resolve。
+- Executor 只接收已解析的 exe 路径，命令接口只返回 `bool` 表示是否执行成功。
 - Actuator 只有在真实执行成功后更新 controller cooldown 和 active playlist。
-- Diagnostics / history 能记录执行失败原因。
+- 运行时命令失败只记录通用执行失败事实，不引入细粒度 executor result taxonomy。
+- tray / console 在 initialize 失败后直接退出，不继续以降级模式运行。
 
 阶段边界：
 
@@ -255,15 +252,15 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 
 验证：
 
-```bash
-pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_dashboard_api.py -q
-```
-
-本阶段无测试要求。
+- 默认以源码 review 和启动边界手工验证为主。
+- 如果补自动化验证，只保留高价值边界：
+  - 显式无效路径不会 fallback 自动检测
+  - `wallpaper_engine_path: null` 自动检测失败会导致 initialize 失败
+  - Actuator 只有在 Executor 返回 `True` 时才提交状态
 
 完成标准：
 
-- 路径问题能在 Diagnostics / error 中解释。
+- unresolved WE path 不再进入 runtime。
 - Executor 不再把失败隐藏成普通 no-op。
 
 ## 7. 阶段 5：Validate before swap reload
@@ -285,6 +282,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 工作内容：
 
 - Reload 先完整读取、转换、校验、normalize。
+- Reload 阶段同样完成 WE path resolve；显式无效路径或 `null` 自动检测失败都视为 reload failure。
 - 成功后原子替换 runtime components。
 - 失败时旧 runtime 完全保留。
 - 成功 reload 后迁移：
@@ -313,7 +311,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py -q
 重点测试：
 
 - reload 失败保留旧 config。
-- reload 成功重建 matcher / policies / executor readiness。
+- reload 成功重建 matcher / policies / executor，并完成新的 WE path resolve。
 - pause 状态保留。
 - current playlist 即使不在新 map 中也保留。
 - cooldown 保留。
@@ -412,7 +410,6 @@ npm run build-only
   - fullscreen
   - CPU
 - 手动 apply 仍受硬条件限制：
-  - WE path unresolved
   - executor command failed
 - paused 时允许手动 apply，但不取消 paused。
 - 成功后按真实副作用更新 current playlist 和 controller timestamps。
