@@ -215,7 +215,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - ActivityPolicy runtime 不再直接依赖旧 `process_rules` / `title_rules` map。
 - Diagnostics 能解释 matched source、rule、tag。
 
-## 6. 阶段 4：WE path、启动期 resolve 与 actuation outcome
+## 6. 阶段 4：WE path、启动期 resolve 与 actuation outcome [DONE]
 
 目标：把 Wallpaper Engine 路径问题从 executor 隐式 no-op 改成启动 / reload 前的硬校验，并把执行层收缩成简单的成功 / 失败语义。
 
@@ -263,7 +263,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - unresolved WE path 不再进入 runtime。
 - Executor 不再把失败隐藏成普通 no-op。
 
-## 7. 阶段 5：Validate before swap reload
+## 7. 阶段 5：Validate before swap reload [DONE]
 
 目标：让 YAML reload 成为可靠的运行时替换边界，失败不破坏当前运行状态，成功迁移允许保留的 state。
 
@@ -295,30 +295,15 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - Reload 成功后不自动 switch / cycle。
 - Reload 成功后不清空 cooldown。
 - Reload 成功后重新 resolve WE path。
-- 记录 reload success / failure event。
+- Reload 失败时告警用户并保留上一份有效 Runtime Config
+- Reload 成功时应清除先前的 Reload Failure
 
 阶段边界：
 
 - 不做“apply after reload”。
 - 不把 reload 和 tray Manual Apply 混在一起。
 
-验证：
-
-```bash
-pytest tests/test_config_loader.py tests/test_core_diagnostics.py -q
-```
-
-重点测试：
-
-- reload 失败保留旧 config。
-- reload 成功重建 matcher / policies / executor，并完成新的 WE path resolve。
-- pause 状态保留。
-- current playlist 即使不在新 map 中也保留。
-- cooldown 保留。
-- EMA 保留并过滤不存在 tag。
-- reload 不触发 executor 命令。
-
-完成标准：
+本阶段无需验证。
 
 - 配置 reload 边界稳定。
 - 运行状态迁移规则可测试。

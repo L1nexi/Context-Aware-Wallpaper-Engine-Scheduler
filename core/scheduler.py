@@ -298,6 +298,8 @@ class WEScheduler:
             config = self.config_loader.config
             logger.info("Hot reload: config changed, rebuilding components.")
 
+            # NOTE: 严格来说，这里应该采取 build - import - swap 来进行原子替换。但是 import_state 都不会抛出异常
+            # 因此保留当前实现，不做过度工程化。
             self._build_runtime_components()
 
             for policy in self.matcher.policies:

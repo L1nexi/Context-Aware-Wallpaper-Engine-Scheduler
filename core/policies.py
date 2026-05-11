@@ -317,8 +317,14 @@ class ActivityPolicy(Policy):
         }
 
     def import_state(self, state: Dict[str, Any]) -> None:
-        self._dir_ema = dict(state.get("dir_ema", {}))
+        allowed_tags = {matcher.tag for matcher in self.matchers}
+        self._dir_ema = {
+            tag: float(value)
+            for tag, value in state.get("dir_ema", {}).items()
+            if tag in allowed_tags
+        }
         self._mag_ema = float(state.get("mag_ema", 0.0))
+
 
 
 class TimePolicy(Policy):
