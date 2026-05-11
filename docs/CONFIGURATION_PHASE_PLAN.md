@@ -116,7 +116,7 @@ pytest tests/test_config_loader.py -q
 - config 配置作为 Release zip 中的普通文件存在，不内嵌到 exe。
 - 旧 JSON 不参与 YAML loader。
 
-## 4. 阶段 2：Runtime 配置模型切换
+## 4. 阶段 2：Runtime 配置模型切换 [DONE]
 
 目标：把运行时事实源切到新模型，消除 playlist list、`#tag` 等旧心智。
 
@@ -179,10 +179,8 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - `core/policies.py`
 - `core/diagnostics.py`
 - `ui/dashboard_analysis.py`
-- `tests/test_config_loader.py`
-- `tests/test_core_diagnostics.py`
 
-工作内容：
+- 工作内容：
 
 - 支持 `activity.process` 简写，默认 `match: exact`。
 - 支持 process exact 的 `.exe` 等价。
@@ -211,19 +209,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 
 验证：
 
-```bash
-pytest tests/test_config_loader.py tests/test_core_diagnostics.py -q
-```
-
-重点测试：
-
-- `process: Code` 匹配 `Code.exe`。
-- `title` 简写 contains 生效。
-- regex 高于 contains。
-- title 高于 process。
-- 多 regex 命中时按声明顺序。
-- 未声明 tag 报错。
-- EMA state export / import 仍有效。
+> 无集成测试要求
 
 完成标准：
 

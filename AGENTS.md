@@ -1,13 +1,13 @@
 # AGENTS.md
 
-本文件为在本仓库中工作的编码代理提供协作约束。内容基于 2026-05-10 的代码现状与产品方向编写。
+本文件为在本仓库中工作的编码代理提供协作约束。
 
 ## 0. 工作立场
 
 - 当前项目仍处于 `0.x`。允许 breaking change；如果旧接口、旧数据模型、旧页面心智已经妨碍正确设计，直接改，不要为了维持错误抽象而堆兼容层。
 - 产品定位为面向高级 Wallpaper Engine 用户的本地上下文调度器。核心价值是自动调度、可解释诊断和可配置文本工作流，不是通用桌面管理后台。
-- 当前前端基座仍以 `dashboard/` 为准，但完整 Config Editor 与完整 History 页面已经暂停；不要继续把项目扩成管理后台。
-- 做 breaking change 时，优先一次性把调用方、测试、静态资源接线和打包链一起改完，不要留下长期双轨并存的半迁移状态。
+- 当前前端基座以 `dashboard/` 为准，完整 Config Editor 与完整 History 页面已经暂停；不要继续把项目扩成管理后台。
+- 做 breaking change 时，应该根据改动面大小决定是一次打通还是多次迭代。对于涉及大量改动的 breaking change，不应强求这一论工作中完全适配。
 
 ## 1. 信息优先级
 
@@ -16,10 +16,9 @@
 1. 实际代码与测试
 2. 本文件 `AGENTS.md`
 3. `docs/PRODUCT_DIRECTION.md`
-4. `dashboard/docs/UI_ENGINEERING_SPEC.md`
-5. `docs/frontend/CONFIGURATION_SPEC.md`
-6. `docs/archived/done/DASHBOARD_ANALYSIS_SPEC.md`（Diagnostics 细节参考）
-7. `docs/archived/frozen/*`（仅作历史记录）
+4. `docs\CONFIGURATION_PHASE_PLAN.md`
+5. `dashboard/docs/UI_ENGINEERING_SPEC.md`
+6. `docs/frontend/CONFIGURATION_SPEC.md`
 
 ## 2. 当前代码现状
 
@@ -182,27 +181,18 @@ npm run build-only
 
 ## 7. 测试与验证基线
 
-- 当前仓库已经有正式 pytest 测试，不要再假设“测试尚未建立”。
-- 2026-05-04 的本地基线：
-  - `pytest -q` 通过
-  - 结果为 `92 passed`
+- 当前仓库已经有正式 pytest 测试。根据改动范围进行决定。对于小范围改动不进行相关测试，由人工进行 review 验证；对于中等范围改动，跑相关测试；对于大范围改动跑全量测试。
+
 - `dashboard/` 能分别通过：
   - `npm run type-check`
   - `npm run build-only`
 
-改动时的最低验证要求：
-
-- 改 `ui/dashboard.py`、`utils/history_logger.py`、`utils/we_path.py`、`utils/config_loader.py` 后，至少跑相关 pytest；能跑全量时优先跑全量
-- 改 `dashboard/` 后，至少跑 `npm run type-check`；涉及 UI 结构或资源产物时再跑 `npm run build-only`
-
 ## 8. 面向代理的行动建议
 
-- 先判断任务是在修“当前运行时”，还是在推进“前端重写目标”。这两类任务的着力点不同。
 - 如果任务属于新前端建设，优先在 `dashboard/`、`docs/frontend/*` 对齐的数据模型和 `ui/dashboard.py` 的新接口上动手。
-- 如果任务属于 Dashboard 重写的下一阶段，默认假设 core 诊断链已经完成；除非发现 spec 与实现冲突，否则不要回退去重做 `core/controller.py`、`core/actuator.py`、`core/diagnostics.py` 的基础建模。
 - 如果任务属于配置体验，默认走文本配置工作流：固定 6 文件 YAML、Release zip 分发的 example 配置、Pydantic normalized runtime config、validate before swap。GUI 只做打开、验证、重载、错误展示、扫描播放列表等辅助能力；tray 的 `Apply Current Match Now` 是独立手动调度入口，不应和 reload 混在一起。
 - 如果任务属于 History，默认先质疑是否应该进入独立页面；近期应优先保留事件日志和 Diagnostics 辅助信息。
 - 当前阶段路线顺序是：打包减重 -> 配置体验改线 -> Diagnostics 收敛 -> History 降级。具体见 `docs/PRODUCT_DIRECTION.md`。
-- 如果任务需要 breaking change，就连同调用方、测试、静态资源接线一起改，不要把过渡态长期留在主线上。
+- 如果任务需要 breaking change，需要评估改动量，如果改动面偏小，就连同调用方、测试、静态资源接线一起改，不要把过渡态长期留在主线上；如果改动面大，则允许迭代适配。迭代过程中也并不强求集成测试通过。
 - 不要把 `dashboard` 的工程规范退化回旧式做法：大段 scoped CSS、页面私有全局类、绕开 token 的硬编码颜色/尺寸、用局部状态假装全局状态。
 - 尽量复用 `dashboard/src/components/ui/workbench/*`、现有 token、Tailwind utility 和 Pinia 方向。
