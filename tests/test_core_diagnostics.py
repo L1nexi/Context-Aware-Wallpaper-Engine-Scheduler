@@ -107,7 +107,7 @@ def test_matcher_preserves_raw_resolved_and_fallback_vectors():
         policy_id="stub",
         enabled=True,
         active=True,
-        weight_scale=1.0,
+        weight=1.0,
         salience=1.0,
         intensity=1.0,
         effective_magnitude=1.0,

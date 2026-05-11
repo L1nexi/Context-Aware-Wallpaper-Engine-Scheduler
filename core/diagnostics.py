@@ -84,7 +84,7 @@ class BasePolicyEvaluation:
     policy_id: str
     enabled: bool
     active: bool
-    weight_scale: float
+    weight: float
     salience: float
     intensity: float
     effective_magnitude: float

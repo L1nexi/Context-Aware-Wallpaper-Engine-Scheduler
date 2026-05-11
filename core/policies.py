@@ -107,7 +107,7 @@ class Policy(ABC):
             policy_id=self.config_key,
             enabled=self.enabled,
             active=active,
-            weight_scale=self.weight,
+            weight=self.weight,
             salience=max(salience, 0.0) if self.enabled else 0.0,
             intensity=max(intensity, 0.0) if self.enabled else 0.0,
             effective_magnitude=effective_magnitude,

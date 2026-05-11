@@ -94,7 +94,7 @@ export interface BasePolicyDiagnostic {
   policyId: PolicyId
   enabled: boolean
   active: boolean
-  weightScale: number
+  weight: number
   salience: number
   intensity: number
   effectiveMagnitude: number

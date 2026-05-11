@@ -125,7 +125,7 @@ class BasePolicyDiagnosticDto(ApiDto):
     policy_id: str
     enabled: bool
     active: bool
-    weight_scale: float
+    weight: float
     salience: float
     intensity: float
     effective_magnitude: float
@@ -346,24 +346,26 @@ def _clock_snapshot(local_time: time.struct_time) -> ClockSnapshotDto:
     )
 
 
-def _policy_base_kwargs(policy: PolicyEvaluation) -> dict[str, Any]:
-    return {
-        "policy_id": policy.policy_id,
-        "enabled": policy.enabled,
-        "active": policy.active,
-        "weight_scale": _round_float(policy.weight_scale),
-        "salience": _round_float(policy.salience),
-        "intensity": _round_float(policy.intensity),
-        "effective_magnitude": _round_float(policy.effective_magnitude),
-        "direction": _tag_weights(policy.direction),
-        "raw_contribution": _tag_weights(policy.raw_contribution),
-        "resolved_contribution": _tag_weights(policy.resolved_contribution),
-        "dominant_tag": policy.dominant_tag,
-    }
+def _policy_base_dto(policy: PolicyEvaluation) -> BasePolicyDiagnosticDto:
+    return BasePolicyDiagnosticDto(
+        policy_id=policy.policy_id,
+        enabled=policy.enabled,
+        active=policy.active,
+        weight=_round_float(policy.weight),
+        salience=_round_float(policy.salience),
+        intensity=_round_float(policy.intensity),
+        effective_magnitude=_round_float(policy.effective_magnitude),
+        direction=_tag_weights(policy.direction),
+        raw_contribution=_tag_weights(policy.raw_contribution),
+        resolved_contribution=_tag_weights(policy.resolved_contribution),
+        dominant_tag=policy.dominant_tag,
+    )
+
 
 
 def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
-    base_kwargs = _policy_base_kwargs(policy)
+    base_dto = _policy_base_dto(policy)
+    base_kwargs = base_dto.model_dump()
     if isinstance(policy, ActivityPolicyEvaluation):
         return ActivityPolicyDiagnosticDto(
             **base_kwargs,

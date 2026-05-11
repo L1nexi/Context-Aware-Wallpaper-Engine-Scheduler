@@ -11,7 +11,7 @@ export interface TagSpec {
 
 export interface BasePolicyConfig {
   enabled: boolean
-  weight_scale: number
+  weight: number
 }
 
 export interface ActivityPolicyConfig extends BasePolicyConfig {

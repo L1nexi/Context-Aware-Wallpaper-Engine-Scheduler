@@ -134,12 +134,10 @@ class PlaylistsFileConfig(BaseModel):
             else:
                 color = _normalize_playlist_color(playlist.color)
 
-            runtime_playlists[playlist_name] = PlaylistConfig.model_validate(
-                {
-                    "display": playlist.display,
-                    "color": color,
-                    "tags": dict(playlist.tags),
-                }
+            runtime_playlists[playlist_name] = PlaylistConfig(
+                display=playlist.display,
+                color=color,
+                tags=dict(playlist.tags),
             )
 
         return runtime_playlists
@@ -156,7 +154,7 @@ class TagsFileConfig(BaseModel):
 
     def to_runtime_config(self) -> dict[str, TagSpec]:
         return {
-            tag_name: TagSpec.model_validate(tag_spec.model_dump(mode="python"))
+            tag_name: TagSpec(fallback=dict(tag_spec.fallback))
             for tag_name, tag_spec in self.tags.items()
         }
 
@@ -176,7 +174,13 @@ class ActivityMatcherFileConfig(BaseModel):
     case_sensitive: bool = False
 
     def to_runtime_config(self) -> ActivityMatcherConfig:
-        return ActivityMatcherConfig.model_validate(self.model_dump(mode="python"))
+        return ActivityMatcherConfig(
+            source=self.source,
+            match=self.match,
+            pattern=self.pattern,
+            tag=self.tag,
+            case_sensitive=self.case_sensitive,
+        )
 
 
 class ActivityPolicyFileConfig(_BasePolicyFileConfig):
@@ -208,13 +212,11 @@ class ActivityPolicyFileConfig(_BasePolicyFileConfig):
         )
         runtime_matchers.extend(matcher.model_dump(mode="python") for matcher in self.matchers)
 
-        return ActivityPolicyConfig.model_validate(
-            {
-                "enabled": self.enabled,
-                "weight": self.weight,
-                "smoothing_window": self.smoothing_window,
-                "matchers": runtime_matchers,
-            }
+        return ActivityPolicyConfig(
+            enabled=self.enabled,
+            weight=self.weight,
+            smoothing_window=self.smoothing_window,
+            matchers=runtime_matchers,
         )
 
 
@@ -224,14 +226,12 @@ class TimePolicyFileConfig(_BasePolicyFileConfig):
     night_start_hour: float = Field(20.0, ge=0, lt=24)
 
     def to_runtime_config(self) -> TimePolicyConfig:
-        return TimePolicyConfig.model_validate(
-            {
-                "enabled": self.enabled,
-                "weight": self.weight,
-                "auto": self.auto,
-                "day_start_hour": self.day_start_hour,
-                "night_start_hour": self.night_start_hour,
-            }
+        return TimePolicyConfig(
+            enabled=self.enabled,
+            weight=self.weight,
+            auto=self.auto,
+            day_start_hour=self.day_start_hour,
+            night_start_hour=self.night_start_hour,
         )
 
 
@@ -242,15 +242,13 @@ class SeasonPolicyFileConfig(_BasePolicyFileConfig):
     winter_peak: int = 355
 
     def to_runtime_config(self) -> SeasonPolicyConfig:
-        return SeasonPolicyConfig.model_validate(
-            {
-                "enabled": self.enabled,
-                "weight": self.weight,
-                "spring_peak": self.spring_peak,
-                "summer_peak": self.summer_peak,
-                "autumn_peak": self.autumn_peak,
-                "winter_peak": self.winter_peak,
-            }
+        return SeasonPolicyConfig(
+            enabled=self.enabled,
+            weight=self.weight,
+            spring_peak=self.spring_peak,
+            summer_peak=self.summer_peak,
+            autumn_peak=self.autumn_peak,
+            winter_peak=self.winter_peak,
         )
 
 
@@ -268,17 +266,15 @@ class WeatherPolicyFileConfig(_BasePolicyFileConfig):
         return _validate_coordinate_input(value)
 
     def to_runtime_config(self) -> WeatherPolicyConfig:
-        return WeatherPolicyConfig.model_validate(
-            {
-                "enabled": self.enabled,
-                "weight": self.weight,
-                "api_key": self.api_key,
-                "lat": self.lat,
-                "lon": self.lon,
-                "fetch_interval": self.fetch_interval,
-                "request_timeout": self.request_timeout,
-                "warmup_timeout": self.warmup_timeout,
-            }
+        return WeatherPolicyConfig(
+            enabled=self.enabled,
+            weight=self.weight,
+            api_key=self.api_key,
+            lat=self.lat,
+            lon=self.lon,
+            fetch_interval=self.fetch_interval,
+            request_timeout=self.request_timeout,
+            warmup_timeout=self.warmup_timeout,
         )
 
 
@@ -306,7 +302,16 @@ class SchedulingFileEntry(BaseModel):
     pause_on_fullscreen: bool = True
 
     def to_runtime_config(self) -> SchedulingConfig:
-        return SchedulingConfig.model_validate(self.model_dump(mode="python"))
+        return SchedulingConfig(
+            startup_delay=self.startup_delay,
+            idle_threshold=self.idle_threshold,
+            switch_cooldown=self.switch_cooldown,
+            force_after=self.force_after,
+            cycle_cooldown=self.cycle_cooldown,
+            cpu_threshold=self.cpu_threshold,
+            cpu_sample_window=self.cpu_sample_window,
+            pause_on_fullscreen=self.pause_on_fullscreen,
+        )
 
 
 class SchedulingFileConfig(BaseModel):

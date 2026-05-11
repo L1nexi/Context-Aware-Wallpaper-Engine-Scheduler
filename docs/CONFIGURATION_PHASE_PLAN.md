@@ -28,7 +28,7 @@
 - 不继续扩展完整 GUI Config Editor。
 - 不在 Diagnostics 中加入手动副作用按钮。
 
-## 2. 阶段 0：基线保护与切入点整理
+## 2. 阶段 0：基线保护与切入点整理 [SKIPPED]
 
 目标：在重构前固定现有行为和风险边界，减少后续大改时的盲区。
 
@@ -62,14 +62,14 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - 现有相关测试通过。
 - 后续要替换的 legacy 测试边界明确。
 
-## 3. 阶段 1：YAML 目录 loader 与 example 配置
+## 3. 阶段 1：YAML 目录 loader 与 example 配置 [DONE]
 
 目标：建立固定 6 文件 YAML 的解析、错误定位和 GitHub Release zip 分发用 example 配置，但暂不切换 scheduler 主运行入口。
 
 文件范围：
 
 - 新增或重构 `utils/config_loader.py` 附近的 YAML domain loader。
-- 新增 Release zip 分发用 example 配置目录，作为 exe 旁边的普通文件进入发布压缩包。
+- 新增 Release zip 分发用 config 配置目录，作为 exe 旁边的普通文件进入发布压缩包。
 - `tests/test_config_loader.py` 或新增配置 loader 测试文件。
 - Release 打包脚本中压缩包文件布局配置。
 
@@ -107,18 +107,18 @@ pytest tests/test_config_loader.py -q
 
 - 6 文件缺失报错。
 - version 缺失 / 不等于 2 报错。
-- example 配置能被解析。
+- config 配置能被解析。
 - source file + field path 出现在错误中。
 
 完成标准：
 
 - YAML 文件契约可测试。
-- example 配置作为 Release zip 中的普通文件存在，不内嵌到 exe。
+- config 配置作为 Release zip 中的普通文件存在，不内嵌到 exe。
 - 旧 JSON 不参与 YAML loader。
 
 ## 4. 阶段 2：Runtime 配置模型切换
 
-目标：把运行时事实源切到新模型，消除 playlist list、`#tag`、隐藏 builtin tag 等旧心智。
+目标：把运行时事实源切到新模型，消除 playlist list、`#tag` 等旧心智。
 
 文件范围：
 
