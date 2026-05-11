@@ -1,12 +1,8 @@
-"""
-WE installation path detection.
+"""Wallpaper Engine path detection helpers.
 
-Resolves wallpaper_engine_path in three tiers:
-1. From scheduler runtime config (already configured)
-2. Via Steam registry → libraryfolders.vdf search
-3. Returns None if not found
-
-Does NOT require WE to be running.
+Startup / reload code should resolve the executable path before constructing
+runtime components. This module intentionally does not deal with process
+readiness or command execution.
 """
 
 from __future__ import annotations
@@ -59,17 +55,18 @@ def _parse_library_folders(steam_path: str) -> list[str]:
     return libraries
 
 
-def find_wallpaper_engine(config_wallpaper_engine_path: str) -> str | None:
-    """Find wallpaper64.exe, returning the full path or None.
+def resolve_wallpaper_engine_path(configured_path: str) -> str | None:
+    """Resolve wallpaper64.exe from a configured path or Steam libraries.
 
-    Tier 1: Use the configured path if it exists.
-    Tier 2: Search Steam library folders for the WE installation.
+    When ``configured_path`` is a non-empty string, this function only checks
+    that exact path and never falls back to auto-detection. An empty string
+    means "auto-detect".
     """
-    # Tier 1: configured path
-    if config_wallpaper_engine_path and os.path.isfile(config_wallpaper_engine_path):
-        return config_wallpaper_engine_path
+    if configured_path:
+        if os.path.isfile(configured_path):
+            return configured_path
+        return None
 
-    # Tier 2: Steam library search
     steam = _steam_install_path()
     if steam:
         for lib in _parse_library_folders(steam):
@@ -82,15 +79,13 @@ def find_wallpaper_engine(config_wallpaper_engine_path: str) -> str | None:
 
     return None
 
-
-def find_we_config_json(config_wallpaper_engine_path: str) -> str | None:
-    """Find WE's config.json given the configured wallpaper_engine_path.
+def find_we_config_json(we_exe_path: str | None) -> str | None:
+    """Find WE's config.json from an already resolved executable path.
 
     Returns the full path to WE's config.json, or None.
     """
-    we_exe = find_wallpaper_engine(config_wallpaper_engine_path)
-    if we_exe:
-        config_json = os.path.join(os.path.dirname(we_exe), "config.json")
+    if we_exe_path:
+        config_json = os.path.join(os.path.dirname(we_exe_path), "config.json")
         if os.path.isfile(config_json):
             return config_json
     return None

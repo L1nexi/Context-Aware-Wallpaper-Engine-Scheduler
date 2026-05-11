@@ -29,6 +29,7 @@ from core.policies import POLICY_REGISTRY, Policy
 from core.sensors import SENSOR_REGISTRY
 from utils.app_context import get_data_dir
 from utils.config_loader import ConfigLoader
+from utils.we_path import resolve_wallpaper_engine_path
 
 logger = logging.getLogger("WEScheduler.Core")
 
@@ -93,7 +94,6 @@ class WEScheduler:
         self._config_fingerprint = self.config_loader.fingerprint()
         logger.info("Loaded %d playlists.", len(config.playlists))
 
-        self.executor = WEExecutor(config.wallpaper_engine_path)
         self._build_runtime_components()
         self._restore_state(SchedulerState.load_state())
 
@@ -248,8 +248,24 @@ class WEScheduler:
             self._config_fingerprint = fingerprint
             self._hot_reload()
 
+    def _require_resolved_wallpaper_engine_path(self, configured_path: str) -> str:
+        resolved_path = resolve_wallpaper_engine_path(configured_path)
+        if resolved_path:
+            logger.info("Resolved Wallpaper Engine executable: %s", resolved_path)
+            return resolved_path
+        if configured_path:
+            raise RuntimeError(
+                f"Wallpaper Engine executable not found at configured path: {configured_path}"
+            )
+        raise RuntimeError(
+            "Wallpaper Engine executable could not be auto-detected. "
+            "Try setting wallpaper_engine_path in scheduler.yaml."
+        )
+
     def _build_runtime_components(self) -> None:
         config = self.config_loader.config
+
+        self.executor = WEExecutor(self._require_resolved_wallpaper_engine_path(config.wallpaper_engine_path))
 
         context_manager = ContextManager()
         for sensor_cls in SENSOR_REGISTRY:

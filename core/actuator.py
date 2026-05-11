@@ -61,15 +61,15 @@ class Actuator:
                 matched_playlist,
             )
             _log_tags(match.raw_context_vector)
-            self.executor.open_playlist(matched_playlist)
-            self.controller.notify_playlist_switch()
-            active_playlist_after = matched_playlist
-            executed = True
+            if self.executor.open_playlist(matched_playlist):
+                self.controller.notify_playlist_switch()
+                active_playlist_after = matched_playlist
+                executed = True
         elif decision.kind == ActionKind.CYCLE and current_playlist:
             logger.info("[Action] Cycling Wallpaper in '%s'", current_playlist)
-            self.executor.next_wallpaper()
-            self.controller.notify_wallpaper_cycle()
-            executed = True
+            if self.executor.next_wallpaper():
+                self.controller.notify_wallpaper_cycle()
+                executed = True
 
         outcome = ActuationOutcome(
             decision=decision,
@@ -78,7 +78,7 @@ class Actuator:
             executed=executed,
         )
 
-        if outcome.kind == ActionKind.SWITCH and matched_playlist is not None:
+        if outcome.kind == ActionKind.SWITCH and matched_playlist is not None and outcome.executed:
             self._history.write(
                 EventType.PLAYLIST_SWITCH,
                 {
@@ -91,13 +91,23 @@ class Actuator:
                     "reason_code": outcome.reason_code.value,
                 },
             )
-        elif outcome.kind == ActionKind.CYCLE:
+        elif outcome.kind == ActionKind.CYCLE and outcome.executed:
             self._history.write(
                 EventType.WALLPAPER_CYCLE,
                 {
                     "playlist": current_playlist,
                     "tags": _tag_dict(match.raw_context_vector),
                     "reason_code": outcome.reason_code.value,
+                },
+            )
+        elif outcome.kind in {ActionKind.SWITCH, ActionKind.CYCLE} and not outcome.executed:
+            self._history.write(
+                EventType.ACTUATION_FAILED,
+                {
+                    "operation": outcome.kind.value,
+                    "reason_code": outcome.reason_code.value,
+                    "matched_playlist": matched_playlist,
+                    "active_playlist_before": current_playlist,
                 },
             )
 

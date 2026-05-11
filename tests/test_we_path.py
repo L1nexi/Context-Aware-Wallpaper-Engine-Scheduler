@@ -10,7 +10,7 @@ import pytest
 from utils.we_path import (
     _steam_install_path,
     _parse_library_folders,
-    find_wallpaper_engine,
+    resolve_wallpaper_engine_path,
     find_we_config_json,
 )
 
@@ -116,19 +116,19 @@ def test_find_we_tier1_configured_path_exists(tmp_path):
     with open(fake_exe, "w") as f:
         f.write("fake")
 
-    result = find_wallpaper_engine(fake_exe)
+    result = resolve_wallpaper_engine_path(fake_exe)
     assert result == fake_exe
 
 
 def test_find_we_tier1_configured_path_not_exists(monkeypatch):
     monkeypatch.setattr("utils.we_path._steam_install_path", lambda: None)
-    result = find_wallpaper_engine("Z:\\nonexistent\\wallpaper64.exe")
+    result = resolve_wallpaper_engine_path("Z:\\nonexistent\\wallpaper64.exe")
     assert result is None
 
 
 def test_find_we_tier1_empty_string(monkeypatch):
     monkeypatch.setattr("utils.we_path._steam_install_path", lambda: None)
-    result = find_wallpaper_engine("")
+    result = resolve_wallpaper_engine_path("")
     assert result is None
 
 
@@ -145,7 +145,7 @@ def test_find_we_steam_found(monkeypatch, tmp_path):
         return steam_path
 
     monkeypatch.setattr("utils.we_path._steam_install_path", mock_steam)
-    result = find_wallpaper_engine("")
+    result = resolve_wallpaper_engine_path("")
     assert result == we_exe
 
 
@@ -157,13 +157,13 @@ def test_find_we_steam_not_found(monkeypatch):
     monkeypatch.setattr("utils.we_path._parse_library_folders", lambda x: ["C:\\Steam"])
 
     # Ensure the candidate doesn't exist
-    result = find_wallpaper_engine("")
+    result = resolve_wallpaper_engine_path("")
     assert result is None
 
 
 def test_find_we_no_steam_no_config(monkeypatch):
     monkeypatch.setattr("utils.we_path._steam_install_path", lambda: None)
-    result = find_wallpaper_engine("")
+    result = resolve_wallpaper_engine_path("")
     assert result is None
 
 

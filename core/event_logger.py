@@ -16,6 +16,7 @@ class EventType(StrEnum):
     RESUME = "resume"
     PLAYLIST_SWITCH = "playlist_switch"
     WALLPAPER_CYCLE = "wallpaper_cycle"
+    ACTUATION_FAILED = "actuation_failed"
 
 
 @runtime_checkable

@@ -247,9 +247,10 @@ def _build_app(
         bottle.response.content_type = "application/json; charset=utf-8"
         wallpaper_engine_path = _configured_wallpaper_engine_path(config_dir)
 
-        from utils.we_path import find_we_config_json
+        from utils.we_path import resolve_wallpaper_engine_path, find_we_config_json
 
-        we_config = find_we_config_json(wallpaper_engine_path)
+        resolved_path = resolve_wallpaper_engine_path(wallpaper_engine_path)
+        we_config = find_we_config_json(resolved_path)
         if we_config is None:
             return json.dumps({"playlists": [], "error": "we_config_not_found"})
 
@@ -279,9 +280,9 @@ def _build_app(
         bottle.response.content_type = "application/json; charset=utf-8"
         wallpaper_engine_path = _configured_wallpaper_engine_path(config_dir)
 
-        from utils.we_path import find_wallpaper_engine
+        from utils.we_path import resolve_wallpaper_engine_path
 
-        detected = find_wallpaper_engine(wallpaper_engine_path)
+        detected = resolve_wallpaper_engine_path(wallpaper_engine_path)
         return json.dumps({"path": detected, "valid": bool(detected)})
 
     static_root = _resolve_static_root()
