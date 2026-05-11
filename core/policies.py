@@ -18,7 +18,7 @@ from core.diagnostics import (
     WeatherPolicyDetails,
     WeatherPolicyEvaluation,
 )
-from utils.config_loader import (
+from utils.runtime_config import (
     _BasePolicyConfig,
     ActivityPolicyConfig,
     PoliciesConfig,
@@ -48,6 +48,7 @@ class Policy(ABC):
     # Each concrete subclass must define this as a class-level string.
     config_key: ClassVar[str]
     evaluation_cls: ClassVar[type[BasePolicyEvaluation]]
+    fixed_output_tags: ClassVar[tuple[str, ...] | None] = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -58,8 +59,15 @@ class Policy(ABC):
             raise TypeError(
                 f"{cls.__name__}.config_key={cls.config_key!r} is not a field "
                 f"of PoliciesConfig (valid: {sorted(valid_keys)}). "
-                "Update config_loader.py or the policy class."
+                "Update runtime_config.py or the policy class."
             )
+        if "fixed_output_tags" in cls.__dict__ and cls.fixed_output_tags is not None:
+            if not isinstance(cls.fixed_output_tags, tuple) or any(
+                not isinstance(tag, str) or not tag for tag in cls.fixed_output_tags
+            ):
+                raise TypeError(
+                    f"{cls.__name__}.fixed_output_tags must be a tuple[str, ...] when provided."
+                )
 
     def __init__(self, config: _BasePolicyConfig):
         self.config = config
@@ -126,8 +134,26 @@ class ActivityPolicy(Policy):
 
     def __init__(self, config: ActivityPolicyConfig):
         super().__init__(config)
-        self.rules = {k.lower(): v for k, v in config.process_rules.items()}
-        self.title_rules = config.title_rules
+        self.rules: Dict[str, str] = {}
+        self.title_rules: Dict[str, str] = {}
+        # TODO: Replace this legacy subset compiler with a matcher engine that
+        # consumes config.matchers directly, including regex / contains /
+        # priority semantics. For now we only adapt the normalized matcher list
+        # back into the current title-contains + process-exact behavior.
+        for matcher in config.matchers:
+            if matcher.source == "title" and matcher.match == "contains" and not matcher.case_sensitive:
+                self.title_rules.setdefault(matcher.pattern, matcher.tag)
+                continue
+
+            if matcher.source != "process" or matcher.match != "exact" or matcher.case_sensitive:
+                continue
+
+            pattern = matcher.pattern.lower()
+            self.rules.setdefault(pattern, matcher.tag)
+            if pattern.endswith(".exe"):
+                self.rules.setdefault(pattern[:-4], matcher.tag)
+            else:
+                self.rules.setdefault(f"{pattern}.exe", matcher.tag)
 
         smoothing_window = config.smoothing_window
         if smoothing_window <= 1:
@@ -217,6 +243,7 @@ class TimePolicy(Policy):
 
     config_key = "time"
     evaluation_cls = TimePolicyEvaluation
+    fixed_output_tags = ("dawn", "day", "sunset", "night")
 
     def __init__(self, config: TimePolicyConfig):
         super().__init__(config)
@@ -239,7 +266,7 @@ class TimePolicy(Policy):
             "night": (ns + night_span / 2) % 24,
         }
 
-    _TAG_ORDER = ["dawn", "day", "sunset", "night"]
+    _TAG_ORDER = fixed_output_tags
     _VIRTUAL_PEAKS = [0.0, 6.0, 12.0, 18.0]
 
     @staticmethod
@@ -316,6 +343,7 @@ class SeasonPolicy(Policy):
 
     config_key = "season"
     evaluation_cls = SeasonPolicyEvaluation
+    fixed_output_tags = ("spring", "summer", "autumn", "winter")
 
     def __init__(self, config: SeasonPolicyConfig):
         super().__init__(config)
@@ -359,6 +387,8 @@ class SeasonPolicy(Policy):
 
 class WeatherPolicy(Policy):
     """Maps OWM condition codes to normalized weather tag contributions."""
+
+    fixed_output_tags = ("clear", "cloudy", "rain", "storm", "snow", "fog")
 
     _ID_TAGS: Dict[int, Dict[str, float]] = {
         210: {"storm": 0.50, "rain": 0.25},
@@ -492,16 +522,23 @@ class WeatherPolicy(Policy):
         return dict(fallback) if fallback is not None else None
 
 
-KNOWN_TAGS: list[str] = sorted({
-    "focus", "chill",
-    "dawn", "day", "sunset", "night",
-    "spring", "summer", "autumn", "winter",
-    "clear", "cloudy", "rain", "storm", "snow", "fog",
-})
-
 POLICY_REGISTRY: list[Type[Policy]] = [
     ActivityPolicy,
     TimePolicy,
     SeasonPolicy,
     WeatherPolicy,
 ]
+
+
+def get_policy_fixed_output_tags() -> dict[str, tuple[str, ...]]:
+    return {
+        policy_cls.config_key: policy_cls.fixed_output_tags
+        for policy_cls in POLICY_REGISTRY
+        if policy_cls.fixed_output_tags is not None
+    }
+
+
+KNOWN_TAGS: list[str] = sorted({
+    "focus", "chill",
+    *(tag for tags in get_policy_fixed_output_tags().values() for tag in tags),
+})

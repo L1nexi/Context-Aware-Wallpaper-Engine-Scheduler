@@ -12,7 +12,7 @@ from collections import deque
 from typing import ClassVar, Any, Optional, Type
 from abc import ABC, abstractmethod
 from core.context import WindowData, WeatherData
-from utils.config_loader import AppConfig, WeatherPolicyConfig
+from utils.runtime_config import SchedulerConfig, WeatherPolicyConfig
 
 logger = logging.getLogger("WEScheduler.Sensor")
 
@@ -28,7 +28,7 @@ class Sensor(ABC):
 
     @classmethod
     @abstractmethod
-    def create(cls, config: AppConfig) -> Optional["Sensor"]:
+    def create(cls, config: SchedulerConfig) -> Optional["Sensor"]:
         """Factory method: return a ready instance, or None to skip registration."""
         pass
 
@@ -36,7 +36,7 @@ class WindowSensor(Sensor):
     key = "window"
 
     @classmethod
-    def create(cls, config: AppConfig) -> Optional[WindowSensor]:
+    def create(cls, config: SchedulerConfig) -> Optional[WindowSensor]:
         return cls()
 
     def collect(self) -> WindowData:
@@ -68,7 +68,7 @@ class IdleSensor(Sensor):
     key = "idle"
 
     @classmethod
-    def create(cls, config: AppConfig) -> Optional[IdleSensor]:
+    def create(cls, config: SchedulerConfig) -> Optional[IdleSensor]:
         return cls()
 
     def collect(self) -> float:
@@ -112,7 +112,7 @@ class CpuSensor(Sensor):
     key = "cpu"
 
     @classmethod
-    def create(cls, config: AppConfig) -> Optional[CpuSensor]:
+    def create(cls, config: SchedulerConfig) -> Optional[CpuSensor]:
         return cls(window=config.scheduling.cpu_sample_window)
 
     def collect(self) -> float:
@@ -149,7 +149,7 @@ class FullscreenSensor(Sensor):
     key = "fullscreen"
 
     @classmethod
-    def create(cls, config: AppConfig) -> Optional[FullscreenSensor]:
+    def create(cls, config: SchedulerConfig) -> Optional[FullscreenSensor]:
         """Return a new instance only when fullscreen-defer is enabled."""
         if not config.scheduling.pause_on_fullscreen:
             return None
@@ -262,7 +262,7 @@ class WeatherSensor(Sensor):
             self._ready_event.set()
 
     @classmethod
-    def create(cls, config: AppConfig) -> Optional["WeatherSensor"]:
+    def create(cls, config: SchedulerConfig) -> Optional["WeatherSensor"]:
         """Return a new instance only when the sensor is enabled and an API key is present."""
         weather_cfg = config.policies.weather
         if (
@@ -278,7 +278,7 @@ class TimeSensor(Sensor):
     key = "time"
 
     @classmethod
-    def create(cls, config: AppConfig) -> Optional["TimeSensor"]:
+    def create(cls, config: SchedulerConfig) -> Optional["TimeSensor"]:
         return cls()
 
     def collect(self) -> time.struct_time:

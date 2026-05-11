@@ -14,7 +14,7 @@ from core.diagnostics import (
     ControllerOperation,
     MatchEvaluation,
 )
-from utils.config_loader import SchedulingConfig
+from utils.runtime_config import SchedulingConfig
 
 logger = logging.getLogger("WEScheduler.Controller")
 

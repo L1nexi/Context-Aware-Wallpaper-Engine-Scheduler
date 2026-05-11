@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
-from uuid import uuid4
 
 import pytest
 import yaml
 
-from utils.config_loader import ConfigLoader, PLAYLIST_AUTO_COLOR_PALETTE
+from core.policies import get_policy_fixed_output_tags
+from utils.config_errors import ConfigLoadError
+from utils.config_loader import ConfigLoader
+from utils.runtime_config import PLAYLIST_AUTO_COLOR_PALETTE
 
 
 def _base_documents() -> dict[str, dict]:
@@ -127,11 +130,7 @@ def _base_documents() -> dict[str, dict]:
 
 
 def _scratch_root() -> Path:
-    root = Path.cwd() / "data" / "pytest-config-loader"
-    root.mkdir(parents=True, exist_ok=True)
-    scratch = root / uuid4().hex
-    scratch.mkdir()
-    return scratch
+    return Path(tempfile.mkdtemp(prefix="wes-config-loader-"))
 
 
 def _write_config_dir(overrides: dict[str, object] | None = None) -> Path:
@@ -181,45 +180,55 @@ def test_config_loader_requires_version_2(scheduler_document: dict):
     assert "version" in error_text
 
 
-@pytest.mark.parametrize(
-    ("file_name", "content", "message"),
-    [
-        (
-            "tags.yaml",
-            "tags:\n  focus: &base\n    fallback: {}\n",
-            "YAML anchors are not supported",
-        ),
-        (
-            "tags.yaml",
-            "tags:\n  focus:\n    fallback: *base\n",
-            "YAML aliases are not supported",
-        ),
-        (
-            "playlists.yaml",
-            "playlists:\n  BASE:\n    display: Base\n    tags:\n      focus: 1.0\n  COPY:\n    <<:\n      display: Base\n      tags:\n        focus: 1.0\n",
-            "YAML merge keys are not supported",
-        ),
-        (
-            "tags.yaml",
-            "tags:\n  focus:\n    fallback: {}\n  focus:\n    fallback: {}\n",
-            "duplicate YAML key 'focus'",
-        ),
-    ],
-)
-def test_config_loader_rejects_yaml_advanced_features(
-    file_name: str,
-    content: str,
-    message: str,
-):
+def test_config_loader_allows_yaml_merge_alias_and_anchor_features():
     config_dir = _write_config_dir()
-    (config_dir / file_name).write_text(content, encoding="utf-8")
+    (config_dir / "playlists.yaml").write_text(
+        (
+            "playlists:\n"
+            "  BASE: &base\n"
+            "    display: Base\n"
+            "    tags:\n"
+            "      focus: 1.0\n"
+            "  COPY:\n"
+            "    <<: *base\n"
+            "    color: amber\n"
+        ),
+        encoding="utf-8",
+    )
 
-    with pytest.raises(ValueError) as exc_info:
+    config = ConfigLoader(str(config_dir)).load()
+
+    assert config.playlists["BASE"].display == "Base"
+    assert config.playlists["COPY"].display == "Base"
+    assert config.playlists["COPY"].color == "#CA8A04"
+    assert config.playlists["COPY"].tags == {"focus": 1.0}
+
+
+def test_config_loader_rejects_duplicate_yaml_keys_with_location():
+    config_dir = _write_config_dir()
+    (config_dir / "tags.yaml").write_text(
+        "tags:\n  focus:\n    fallback: {}\n  focus:\n    fallback: {}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigLoadError) as exc_info:
         ConfigLoader(str(config_dir)).load()
 
-    error_text = str(exc_info.value)
-    assert file_name in error_text
-    assert message in error_text
+    assert len(exc_info.value.issues) == 1
+    issue = exc_info.value.issues[0]
+    assert issue.source_file == "tags.yaml"
+    assert issue.field_path == ("tags", "focus")
+    assert issue.line == 4
+    assert issue.column == 3
+    assert "duplicate YAML key 'focus'" in str(exc_info.value)
+
+
+def test_policy_fixed_output_tags_come_from_policy_registry_metadata():
+    assert get_policy_fixed_output_tags() == {
+        "time": ("dawn", "day", "sunset", "night"),
+        "season": ("spring", "summer", "autumn", "winter"),
+        "weather": ("clear", "cloudy", "rain", "storm", "snow", "fog"),
+    }
 
 
 def test_config_loader_parses_playlist_map_and_assigns_missing_colors():
@@ -232,11 +241,24 @@ def test_config_loader_parses_playlist_map_and_assigns_missing_colors():
     assert config.playlists["FOCUS"].display == "Focus"
     assert config.playlists["FOCUS"].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
     assert config.playlists["CHILL"].color == "#4A90D9"
-    assert config.policies.activity.process_rules["Code"] == "focus"
-    assert config.policies.activity.process_rules["Code.exe"] == "focus"
-    assert config.policies.activity.title_rules["YouTube"] == "chill"
+    assert len(config.policies.activity.matchers) == 3
+    assert config.policies.activity.matchers[0].source == "process"
+    assert config.policies.activity.matchers[0].match == "exact"
     assert config.policies.activity.matchers[0].pattern == "Code"
+    assert config.policies.activity.matchers[1].source == "title"
+    assert config.policies.activity.matchers[1].match == "contains"
+    assert config.policies.activity.matchers[1].pattern == "YouTube"
     assert config.policies.activity.matchers[2].match == "regex"
+
+
+def test_config_loader_allows_empty_playlist_tag_vector():
+    documents = _base_documents()
+    documents["playlists.yaml"]["playlists"]["FOCUS"]["tags"] = {}
+    config_dir = _write_config_dir(overrides={"playlists.yaml": documents["playlists.yaml"]})
+
+    config = ConfigLoader(str(config_dir)).load()
+
+    assert config.playlists["FOCUS"].tags == {}
 
 
 def test_config_loader_normalizes_named_and_hashless_playlist_colors():
@@ -276,7 +298,7 @@ def test_config_loader_error_includes_source_file_and_field_path():
     error_text = str(exc_info.value)
     assert "activity.yaml" in error_text
     assert "activity.process.Code" in error_text
-    assert "must not use a '#' prefix" in error_text
+    assert "must be declared in tags.yaml" in error_text
 
 
 def test_config_loader_collects_errors_across_files_before_cross_validation():
@@ -304,3 +326,11 @@ def test_config_loader_collects_errors_across_files_before_cross_validation():
     assert "playlist name must not be empty" in error_text
     assert "activity.yaml" in error_text
     assert "process_rules" in error_text
+
+
+def test_load_configured_wallpaper_engine_path_reads_scheduler_yaml():
+    config_dir = _write_config_dir()
+
+    configured_path = ConfigLoader.load_configured_wallpaper_engine_path(str(config_dir))
+
+    assert configured_path is None

@@ -23,7 +23,7 @@ from core.matcher import Matcher
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
 from core.scheduler import WEScheduler
 from ui.dashboard_analysis import DashboardRuntimeMetadata, map_tick_snapshot
-from utils.config_loader import (
+from utils.runtime_config import (
     ActivityPolicyConfig,
     PlaylistConfig,
     TimePolicyConfig,
@@ -36,9 +36,21 @@ from utils.config_loader import (
 def test_activity_policy_distinguishes_title_and_process_rules():
     policy = ActivityPolicy(
         ActivityPolicyConfig(
-            process_rules={"chrome.exe": "focus"},
-            title_rules={"YouTube": "chill"},
             smoothing_window=1,
+            matchers=[
+                {
+                    "source": "process",
+                    "match": "exact",
+                    "pattern": "chrome.exe",
+                    "tag": "focus",
+                },
+                {
+                    "source": "title",
+                    "match": "contains",
+                    "pattern": "YouTube",
+                    "tag": "chill",
+                },
+            ],
         )
     )
 

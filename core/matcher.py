@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from core.context import Context
 from core.diagnostics import MatchEvaluation, PolicyEvaluation
-from utils.config_loader import PlaylistConfig, TagSpec
+from utils.runtime_config import PlaylistConfig, TagSpec
 
 if TYPE_CHECKING:
     from core.policies import Policy

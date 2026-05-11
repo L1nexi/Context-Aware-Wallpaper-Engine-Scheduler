@@ -8,11 +8,21 @@ from typing import Any, Dict, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from pydantic_core import PydanticCustomError
 
+from core.policies import get_policy_fixed_output_tags
 from utils.config_errors import ConfigIssue, ConfigLoadError
-from utils.config_models import (
-    AppConfig,
+from utils.runtime_config import (
+    ActivityMatcherConfig,
+    ActivityPolicyConfig,
     HEX_COLOR_RE,
     PLAYLIST_AUTO_COLOR_PALETTE,
+    PlaylistConfig,
+    PoliciesConfig,
+    SchedulerConfig,
+    SchedulingConfig,
+    SeasonPolicyConfig,
+    TagSpec,
+    TimePolicyConfig,
+    WeatherPolicyConfig,
 )
 
 
@@ -33,13 +43,6 @@ PLAYLIST_NAMED_COLORS = {
     "slate": "#475569",
     "gray": "#4B5563",
 }
-
-POLICY_FIXED_TAGS = {
-    "time": {"dawn", "day", "sunset", "night"},
-    "season": {"spring", "summer", "autumn", "winter"},
-    "weather": {"clear", "cloudy", "rain", "storm", "snow", "fog"},
-}
-
 
 def _normalize_playlist_color(value: str) -> str | None:
     stripped = value.strip()
@@ -90,7 +93,7 @@ class PlaylistFileEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     display: str = ""
     color: str | None = None
-    tags: Dict[str, float] = Field(min_length=1)
+    tags: Dict[str, float] = Field(default_factory=dict)
 
 
 class PlaylistsFileConfig(BaseModel):
@@ -119,8 +122,8 @@ class PlaylistsFileConfig(BaseModel):
                 )
         return issues
 
-    def to_runtime_data(self) -> dict[str, dict[str, Any]]:
-        runtime_playlists: dict[str, dict[str, Any]] = {}
+    def to_runtime_config(self) -> dict[str, PlaylistConfig]:
+        runtime_playlists: dict[str, PlaylistConfig] = {}
         fallback_index = 0
         palette_size = len(PLAYLIST_AUTO_COLOR_PALETTE)
 
@@ -131,11 +134,13 @@ class PlaylistsFileConfig(BaseModel):
             else:
                 color = _normalize_playlist_color(playlist.color)
 
-            runtime_playlists[playlist_name] = {
-                "display": playlist.display,
-                "color": color,
-                "tags": dict(playlist.tags),
-            }
+            runtime_playlists[playlist_name] = PlaylistConfig.model_validate(
+                {
+                    "display": playlist.display,
+                    "color": color,
+                    "tags": dict(playlist.tags),
+                }
+            )
 
         return runtime_playlists
 
@@ -149,9 +154,9 @@ class TagsFileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tags: Dict[str, TagFileEntry] = Field(default_factory=dict)
 
-    def to_runtime_data(self) -> dict[str, dict[str, Any]]:
+    def to_runtime_config(self) -> dict[str, TagSpec]:
         return {
-            tag_name: tag_spec.model_dump(mode="python")
+            tag_name: TagSpec.model_validate(tag_spec.model_dump(mode="python"))
             for tag_name, tag_spec in self.tags.items()
         }
 
@@ -160,12 +165,6 @@ class _BasePolicyFileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enabled: bool = True
     weight: float = Field(1.0, ge=0)
-
-    def base_runtime_data(self) -> dict[str, Any]:
-        return {
-            "enabled": self.enabled,
-            "weight": self.weight,
-        }
 
 
 class ActivityMatcherFileConfig(BaseModel):
@@ -176,8 +175,8 @@ class ActivityMatcherFileConfig(BaseModel):
     tag: str = Field(min_length=1)
     case_sensitive: bool = False
 
-    def to_runtime_data(self) -> dict[str, Any]:
-        return self.model_dump(mode="python")
+    def to_runtime_config(self) -> ActivityMatcherConfig:
+        return ActivityMatcherConfig.model_validate(self.model_dump(mode="python"))
 
 
 class ActivityPolicyFileConfig(_BasePolicyFileConfig):
@@ -186,7 +185,7 @@ class ActivityPolicyFileConfig(_BasePolicyFileConfig):
     title: Dict[str, str] = Field(default_factory=dict)
     matchers: list[ActivityMatcherFileConfig] = Field(default_factory=list)
 
-    def to_runtime_data(self) -> dict[str, Any]:
+    def to_runtime_config(self) -> ActivityPolicyConfig:
         runtime_matchers = [
             {
                 "source": "process",
@@ -207,26 +206,16 @@ class ActivityPolicyFileConfig(_BasePolicyFileConfig):
             }
             for pattern, tag in self.title.items()
         )
-        runtime_matchers.extend(matcher.to_runtime_data() for matcher in self.matchers)
+        runtime_matchers.extend(matcher.model_dump(mode="python") for matcher in self.matchers)
 
-        process_rules: dict[str, str] = {}
-        for pattern, tag in self.process.items():
-            process_rules[pattern] = tag
-            if pattern.lower().endswith(".exe"):
-                process_rules.setdefault(pattern[:-4], tag)
-            else:
-                process_rules.setdefault(f"{pattern}.exe", tag)
-
-        runtime = self.base_runtime_data()
-        runtime.update(
+        return ActivityPolicyConfig.model_validate(
             {
+                "enabled": self.enabled,
+                "weight": self.weight,
                 "smoothing_window": self.smoothing_window,
                 "matchers": runtime_matchers,
-                "process_rules": process_rules,
-                "title_rules": dict(self.title),
             }
         )
-        return runtime
 
 
 class TimePolicyFileConfig(_BasePolicyFileConfig):
@@ -234,16 +223,16 @@ class TimePolicyFileConfig(_BasePolicyFileConfig):
     day_start_hour: float = Field(8.0, ge=0, lt=24)
     night_start_hour: float = Field(20.0, ge=0, lt=24)
 
-    def to_runtime_data(self) -> dict[str, Any]:
-        runtime = self.base_runtime_data()
-        runtime.update(
+    def to_runtime_config(self) -> TimePolicyConfig:
+        return TimePolicyConfig.model_validate(
             {
+                "enabled": self.enabled,
+                "weight": self.weight,
                 "auto": self.auto,
                 "day_start_hour": self.day_start_hour,
                 "night_start_hour": self.night_start_hour,
             }
         )
-        return runtime
 
 
 class SeasonPolicyFileConfig(_BasePolicyFileConfig):
@@ -252,17 +241,17 @@ class SeasonPolicyFileConfig(_BasePolicyFileConfig):
     autumn_peak: int = 265
     winter_peak: int = 355
 
-    def to_runtime_data(self) -> dict[str, Any]:
-        runtime = self.base_runtime_data()
-        runtime.update(
+    def to_runtime_config(self) -> SeasonPolicyConfig:
+        return SeasonPolicyConfig.model_validate(
             {
+                "enabled": self.enabled,
+                "weight": self.weight,
                 "spring_peak": self.spring_peak,
                 "summer_peak": self.summer_peak,
                 "autumn_peak": self.autumn_peak,
                 "winter_peak": self.winter_peak,
             }
         )
-        return runtime
 
 
 class WeatherPolicyFileConfig(_BasePolicyFileConfig):
@@ -278,10 +267,11 @@ class WeatherPolicyFileConfig(_BasePolicyFileConfig):
     def validate_coordinate_input(cls, value: Any) -> Any:
         return _validate_coordinate_input(value)
 
-    def to_runtime_data(self) -> dict[str, Any]:
-        runtime = self.base_runtime_data()
-        runtime.update(
+    def to_runtime_config(self) -> WeatherPolicyConfig:
+        return WeatherPolicyConfig.model_validate(
             {
+                "enabled": self.enabled,
+                "weight": self.weight,
                 "api_key": self.api_key,
                 "lat": self.lat,
                 "lon": self.lon,
@@ -290,7 +280,6 @@ class WeatherPolicyFileConfig(_BasePolicyFileConfig):
                 "warmup_timeout": self.warmup_timeout,
             }
         )
-        return runtime
 
 
 class ActivityFileConfig(BaseModel):
@@ -316,13 +305,14 @@ class SchedulingFileEntry(BaseModel):
     cpu_sample_window: int = Field(10, ge=1)
     pause_on_fullscreen: bool = True
 
-    def to_runtime_data(self) -> dict[str, Any]:
-        return self.model_dump(mode="python")
+    def to_runtime_config(self) -> SchedulingConfig:
+        return SchedulingConfig.model_validate(self.model_dump(mode="python"))
 
 
 class SchedulingFileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scheduling: SchedulingFileEntry = Field(default_factory=SchedulingFileEntry)
+
 
 def _validate_declared_tag(
     tag: str,
@@ -447,39 +437,44 @@ class ConfigFiles:
                 issues,
             )
 
-        if self.context.time.enabled:
-            for tag_name in sorted(POLICY_FIXED_TAGS["time"]):
-                _validate_declared_tag(tag_name, declared_tags, "context.yaml", ("time", tag_name), issues)
-        if self.context.season.enabled:
-            for tag_name in sorted(POLICY_FIXED_TAGS["season"]):
-                _validate_declared_tag(tag_name, declared_tags, "context.yaml", ("season", tag_name), issues)
-        if self.context.weather.enabled:
-            for tag_name in sorted(POLICY_FIXED_TAGS["weather"]):
-                _validate_declared_tag(tag_name, declared_tags, "context.yaml", ("weather", tag_name), issues)
+        fixed_output_tags = get_policy_fixed_output_tags()
+        for policy_name, tags in fixed_output_tags.items():
+            if policy_name == "activity":
+                policy_config = self.activity.activity
+                source_file = "activity.yaml"
+            else:
+                policy_config = getattr(self.context, policy_name, None)
+                source_file = "context.yaml"
+            if policy_config is None or not policy_config.enabled:
+                continue
+            for tag_name in tags:
+                _validate_declared_tag(tag_name, declared_tags, source_file, (policy_name, tag_name), issues)
 
         return issues
 
-    def to_app_config(self) -> AppConfig:
+    def to_scheduler_config(self) -> SchedulerConfig:
         issues = self.collect_issues()
         if issues:
             raise ConfigLoadError(issues)
 
-        raw_runtime = {
-            "wallpaper_engine_path": self.scheduler.runtime.wallpaper_engine_path or "",
-            "language": self.scheduler.runtime.language,
-            "tags": self.tags.to_runtime_data(),
-            "playlists": self.playlists.to_runtime_data(),
-            "policies": {
-                "activity": self.activity.activity.to_runtime_data(),
-                "time": self.context.time.to_runtime_data(),
-                "season": self.context.season.to_runtime_data(),
-                "weather": self.context.weather.to_runtime_data(),
-            },
-            "scheduling": self.scheduling.scheduling.to_runtime_data(),
-        }
-
         try:
-            return AppConfig.model_validate(raw_runtime)
+            return SchedulerConfig.model_validate(
+                {
+                    "wallpaper_engine_path": self.scheduler.runtime.wallpaper_engine_path or "",
+                    "language": self.scheduler.runtime.language,
+                    "tags": self.tags.to_runtime_config(),
+                    "playlists": self.playlists.to_runtime_config(),
+                    "policies": PoliciesConfig.model_validate(
+                        {
+                            "activity": self.activity.activity.to_runtime_config(),
+                            "time": self.context.time.to_runtime_config(),
+                            "season": self.context.season.to_runtime_config(),
+                            "weather": self.context.weather.to_runtime_config(),
+                        }
+                    ),
+                    "scheduling": self.scheduling.scheduling.to_runtime_config(),
+                }
+            )
         except ValidationError as exc:
             issues = [
                 _runtime_issue_for_loc(

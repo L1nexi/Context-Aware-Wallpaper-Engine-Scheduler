@@ -5,33 +5,16 @@ import os
 from typing import Optional
 
 from utils.config_errors import ConfigIssue, ConfigLoadError, model_validate_document
-from utils.config_files import (
+from utils.config_documents import (
     ActivityFileConfig,
-    ActivityMatcherFileConfig,
-    ActivityPolicyFileConfig,
     ConfigFiles,
     ContextFileConfig,
     PlaylistsFileConfig,
     SchedulerFileConfig,
-    SchedulerRuntimeConfig,
     SchedulingFileConfig,
     TagsFileConfig,
 )
-from utils.config_models import (
-    AppConfig,
-    ActivityMatcherConfig,
-    ActivityPolicyConfig,
-    HEX_COLOR_RE,
-    PLAYLIST_AUTO_COLOR_PALETTE,
-    PlaylistConfig,
-    PoliciesConfig,
-    SchedulingConfig,
-    SeasonPolicyConfig,
-    TagSpec,
-    TimePolicyConfig,
-    WeatherPolicyConfig,
-    _BasePolicyConfig,
-)
+from utils.runtime_config import SchedulerConfig
 from utils.yaml_document_reader import YamlDocumentReader
 
 logger = logging.getLogger("WEScheduler.Config")
@@ -63,7 +46,7 @@ class ConfigLoader:
     ):
         self.config_dir = config_dir
         self.reader = reader or YamlDocumentReader()
-        self.config: Optional[AppConfig] = None
+        self.config: Optional[SchedulerConfig] = None
 
     def _path_for(self, file_name: str) -> str:
         return os.path.join(self.config_dir, file_name)
@@ -83,7 +66,7 @@ class ConfigLoader:
         return tuple(fingerprint)
 
     @classmethod
-    def load_runtime_settings(cls, config_dir: str) -> SchedulerRuntimeConfig:
+    def load_configured_wallpaper_engine_path(cls, config_dir: str) -> str | None:
         loader = cls(config_dir)
         scheduler_data = loader.reader.read_mapping(loader._path_for("scheduler.yaml"))
         scheduler_file = model_validate_document(
@@ -91,7 +74,7 @@ class ConfigLoader:
             scheduler_data,
             "scheduler.yaml",
         )
-        return scheduler_file.runtime
+        return scheduler_file.runtime.wallpaper_engine_path
 
     def load_files(self) -> ConfigFiles:
         if not os.path.isdir(self.config_dir):
@@ -123,8 +106,8 @@ class ConfigLoader:
             scheduling=documents["scheduling.yaml"],
         )
 
-    def load(self) -> AppConfig:
+    def load(self) -> SchedulerConfig:
         files = self.load_files()
-        self.config = files.to_app_config()
+        self.config = files.to_scheduler_config()
         logger.info("Config loaded from directory: %s", self.config_dir)
         return self.config

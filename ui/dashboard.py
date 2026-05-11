@@ -147,13 +147,13 @@ def _empty_metadata() -> DashboardRuntimeMetadata:
     return DashboardRuntimeMetadata(display_of={}, color_of={})
 
 
-def _runtime_wallpaper_engine_path(config_dir: str) -> str:
+def _configured_wallpaper_engine_path(config_dir: str) -> str:
     try:
-        runtime = ConfigLoader.load_runtime_settings(config_dir)
+        configured_path = ConfigLoader.load_configured_wallpaper_engine_path(config_dir)
     except Exception as exc:
-        logger.warning("Failed to read scheduler runtime settings: %s", exc)
+        logger.warning("Failed to read configured Wallpaper Engine path: %s", exc)
         return ""
-    return runtime.wallpaper_engine_path or ""
+    return configured_path or ""
 
 
 def _build_app(
@@ -245,7 +245,7 @@ def _build_app(
     @app.route("/api/playlists/scan")
     def api_playlists_scan():
         bottle.response.content_type = "application/json; charset=utf-8"
-        wallpaper_engine_path = _runtime_wallpaper_engine_path(config_dir)
+        wallpaper_engine_path = _configured_wallpaper_engine_path(config_dir)
 
         from utils.we_path import find_we_config_json
 
@@ -277,7 +277,7 @@ def _build_app(
     @app.route("/api/we-path")
     def api_we_path():
         bottle.response.content_type = "application/json; charset=utf-8"
-        wallpaper_engine_path = _runtime_wallpaper_engine_path(config_dir)
+        wallpaper_engine_path = _configured_wallpaper_engine_path(config_dir)
 
         from utils.we_path import find_wallpaper_engine
 

@@ -38,12 +38,19 @@ class ConfigIssue:
     field_path: tuple[str | int, ...]
     message: str
     code: str = "config_error"
+    line: int | None = None
+    column: int | None = None
 
     def render(self) -> str:
+        location = self.source_file
+        if self.line is not None:
+            location = f"{location}:{self.line}"
+            if self.column is not None:
+                location = f"{location}:{self.column}"
         field_path = _format_field_path(self.field_path)
         if field_path:
-            return f"{self.source_file} > {field_path}: {self.message}"
-        return f"{self.source_file}: {self.message}"
+            return f"{location} > {field_path}: {self.message}"
+        return f"{location}: {self.message}"
 
 
 class ConfigLoadError(ValueError):
@@ -60,6 +67,8 @@ def raise_config_error(
     message: str,
     field_path: tuple[str | int, ...] = (),
     code: str = "config_error",
+    line: int | None = None,
+    column: int | None = None,
 ) -> None:
     raise ConfigLoadError(
         [
@@ -68,6 +77,8 @@ def raise_config_error(
                 field_path=field_path,
                 message=message,
                 code=code,
+                line=line,
+                column=column,
             )
         ]
     )

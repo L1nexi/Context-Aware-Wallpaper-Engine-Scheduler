@@ -34,7 +34,7 @@ class PlaylistConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     display: str = ""
     color: str
-    tags: Dict[str, float] = Field(min_length=1)
+    tags: Dict[str, float] = Field(default_factory=dict)
 
     @field_validator("color")
     @classmethod
@@ -62,8 +62,6 @@ class _BasePolicyConfig(BaseModel):
 class ActivityPolicyConfig(_BasePolicyConfig):
     smoothing_window: float = Field(60.0, ge=1)
     matchers: list[ActivityMatcherConfig] = Field(default_factory=list)
-    process_rules: Dict[str, str] = Field(default_factory=dict)
-    title_rules: Dict[str, str] = Field(default_factory=dict)
 
 
 class TimePolicyConfig(_BasePolicyConfig):
@@ -117,7 +115,7 @@ class SchedulingConfig(BaseModel):
     pause_on_fullscreen: bool = True
 
 
-class AppConfig(BaseModel):
+class SchedulerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     wallpaper_engine_path: str = ""
     language: Optional[str] = None
