@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import time as _time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, ClassVar, Dict, Optional, Type
 
 from core.context import Context
@@ -28,6 +30,43 @@ from utils.runtime_config import (
 )
 
 logger = logging.getLogger("WEScheduler.Policy")
+
+_MATCH_SOURCE_PRIORITY = {
+    "process": 0,
+    "title": 1,
+}
+
+_MATCH_TYPE_PRIORITY = {
+    "contains": 0,
+    "regex": 1,
+    "exact": 2,
+}
+
+
+@dataclass(frozen=True)
+class CompiledActivityMatcher:
+    source: str
+    match: str
+    pattern: str
+    tag: str
+    case_sensitive: bool
+    declaration_order: int
+    regex: re.Pattern[str] | None = None
+
+    @property
+    def literal_length(self) -> int:
+        if self.match == "regex":
+            return 0
+        return len(self.pattern)
+
+    @property
+    def priority(self) -> tuple[int, int, int, int]:
+        return (
+            _MATCH_SOURCE_PRIORITY[self.source],
+            _MATCH_TYPE_PRIORITY[self.match],
+            self.literal_length,
+            -self.declaration_order,
+        )
 
 
 def _circular_distance(a: float, b: float, period: float) -> float:
@@ -134,26 +173,23 @@ class ActivityPolicy(Policy):
 
     def __init__(self, config: ActivityPolicyConfig):
         super().__init__(config)
-        self.rules: Dict[str, str] = {}
-        self.title_rules: Dict[str, str] = {}
-        # TODO: Replace this legacy subset compiler with a matcher engine that
-        # consumes config.matchers directly, including regex / contains /
-        # priority semantics. For now we only adapt the normalized matcher list
-        # back into the current title-contains + process-exact behavior.
-        for matcher in config.matchers:
-            if matcher.source == "title" and matcher.match == "contains" and not matcher.case_sensitive:
-                self.title_rules.setdefault(matcher.pattern, matcher.tag)
-                continue
-
-            if matcher.source != "process" or matcher.match != "exact" or matcher.case_sensitive:
-                continue
-
-            pattern = matcher.pattern.lower()
-            self.rules.setdefault(pattern, matcher.tag)
-            if pattern.endswith(".exe"):
-                self.rules.setdefault(pattern[:-4], matcher.tag)
-            else:
-                self.rules.setdefault(f"{pattern}.exe", matcher.tag)
+        self.matchers: list[CompiledActivityMatcher] = []
+        for declaration_order, matcher in enumerate(config.matchers):
+            compiled_regex = None
+            if matcher.match == "regex":
+                flags = 0 if matcher.case_sensitive else re.IGNORECASE
+                compiled_regex = re.compile(matcher.pattern, flags)
+            self.matchers.append(
+                CompiledActivityMatcher(
+                    source=matcher.source,
+                    match=matcher.match,
+                    pattern=matcher.pattern,
+                    tag=matcher.tag,
+                    case_sensitive=matcher.case_sensitive,
+                    declaration_order=declaration_order,
+                    regex=compiled_regex,
+                )
+            )
 
         smoothing_window = config.smoothing_window
         if smoothing_window <= 1:
@@ -210,22 +246,69 @@ class ActivityPolicy(Policy):
             process=context.window.process,
         )
 
-        for keyword, tag in self.title_rules.items():
-            if keyword.lower() in context.window.title.lower():
-                details.match_source = "title"
-                details.matched_rule = keyword
-                details.matched_tag = tag
-                return {tag: 1.0}, details
-
-        process_key = context.window.process.lower()
-        tag = self.rules.get(process_key)
-        if tag:
-            details.match_source = "process"
-            details.matched_rule = process_key
-            details.matched_tag = tag
-            return {tag: 1.0}, details
+        matched = self._select_matcher(context)
+        if matched is not None:
+            details.match_source = matched.source
+            details.matched_rule = matched.pattern
+            details.matched_tag = matched.tag
+            return {matched.tag: 1.0}, details
 
         return {}, details
+
+    def _select_matcher(self, context: Context) -> CompiledActivityMatcher | None:
+        matched: CompiledActivityMatcher | None = None
+
+        for matcher in self.matchers:
+            if not self._matcher_matches(matcher, context):
+                continue
+            if matched is None or matcher.priority > matched.priority:
+                matched = matcher
+
+        return matched
+
+    def _matcher_matches(
+        self,
+        matcher: CompiledActivityMatcher,
+        context: Context,
+    ) -> bool:
+        observed = context.window.process if matcher.source == "process" else context.window.title
+        if matcher.match == "exact":
+            return self._matches_exact(matcher, observed)
+        if matcher.match == "contains":
+            return self._matches_contains(matcher, observed)
+        if matcher.regex is None:
+            return False
+        return matcher.regex.search(observed) is not None
+
+    @staticmethod
+    def _matches_exact(
+        matcher: CompiledActivityMatcher,
+        observed: str,
+    ) -> bool:
+        pattern = matcher.pattern
+        if matcher.source == "process":
+            pattern = ActivityPolicy._strip_optional_exe_suffix(pattern, matcher.case_sensitive)
+            observed = ActivityPolicy._strip_optional_exe_suffix(observed, matcher.case_sensitive)
+
+        if matcher.case_sensitive:
+            return observed == pattern
+        return observed.lower() == pattern.lower()
+
+    @staticmethod
+    def _matches_contains(
+        matcher: CompiledActivityMatcher,
+        observed: str,
+    ) -> bool:
+        if matcher.case_sensitive:
+            return matcher.pattern in observed
+        return matcher.pattern.lower() in observed.lower()
+
+    @staticmethod
+    def _strip_optional_exe_suffix(value: str, case_sensitive: bool) -> str:
+        suffix = ".exe"
+        if case_sensitive:
+            return value[:-len(suffix)] if value.endswith(suffix) else value
+        return value[:-len(suffix)] if value.lower().endswith(suffix) else value
 
     def export_state(self) -> Dict[str, Any]:
         return {

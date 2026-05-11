@@ -169,7 +169,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - Runtime 只消费新 playlist map 和无前缀 tag。
 - 相关 Python 测试更新并通过。
 
-## 5. 阶段 3：ActivityPolicy matcher 新模型
+## 5. 阶段 3：ActivityPolicy matcher 新模型 [DONE]
 
 目标：把 ActivityPolicy 改成简写入口 + normalized matcher，解决 exact / regex / contains、`.exe` fallback 和冲突优先级。
 
@@ -193,7 +193,6 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
   - `case_sensitive`
 - 默认大小写不敏感。
 - 单 matcher 只输出一个 tag。
-- 不支持单规则 weight / confidence。
 - loader normalize 后 runtime 只看统一 matcher 列表。
 - 匹配优先级：
   - source：`title > process`
@@ -260,13 +259,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_dashboard_api.py -q
 ```
 
-重点测试：
-
-- `wallpaper_engine_path: null` 可 validate。
-- 显式无效路径 validate 失败。
-- auto-detect 失败时 tick 仍能 Sense / Think。
-- actuation disabled 不伪装成 executed。
-- executor command failed 不更新 cooldown。
+本阶段无测试要求。
 
 完成标准：
 
