@@ -164,8 +164,6 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     scheduler.on_tick = _handle_tick
     httpd = DashboardHTTPServer(
         analysis_store,
-        scheduler.history_logger,
-        config_dir,
         requested_port=dashboard_api_port,
         metadata_provider=lambda: extract_runtime_metadata(scheduler),
     )

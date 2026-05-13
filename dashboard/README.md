@@ -1,6 +1,6 @@
-# dashboard-v2
+# dashboard
 
-`dashboard-v2` 是新的前端工作台，目标不是机械复刻旧版 Element Plus 页面，而是先建立一套可长期维护的 Tailwind + shadcn 桌面应用 UI 基座。
+`dashboard` 是新的前端工作台，目标不是机械复刻旧版 Element Plus 页面，而是先建立一套可长期维护的 Tailwind + shadcn 桌面应用 UI 基座。
 
 ## 当前设计方向
 

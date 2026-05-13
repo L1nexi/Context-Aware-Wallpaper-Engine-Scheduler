@@ -25,10 +25,10 @@
 - 项目是 Windows-only Python 桌面应用：托盘宿主进程 + 本地 HTTP API + pywebview dashboard 子进程。
 - `main.py` 是组合根。托盘模式下会创建 `WEScheduler`、`StateStore`、`DashboardHTTPServer`，并通过 `scheduler.on_tick` 推送实时状态。
 - `scheduler.on_tick` 当前接收的是 `SchedulerTickTrace`
-- Dashboard / Diagnostics 仍然是双进程结构：
+- Diagnostics 仍然是双进程结构：
   - 托盘宿主维护 scheduler、history logger 和 Bottle HTTP server
-  - Dashboard / Diagnostics 子进程只负责打开 pywebview 窗口
-- `ui/webview.py` 关闭窗口时只退出 dashboard / diagnostics 子进程，不应影响托盘宿主。
+  - Diagnostics 子进程只负责打开 pywebview 窗口
+- `ui/webview.py` 关闭窗口时只退出 diagnostics 子进程，不应影响托盘宿主。
 
 ### 2.1 `dashboard` 是新的前端基座，但仍处在建设中
 
@@ -46,13 +46,11 @@
 
 当前事实：
 
-- 路由已经包含 `/dashboard`、`/history` 与 `/config/*`
+- 路由已经包含 `/dashboard`
+  > 后续应统一改名为 diagnostics
 - `/dashboard` 是正式诊断入口
-- `/config/general` 与 `/config/scheduling` 已有部分 GUI 实现
-- `/history`、`/config/playlists`、`/config/tags`、`/config/policies` 仍是占位或未完成态
-- 完整 GUI Config Editor 与完整 History 页面已经暂停，不应继续作为主线推进
 
-结论：
+总结：
 
 - `dashboard` 是当前前端开发标准
 - 近期前端主线应聚焦 Diagnostics 与轻量配置辅助，不应继续扩展完整管理后台式页面
@@ -102,8 +100,6 @@ npm run dev
 - Diagnostics 细节可参考 `docs/archived/done/DASHBOARD_ANALYSIS_SPEC.md` 与同目录 implementation spec。
 - `docs/archived/frozen/CONFIG_EDITOR_SPEC.md`、`CONFIG_EDITOR_IMPLEMENTATION_SPEC.md`、`CONFIG_EDITOR_R5_SPEC.md` 已冻结，只作历史设计记录。
 - `docs/archived/frozen/HISTORY_SPEC.md` 已冻结，完整 History 页面不再是当前主线。
-- 如果旧 `/api/state`、`/api/ticks`、裸 `GET /api/config` 契约妨碍新模型，允许直接 redesign。
-- 只要 redesign 是为了建立更正确的分析模型或配置模型，就不要因为“怕 breaking change”而退回旧结构。
 
 ### 3.1 前端改动的强约束
 
@@ -119,13 +115,7 @@ npm run dev
 `ui/dashboard.py` 当前提供这些接口：
 
 - `GET /api/health`
-- `GET /api/history`
-- `GET /api/history/aggregate`
-- `GET /api/config`
-- `POST /api/config`
-- `GET /api/tags/presets`
-- `GET /api/playlists/scan`
-- `GET /api/we-path`
+- `GET /api/analysis/window`
 
 相关事实：
 
@@ -135,9 +125,8 @@ npm run dev
 这意味着：
 
 - 如果你在做配置系统重构，应优先参考 `docs/frontend/CONFIGURATION_SPEC.md`，推进固定 6 文件 YAML、Release zip 分发的 example 配置、严格 tag、playlist runtime map、Activity matcher、validate before swap 和配置辅助工具；不要实现运行时 builtin preset + override 或 include
-- 不要继续以完整 GUI Config Editor 为默认目标扩展 `/config/*`
 - 如果你在做 Dashboard 分析页重构，应直接基于 `SchedulerTickTrace` 新建更正确的分析接口，而不是继续扩展旧 `TickState`
-- 如果你在做 History 相关工作，应优先保留轻量事件日志和 Diagnostics 中的近期事件说明，不要扩展独立长期 History 页面
+-
 
 ## 5. 目录地图
 
@@ -191,8 +180,6 @@ npm run build-only
 
 - 如果任务属于新前端建设，优先在 `dashboard/`、`docs/frontend/*` 对齐的数据模型和 `ui/dashboard.py` 的新接口上动手。
 - 如果任务属于配置体验，默认走文本配置工作流：固定 6 文件 YAML、Release zip 分发的 example 配置、Pydantic normalized runtime config、validate before swap。GUI 只做打开、验证、重载、错误展示、扫描播放列表等辅助能力；tray 的 `Apply Current Match Now` 是独立手动调度入口，不应和 reload 混在一起。
-- 如果任务属于 History，默认先质疑是否应该进入独立页面；近期应优先保留事件日志和 Diagnostics 辅助信息。
-- 当前阶段路线顺序是：打包减重 -> 配置体验改线 -> Diagnostics 收敛 -> History 降级。具体见 `docs/PRODUCT_DIRECTION.md`。
 - 如果任务需要 breaking change，需要评估改动量，如果改动面偏小，就连同调用方、测试、静态资源接线一起改，不要把过渡态长期留在主线上；如果改动面大，则允许迭代适配。迭代过程中也并不强求集成测试通过。
 - 不要把 `dashboard` 的工程规范退化回旧式做法：大段 scoped CSS、页面私有全局类、绕开 token 的硬编码颜色/尺寸、用局部状态假装全局状态。
 - 尽量复用 `dashboard/src/components/ui/workbench/*`、现有 token、Tailwind utility 和 Pinia 方向。

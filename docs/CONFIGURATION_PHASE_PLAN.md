@@ -308,7 +308,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - 配置 reload 边界稳定。
 - 运行状态迁移规则可测试。
 
-## 8. 阶段 6：Diagnostics-only 收口
+## 8. 阶段 6：Diagnostics-only 收口 [DONE]
 
 目标：将 Dashboard / WebView 收敛为 Diagnostics-only 界面。配置编辑、配置辅助和 History 产品面退出 Dashboard，不再以 WebView 页面或 dashboard HTTP API 作为默认入口。
 
@@ -362,7 +362,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 
 ## 9. 阶段 7：文本配置辅助入口
 
-目标：为文本配置工作流提供一个轻量、离线、可双击的配置辅助入口。该入口不依赖 Dashboard / WebView，不恢复 GUI Config Editor，也不启动 `WEScheduler` runtime；它只复用底层配置解析、WE 路径探测和播放列表扫描能力。
+目标：为文本配置工作流提供一个轻量、离线、可双击的配置辅助入口。该入口不依赖 Dashboard , 不启动 `WEScheduler` runtime；它只复用底层配置解析、WE 路径探测和播放列表扫描能力。
 
 发布布局：
 
@@ -377,8 +377,6 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - 可能新增 `ui/config_cli.py` 或 `utils/config_cli.py`
 - `utils/config_loader.py`
 - `utils/we_path.py`
-- `ui/tray.py` 如需添加运行中快捷入口
-- `utils/i18n.py` 如需补文案
 - `scripts/build.bat`
 
 工作内容：
@@ -389,56 +387,57 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - 对 windowed / no-console 构建，在 `config` 子命令下主动 attach parent console；没有 parent console 时 allocate console。
 - Release zip 附带 `Config Tools.bat`，内容只包装 `WEScheduler.exe config`：
 
-WEScheduler.exe config numbered TUI 大致设想：
+  @echo off
+  cd /d "%~dp0"
+  WEScheduler.exe config
+  echo.
+  pause
 
 ```bash
-1. Scan Wallpaper Engine playlists
-2. Detect Wallpaper Engine path
-3. Validate config
-4. Show last config error
-5. Show effective config summary
-q. Exit
+`WEScheduler.exe config` numbered TUI：
+
+    1. Validate config
+    2. Detect Wallpaper Engine
+    3. Scan Wallpaper Engine playlists
+    q. Exit
 ```
 
-- scan playlists：
-  - 从 Wallpaper Engine config.json 读取播放列表名。
-  - 输出纯列表和 copy-ready playlists.yaml snippet。
-  - 不写回 YAML。
-  - 不自动生成 tag 。
+- validate config：
+  - 使用与启动 / reload 同一套 `ConfigLoader` 校验。
+  - 成功时输出 `OK`。
+  - 成功后输出极简 summary：config folder path、resolved WE path、playlist count、enabled policies。
+  - 失败时输出 source file、field path、message、code。
+  - 不启动 scheduler，不执行 reload，不写回配置文件。
+
 - detect WE path：
   - 显示 configured value。
   - 显示 resolved executable path。
-  - 显示 WE config.json 是否找到。
-  - 不写回 scheduler.yaml。
-- validate config：
-  - 使用与启动 / reload 同一套 ConfigLoader 校验。
-  - 成功时输出 OK。
-  - 失败时输出 source file、field path、message、code。
-- show last config error：
-  - 显示最近一次启动配置失败或 reload 配置失败记录。
-  - （可选）启动 fast fail 时写入持久化 last_config_error.json，供离线工具读取。
-  - 运行中 reload error 仍由 scheduler 维护，但不要求启动失败后 tray 可用。
-- effective config summary：
-  - 显示 config folder path。
-  - 显示 resolved WE path。
-  - 显示 playlist count / playlist names。
-  - 显示 enabled policies。
-  - 显示最近 config error 摘要。
-  - 不展示完整配置树，不提供编辑控件。
+  - 显示 Wallpaper Engine `config.json` 是否找到。
+  - 不写回 `scheduler.yaml`。
+  - 不启动 Wallpaper Engine。
 
-```bat
-@echo off
-cd /d "%~dp0"
-WEScheduler.exe config
-echo.
-pause
-```
+- scan playlists：
+  - 从 Wallpaper Engine `config.json` 读取播放列表名。
+  - 输出纯播放列表名列表。
+  - 输出 copy-ready `playlists.yaml` snippet。
+  - 不写回 YAML。
+  - 不自动生成 tag。
+  - 不自动生成 color。
+  - 不猜测 display name。
+
+阶段边界：
+
+- 不实现 `Show last config error`。
+- 不实现 `last_config_error.json` 持久化。
+- 不实现独立的 `effective config summary` 菜单项。
+- 不实现 YAML 写回、自动修复、自动生成 tag、自动生成 playlist 配色。
+- 不实现 `WEScheduler.exe config validate` / `detect` / `scan` 等直接子命令；本阶段只要求 interactive TUI，后续需要时再补。
 
 完成标准：
 
-- 用户可以双击 Config Tools.bat 进入配置辅助 TUI。
-- 高级用户仍可直接运行 WEScheduler.exe config ...。
-- Scan / Detect / Validate / Last Error / Summary 都不依赖 Dashboard。
+- 用户可以双击 `Config Tools.bat` 进入配置辅助 TUI。
+- 高级用户仍可直接运行 `WEScheduler.exe config`。
+- Validate / Detect / Scan 都不依赖 Dashboard。
 - 主程序双击无黑框启动。
 - 配置辅助入口不会重新牵引完整 GUI Config Editor。
 

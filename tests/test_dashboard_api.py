@@ -6,12 +6,10 @@ import os
 import socket
 import time
 import urllib.request
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
 
 import pytest
-import yaml
 
 from core.context import Context, WeatherData, WindowData
 from core.diagnostics import (
@@ -33,7 +31,6 @@ from ui.dashboard import (
     DASHBOARD_STATIC_DIST_DIR,
     DashboardHTTPServer,
     _build_app,
-    _flatten_errors,
     _resolve_static_root,
 )
 from ui.dashboard_analysis import AnalysisStore, DashboardRuntimeMetadata, build_tick_snapshot
@@ -44,59 +41,10 @@ def analysis_store():
     return AnalysisStore(tick_history=300)
 
 
-@pytest.fixture
-def history_logger(tmp_path):
-    from utils.history_logger import HistoryLogger
-
-    return HistoryLogger(str(tmp_path))
-
 
 @pytest.fixture
-def config_dir(tmp_path):
-    config_root = tmp_path / "config"
-    config_root.mkdir()
-
-    documents = {
-        "scheduler.yaml": {
-            "version": 2,
-            "runtime": {
-                "wallpaper_engine_path": "C:\\fake\\wallpaper64.exe",
-                "language": None,
-            },
-        },
-        "playlists.yaml": {
-            "playlists": {
-                "test_pl": {
-                    "display": "Test Playlist",
-                    "color": "#5BB8D4",
-                    "tags": {"focus": 1.0},
-                }
-            }
-        },
-        "tags.yaml": {
-            "tags": {
-                "focus": {"fallback": {}},
-                "rain": {"fallback": {}},
-                "storm": {"fallback": {"rain": 1.0}},
-            }
-        },
-        "activity.yaml": {"activity": {}},
-        "context.yaml": {"time": {}, "season": {}, "weather": {}},
-        "scheduling.yaml": {"scheduling": {}},
-    }
-
-    for file_name, document in documents.items():
-        (config_root / file_name).write_text(
-            yaml.safe_dump(document, sort_keys=False, allow_unicode=True),
-            encoding="utf-8",
-        )
-
-    return str(config_root)
-
-
-@pytest.fixture
-def app(analysis_store, history_logger, config_dir):
-    return _build_app(analysis_store, history_logger, config_dir)
+def app(analysis_store):
+    return _build_app(analysis_store)
 
 
 def _make_wsgi_environ(method, path, query="", body=None):
@@ -450,8 +398,8 @@ def test_api_analysis_window_empty(app):
     assert body == {"liveTickId": None, "ticks": []}
 
 
-def test_api_analysis_window_returns_recent(analysis_store, history_logger, config_dir):
-    app = _build_app(analysis_store, history_logger, config_dir)
+def test_api_analysis_window_returns_recent(analysis_store):
+    app = _build_app(analysis_store)
     for tick_id in range(1, 5):
         analysis_store.update(_make_trace(tick_id=tick_id))
 
@@ -463,8 +411,6 @@ def test_api_analysis_window_returns_recent(analysis_store, history_logger, conf
 
 def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
     analysis_store,
-    history_logger,
-    config_dir,
 ):
     metadata = DashboardRuntimeMetadata(
         display_of={"test_pl": "Test Playlist"},
@@ -472,8 +418,6 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
     )
     app = _build_app(
         analysis_store,
-        history_logger,
-        config_dir,
         metadata_provider=lambda: metadata,
     )
     analysis_store.update(
@@ -525,12 +469,10 @@ def test_api_health(app):
     assert body == {"ok": True}
 
 
-def test_dashboard_http_server_binds_requested_port(analysis_store, history_logger, config_dir):
+def test_dashboard_http_server_binds_requested_port(analysis_store):
     requested_port = _find_free_port()
     server = DashboardHTTPServer(
         analysis_store,
-        history_logger,
-        config_dir,
         requested_port=requested_port,
     )
 
@@ -561,114 +503,3 @@ def test_resolve_static_root_targets_dashboard_v2():
     assert static_root.endswith(os.path.join(DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR))
 
 
-def test_api_history_no_logger(analysis_store, config_dir):
-    app = _build_app(analysis_store, None, config_dir)
-    status, body = wsgi_get(app, "/api/history")
-    assert "200" in status
-    assert body == {"events": [], "has_more": False}
-
-
-def test_api_history_with_data(app, history_logger):
-    history_logger.write(EventType.START, {"playlist": "A"})
-    status, body = wsgi_get(app, "/api/history")
-    assert "200" in status
-    assert len(body["events"]) >= 1
-    assert "has_more" in body
-
-
-def test_api_history_with_params(app, history_logger):
-    history_logger.write(EventType.START, {"playlist": "A"})
-    hist_data = history_logger.read()
-    first_ts = hist_data["events"][0]["ts"] if hist_data["events"] else "2020-01-01T00:00:00+00:00"
-
-    status, _ = wsgi_request(app, "GET", "/api/history", query=f"limit=5&from={first_ts}")
-    assert "200" in status
-
-
-def test_api_history_aggregate_no_logger(analysis_store, config_dir):
-    app = _build_app(analysis_store, None, config_dir)
-    status, body = wsgi_get(app, "/api/history/aggregate")
-    assert "200" in status
-    assert body == {"buckets": [], "total_seconds": 0}
-
-
-def test_api_history_aggregate_with_data(app, history_logger):
-    history_logger.write(EventType.START, {"playlist": "A"})
-    history_logger.write(
-        EventType.PLAYLIST_SWITCH,
-        {"playlist_from": "", "playlist_to": "FOCUS"},
-    )
-    status, body = wsgi_get(app, "/api/history/aggregate")
-    assert "200" in status
-    assert "buckets" in body
-    assert "total_seconds" in body
-
-
-def test_api_history_aggregate_with_bucket_param(app, history_logger):
-    history_logger.write(EventType.START, {"playlist": "A"})
-    status, body = wsgi_request(app, "GET", "/api/history/aggregate", query="bucket=30")
-    assert "200" in status
-    assert "buckets" in body
-
-
-def test_api_config_returns_gone(app):
-    status, body = wsgi_get(app, "/api/config")
-    assert "410" in status
-    assert body == {"error": "config_api_removed"}
-
-
-def test_api_config_save_returns_gone(app):
-    payload = {
-        "runtime": {"wallpaper_engine_path": "C:\\valid\\wallpaper64.exe"},
-        "playlists": {
-            "pl": {
-                "display": "PL",
-                "color": "#F5C518",
-                "tags": {"focus": 1.0},
-            }
-        },
-    }
-    status, body = wsgi_post(app, "/api/config", payload)
-    assert "410" in status
-    assert body == {"error": "config_api_removed"}
-
-
-def test_api_tags_presets(app):
-    from core.policies import KNOWN_TAGS
-
-    status, body = wsgi_get(app, "/api/tags/presets")
-    assert "200" in status
-    assert body == KNOWN_TAGS
-
-
-def test_api_playlists_scan_no_config(analysis_store, history_logger, monkeypatch):
-    monkeypatch.setattr("utils.we_path.find_we_config_json", lambda path: None)
-    app = _build_app(analysis_store, history_logger, "/nonexistent/config")
-    status, body = wsgi_get(app, "/api/playlists/scan")
-    assert "200" in status
-    assert body["error"] == "we_config_not_found"
-
-
-def test_api_we_path_no_config(analysis_store, history_logger, tmp_path, monkeypatch):
-    monkeypatch.setattr("utils.we_path.resolve_wallpaper_engine_path", lambda path: None)
-    path = os.path.join(str(tmp_path), "no_config")
-    app = _build_app(analysis_store, history_logger, path)
-    status, body = wsgi_get(app, "/api/we-path")
-    assert "200" in status
-    assert body["valid"] is False
-
-
-def test_flatten_errors_no_errors_attr():
-    class FakeExc(Exception):
-        pass
-
-    result = _flatten_errors(FakeExc("something broke"))
-    assert result == [
-        {
-            "path": [],
-            "message": "something broke",
-            "code": "unknown_error",
-            "section": None,
-            "scope": None,
-        }
-    ]

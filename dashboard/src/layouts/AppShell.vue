@@ -4,11 +4,7 @@ import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { History, LayoutDashboard, Settings } from 'lucide-vue-next'
 
-import {
-  WorkbenchShell,
-  WorkbenchSidebar,
-  WorkbenchWorkspace,
-} from '@/components/ui/workbench'
+import { WorkbenchShell, WorkbenchSidebar, WorkbenchWorkspace } from '@/components/ui/workbench'
 import { useI18n } from '@/composables/useI18n'
 import { cn } from '@/lib/utils'
 
@@ -34,25 +30,6 @@ const navItems: NavItem[] = [
     to: '/dashboard',
     icon: LayoutDashboard,
     match: (path) => path === '/dashboard',
-  },
-  {
-    labelKey: 'dashboard_history',
-    to: '/history',
-    icon: History,
-    match: (path) => path === '/history',
-  },
-  {
-    labelKey: 'dashboard_config',
-    to: '/config/general',
-    icon: Settings,
-    match: (path) => path.startsWith('/config/'),
-    children: [
-      { labelKey: 'config_general', to: '/config/general' },
-      { labelKey: 'config_scheduling', to: '/config/scheduling' },
-      { labelKey: 'config_playlists', to: '/config/playlists' },
-      { labelKey: 'config_tags_tab', to: '/config/tags' },
-      { labelKey: 'config_policies', to: '/config/policies' },
-    ],
   },
 ]
 
