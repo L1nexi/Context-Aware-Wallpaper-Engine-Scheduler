@@ -328,7 +328,7 @@ def test_config_loader_collects_errors_across_files_before_cross_validation():
         encoding="utf-8",
     )
     (config_dir / "activity.yaml").write_text(
-        yaml.safe_dump({"activity": {"process_rules": {"Code.exe": "focus"}}}, sort_keys=False),
+        yaml.safe_dump({"activity": {"unknown_block": {"Code.exe": "focus"}}}, sort_keys=False),
         encoding="utf-8",
     )
 
@@ -341,7 +341,7 @@ def test_config_loader_collects_errors_across_files_before_cross_validation():
     assert "playlists.yaml" in error_text
     assert "playlist name must not be empty" in error_text
     assert "activity.yaml" in error_text
-    assert "process_rules" in error_text
+    assert "unknown_block" in error_text
 
 
 def test_load_configured_wallpaper_engine_path_reads_scheduler_yaml():

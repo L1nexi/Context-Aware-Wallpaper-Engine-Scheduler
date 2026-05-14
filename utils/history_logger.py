@@ -5,9 +5,7 @@ Public
 ------
 write(type, data)       — append an event, return its incrementing id.
 read(limit, from, to)   — return {"events": [...], "has_more": bool}
-                           for the dashboard History vertical timeline.
 aggregate(from, to, bucket) — return {"buckets": [...], "total_seconds": int}
-                                for the macro stacked area chart.
 
 Concurrency
 -----------
@@ -58,8 +56,8 @@ class HistoryLogger:
     def last_event_id(self) -> int:
         """Monotonically increasing counter, updated on every write().
 
-        Read by the scheduler tick to populate TickState.last_event_id,
-        which the frontend watches for auto-refresh.
+        Useful for lightweight consumers that need to detect newly written
+        events without scanning monthly JSONL files.
         """
         with self._lock:
             return self._event_id

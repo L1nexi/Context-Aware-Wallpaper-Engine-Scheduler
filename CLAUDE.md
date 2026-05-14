@@ -28,8 +28,11 @@ cd dashboard && npm run dev
 pytest -q                          # all tests
 pytest -q tests/test_config_loader.py   # single file
 
+# Config tools
+python main.py config
+
 # Build executable
-.\scripts\build.bat                # runs PyInstaller via WEScheduler.spec
+.\scripts\build.bat
 
 # Dashboard (Vue 3 + Vite + TypeScript)
 cd dashboard
@@ -42,11 +45,11 @@ npm run build-only
 ## Architecture
 
 ```
-Sensors → Context → Policies → Matcher → Controller → Actuator → WEExecutor
-                                                              │
-                                                        on_tick(s, ctx, res) → StateStore → HTTP :0 → Dashboard SPA
-                                                              │
-                                                        HistoryLogger.write() → history-{YYYY}-{MM}.jsonl
+Sensors -> Context -> Policies -> Matcher -> Controller -> Actuator -> WEExecutor
+                                                               |
+                                      SchedulerTickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
+                                                               |
+                                  HistoryLogger.write() -> history-{YYYY}-{MM}.jsonl
 ```
 
 ### Sense-Think-Act pipeline (1 Hz tick)
@@ -61,13 +64,13 @@ Each tick produces a `SchedulerTickTrace` dataclass containing the full diagnost
 
 ### Key modules
 
-| Directory | Purpose |
-|-----------|---------|
-| `core/` | Scheduler, policies, matcher, controller, actuator, executor, sensors, context, diagnostics types |
-| `ui/` | Tray icon (`tray.py`), Bottle HTTP server (`dashboard.py`), DTO mapping (`dashboard_analysis.py`), pywebview window (`webview.py`) |
-| `utils/` | Config loading, Pydantic runtime config models, i18n, logging, history logger, WE path detection |
-| `dashboard/` | Vue 3 + Vite + TypeScript frontend (Tailwind v4, Pinia, vue-router hash mode, shadcn/reka components) |
-| `tests/` | pytest tests |
+| Directory    | Purpose                                                                                                                            |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `core/`      | Scheduler, policies, matcher, controller, actuator, executor, sensors, context, diagnostics types                                  |
+| `ui/`        | Tray icon (`tray.py`), Bottle HTTP server (`dashboard.py`), DTO mapping (`dashboard_analysis.py`), pywebview window (`webview.py`) |
+| `utils/`     | Config loading, Pydantic runtime config models, i18n, logging, history logger, WE path detection                                   |
+| `dashboard/` | Vue 3 + Vite + TypeScript frontend (Tailwind v4, Pinia, vue-router hash mode, shadcn/reka components)                              |
+| `tests/`     | pytest tests                                                                                                                       |
 
 ### Dual-process dashboard
 
@@ -79,7 +82,7 @@ API endpoints: `GET /api/health`, `GET /api/analysis/window?count=N`
 
 Six fixed YAML files in `config/`: `scheduler.yaml`, `playlists.yaml`, `tags.yaml`, `activity.yaml`, `context.yaml`, `scheduling.yaml`. Hot-reload via fingerprint (mtime). The loader validates each file against a Pydantic model, then produces a single `SchedulerConfig` via `ConfigFiles.to_verified_scheduler_config()`. `PoliciesConfig` uses `extra="forbid"` — unknown policy keys are rejected.
 
-YAML anchors, aliases, merge keys, and `#` tag prefixes are NOT supported.
+YAML anchors, aliases, and merge keys are allowed as single-file YAML authoring conveniences; the expanded document still goes through the same schema and cross-file validation.
 
 ## Key Conventions
 
@@ -89,4 +92,4 @@ YAML anchors, aliases, merge keys, and `#` tag prefixes are NOT supported.
 - Don't write tests that merely verify attribute passthrough or trivial branching; tests must cover algorithmic correctness and boundary conditions.
 - Dashboard frontend: `base: './'`, `createWebHashHistory()`, locale via dashboard URL query param. Do not regress to scoped CSS, page-private global classes, or hardcoded colors outside the token system.
 - pywebview loads the dashboard from a local HTTP server; the SPA is served from `dashboard/dist/`.
-- Config UX: text-based YAML is the primary workflow; GUI is auxiliary (open, validate, reload, error display, playlist scanning).
+- Config UX: text-based YAML is the primary workflow; `Config Tools.bat` / `WEScheduler.exe config` is the auxiliary validate/detect/scan entry. Dashboard remains Diagnostics-only.

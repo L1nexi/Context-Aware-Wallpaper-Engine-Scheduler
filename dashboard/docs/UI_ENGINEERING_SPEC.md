@@ -1,10 +1,10 @@
-# dashboard-v2 UI Engineering Spec
+# Dashboard UI Engineering Spec
 
-本文档是 `dashboard-v2` 的前端 UI 开发规范。目标不是限制页面创作，而是给迁移期提供一致的工程边界，避免再次落回“组件廉价、样式失控、后续难维护”的状态。
+本文档是 `dashboard/` 的前端 UI 开发规范。目标不是限制页面创作，而是给 Diagnostics 前端提供一致的工程边界，避免再次落回“组件廉价、样式失控、后续难维护”的状态。
 
 ## 1. 目标
 
-`dashboard-v2` 的 UI 工程必须同时满足以下目标：
+`dashboard/` 的 UI 工程必须同时满足以下目标：
 
 - 以现代桌面应用为默认心智，而不是普通营销站或表单页心智。
 - 以 Tailwind utility 组合作为一等表达方式，而不是到处增加自定义类。
@@ -19,7 +19,7 @@
 
 ### 2.1 Token
 
-token 是全局 UI 参数的唯一可信来源，定义在 [src/styles/theme.css](/E:/github/Context-Aware-Wallpaper-Engine-Scheduler/dashboard-v2/src/styles/theme.css)。
+token 是全局 UI 参数的唯一可信来源，定义在 [src/styles/theme.css](../src/styles/theme.css)。
 
 token 包括但不限于：
 
@@ -39,7 +39,7 @@ token 包括但不限于：
 
 workbench 是桌面应用壳层原语集合，不是业务组件集合。
 
-定义在 [src/components/ui/workbench](/E:/github/Context-Aware-Wallpaper-Engine-Scheduler/dashboard-v2/src/components/ui/workbench/index.ts)。
+定义在 [src/components/ui/workbench](../src/components/ui/workbench/index.ts)。
 
 当前包含：
 
@@ -67,13 +67,13 @@ workbench 是桌面应用壳层原语集合，不是业务组件集合。
 
 ### 3.1 样式文件分层
 
-- [src/style.css](/E:/github/Context-Aware-Wallpaper-Engine-Scheduler/dashboard-v2/src/style.css)
+- [src/style.css](../src/style.css)
   - 只做全局样式入口聚合
-- [src/styles/theme.css](/E:/github/Context-Aware-Wallpaper-Engine-Scheduler/dashboard-v2/src/styles/theme.css)
+- [src/styles/theme.css](../src/styles/theme.css)
   - 只放 token、theme 映射、light/dark 变量
-- [src/styles/base.css](/E:/github/Context-Aware-Wallpaper-Engine-Scheduler/dashboard-v2/src/styles/base.css)
+- [src/styles/base.css](../src/styles/base.css)
   - 只放全局基础行为，如背景、字体、selection、scrollbar、根节点高度
-- [src/styles/workbench.css](/E:/github/Context-Aware-Wallpaper-Engine-Scheduler/dashboard-v2/src/styles/workbench.css)
+- [src/styles/workbench.css](../src/styles/workbench.css)
   - 只放真正跨页面复用的桌面壳层原语
 
 禁止：

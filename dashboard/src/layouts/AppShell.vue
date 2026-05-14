@@ -2,7 +2,7 @@
 import type { Component } from 'vue'
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { History, LayoutDashboard, Settings } from 'lucide-vue-next'
+import { LayoutDashboard } from 'lucide-vue-next'
 
 import { WorkbenchShell, WorkbenchSidebar, WorkbenchWorkspace } from '@/components/ui/workbench'
 import { useI18n } from '@/composables/useI18n'

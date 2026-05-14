@@ -483,7 +483,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - 用户有明确的一次性手动调度入口。
 - 自动调度 gate 与手动调度语义分离。
 
-## 11. 阶段 9：清理、文档和发布检查
+## 11. 阶段 9：清理、文档和发布检查 [DONE]
 
 目标：删除阶段性临时代码，更新用户文档，确认没有旧 Config Editor / History 方向重新牵引主线。
 
@@ -521,6 +521,13 @@ npm run build-only
 - 测试和前端检查通过。
 - 文档与实现一致。
 - 没有长期双轨模型残留。
+
+完成记录：
+
+- README、产品方向与配置规格已更新到 6 文件 YAML、Config Tools、Diagnostics-only 和 tray Manual Apply 的当前事实。
+- Release 布局由 `scripts/build.bat` 产出：`WEScheduler.exe`、`Config Tools.bat`、外部 `config/` example 配置和 `README.md`。
+- 活动文档与测试夹具中旧配置形状、旧 config/history API 和旧 Dashboard/History 产品牵引已清理。
+- 验证已通过：`venv313\Scripts\python.exe -m pytest -q`、`npm run type-check`、`npm run build-only`。
 
 ## 12. 建议合并节奏
 

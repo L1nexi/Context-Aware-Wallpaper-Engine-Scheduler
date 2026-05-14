@@ -63,9 +63,9 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "zh": "更新后的配置无效。\n\n{detail}\n\n调度器将继续使用上一份有效的运行时配置。",
     },
 
-    # -- Dashboard --
-    "dashboard_show":          {"en": "Dashboard",              "zh": "仪表盘"},
-    "dashboard_title":         {"en": "WEScheduler Dashboard",  "zh": "WEScheduler 仪表盘"},
+    # -- Diagnostics --
+    "dashboard_show":          {"en": "Diagnostics",            "zh": "诊断"},
+    "dashboard_title":         {"en": "WEScheduler Diagnostics", "zh": "WEScheduler 诊断"},
     "dashboard_running":       {"en": "Running",                "zh": "运行中"},
     "dashboard_paused":        {"en": "Paused",                 "zh": "已暂停"},
     "dashboard_fullscreen":    {"en": "Fullscreen",             "zh": "全屏"},

@@ -1,6 +1,6 @@
 # dashboard
 
-`dashboard` 是新的前端工作台，目标不是机械复刻旧版 Element Plus 页面，而是先建立一套可长期维护的 Tailwind + shadcn 桌面应用 UI 基座。
+`dashboard` 是 Diagnostics 前端工作台，目标不是机械复刻旧版 Element Plus 页面，而是维护一套 Tailwind + shadcn 桌面应用 UI 基座。
 
 ## 当前设计方向
 
@@ -14,7 +14,7 @@
 
 ## 基础约定
 
-详细开发规范见 [docs/UI_ENGINEERING_SPEC.md](/E:/github/Context-Aware-Wallpaper-Engine-Scheduler/dashboard-v2/docs/UI_ENGINEERING_SPEC.md)。README 只保留概述，具体执行以规范文档为准。
+详细开发规范见 [docs/UI_ENGINEERING_SPEC.md](docs/UI_ENGINEERING_SPEC.md)。README 只保留概述，具体执行以规范文档为准。
 
 ### 样式分层
 
@@ -97,5 +97,5 @@ npm install
 npm run dev
 npm run lint
 npm run type-check
-npm run build
+npm run build-only
 ```

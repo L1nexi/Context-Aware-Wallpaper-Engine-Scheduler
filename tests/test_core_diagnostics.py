@@ -34,7 +34,7 @@ from utils.runtime_config import (
 )
 
 
-def test_activity_policy_distinguishes_title_and_process_rules():
+def test_activity_policy_distinguishes_title_and_process_matchers():
     policy = ActivityPolicy(
         ActivityPolicyConfig(
             smoothing_window=1,

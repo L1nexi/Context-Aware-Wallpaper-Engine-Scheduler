@@ -47,106 +47,46 @@
 
 - 通过环境清理和依赖排除，已将 exe 体积从 88 MB 减少到约 25 MB，符合预期范围。
 
-## 3. 阶段 2：配置体验改线
+## 3. 阶段 2：配置体验改线 - [DONE]
 
-目标：停止推进完整 GUI Config Editor，改为高级用户友好的文本配置工作流，并把配置系统变成后续 Diagnostics 可解释性的事实基础。
+目标：停止推进完整 GUI Config Editor，改为高级用户友好的文本配置工作流，并把配置系统变成 Diagnostics 可解释性的事实基础。
 
-正式方向见 [CONFIGURATION_SPEC.md](./frontend/CONFIGURATION_SPEC.md)。阶段 2 细化访谈结论已记录在该文档的“访谈决策记录（2026-05-10）”章节；实施阶段拆分见 [CONFIGURATION_PHASE_PLAN.md](./CONFIGURATION_PHASE_PLAN.md)。
+正式契约见 [CONFIGURATION_SPEC.md](./frontend/CONFIGURATION_SPEC.md)，实施拆分见 [CONFIGURATION_PHASE_PLAN.md](./CONFIGURATION_PHASE_PLAN.md)。
 
-范围边界：
+当前事实：
 
-- 不提供旧 `scheduler_config.json` 到新 YAML 目录的自动迁移工具。
-- 不保留长期 JSON / YAML 双轨加载模型。
-- GitHub Release 压缩包直接附带完整 example 配置文件；旧字段对照只帮助用户手动重建配置。
-- 旧 `GET /api/config` / `POST /api/config` 如果暂时保留，只能视为 legacy 或内部调试接口，不能继续牵引完整 GUI Config Editor。
-- GUI 只做配置辅助，不承担配置事实源；配置文件才是一等入口。
+- 主配置入口是外部 `config/` 目录，固定读取 6 个必需 YAML 文件：`scheduler.yaml`、`playlists.yaml`、`tags.yaml`、`activity.yaml`、`context.yaml`、`scheduling.yaml`。
+- Release zip 直接附带一份普通 `config/` example 配置和 `Config Tools.bat`；配置文件不内嵌进 exe。
+- `playlists` 在配置和 runtime 中都使用 map；key 直接等于 Wallpaper Engine 播放列表名。
+- tag id 使用无前缀形式；所有 playlist、activity、fallback 和固定 policy 输出 tag 都必须在 `tags.yaml` 中声明。
+- ActivityPolicy 使用 `process` / `title` 简写入口加完整 `matchers[]`，加载后统一 normalize 为 matcher 列表。
+- `runtime.wallpaper_engine_path: null` 表示自动检测；显式路径必须有效，且无效时不会回退到自动检测。
+- YAML reload 是 validate-before-swap：失败时保留上一份有效 runtime，成功时重建 runtime components 并迁移允许保留的状态。
+- Reload Config 是配置操作，不会立刻触发 playlist switch 或 wallpaper cycle。
+- Tray 已提供 `Apply Current Match Now` / `立即应用当前匹配`，作为独立的一次性手动调度入口。
+- Dashboard HTTP 层已经收敛为 Diagnostics-only，不再承载配置编辑、配置辅助或独立 History 页面。
 
-核心决策：
+配置文件边界：
 
-- 主配置格式转向受限 YAML。
-- 配置目录分层：`scheduler.yaml`、`playlists.yaml`、`tags.yaml`、`activity.yaml`、`context.yaml`、`scheduling.yaml`。
-- playlist key 直接等于 Wallpaper Engine 播放列表名。
-- tag id 去掉 `#` 前缀，使用无前缀 lower-kebab-case。
-- 颜色可选，手写时优先支持命名色或无 `#` hex。
-- 不做运行时 builtin preset + user override；使用 Release zip 中的 example 配置文件 + Pydantic schema defaults。
-- 阶段 2 不做 `include`；固定读取 6 个必需 YAML 文件，缺失即 validate error。
-- `playlists` 在配置和 runtime `AppConfig` 中都使用 map，key 直接等于 Wallpaper Engine 播放列表名。
-- tag 必须显式声明；Time / Season / Weather 输出固定 tag 名，也必须在 `tags.yaml` 中声明。
-- ActivityPolicy 使用简写入口加完整 matcher：`process` 简写默认 exact，`title` 简写默认 contains，完整 matcher 支持 exact / regex / contains。
-- `runtime.wallpaper_engine_path: null` 表示自动检测；显式路径无效时 validate 失败，自动检测失败时启动 / reload 失败，检测成功不自动写回 YAML。
-- 运行时仍消费 Pydantic normalized `AppConfig`。
-- reload 必须 validate before swap；失败时继续使用上一份有效配置。
-- 配置错误需要携带 source file 与字段路径，便于 GUI 和 Diagnostics 展示。
-- tray 后续提供 `Apply Current Match Now`，作为独立手动调度动作；reload 不自动触发切换。
+- 不支持 `include` 或任意拆分文件能力；固定文件名就是配置契约。
+- YAML anchors、aliases 和 merge keys 允许作为单文件书写辅助，但解析后仍必须通过同一套 schema 与 cross-file 校验。
+- Pydantic schema defaults 只用于字段级默认值，不提供隐藏的 playlist、tag、activity rule 或 policy layer。
+- 禁用资源或策略使用显式 `enabled: false`。
 
-阶段 2 交付面：
+配置辅助入口：
 
-1. 新配置目录与 example config
-   - 明确默认配置目录位置。
-   - GitHub Release zip 附带最小可运行的 6 文件 YAML example 配置。
-   - 示例配置必须覆盖 playlist、tag、activity、context、scheduling 的常见路径。
-
-2. YAML loader
-   - 不做 YAML 子集，不过度工程。
-   - 不读取 include，固定文件名是阶段 2 的配置契约。
-   - 解析结果不得直接进入运行时，必须进入 Pydantic 校验和 normalize。
-
-3. 配置模型 breaking change
-   - playlist 从 array 改为 map，并同步修改 runtime 模型。
-   - tag 改为无 `#` 前缀的严格声明模型。
-   - ActivityPolicy 统一 normalize 为 matcher 列表，匹配优先级为 `title > process`，同 source 内 `exact > regex > contains`。
-
-4. Runtime adapter
-   - 将新 YAML 语义转换为当前运行时可消费的 raw dict。
-   - 继续以 normalized `AppConfig` 作为 scheduler、policy、executor 的运行时契约。
-   - breaking change 要一次性更新调用方、测试、示例配置和 Release 分发文件。
-
-5. Validate before swap
-   - reload 时先完整读取、转换、校验、normalize。
-   - 成功后原子替换当前有效配置，并记录 reload success event。
-   - 失败时保留上一份有效配置，并记录 last config error。
-   - 错误信息至少包含文件、字段路径、错误类型和面向用户的简短说明。
-   - reload 成功后全量重建 runtime components，但迁移 pause、active playlist、controller cooldown 和过滤后的 ActivityPolicy EMA。
-
-6. 配置辅助 API / GUI
-   - API 优先服务 `validate`、`reload`、`last error`、`effective config summary`、`config folder path`、`scan playlists`。
-   - Dashboard 配置页降级为工具面板，而不是多页表单编辑器。
-   - 保留能帮助用户回到文本工作流的入口，不继续扩展完整编辑控件。
-
-GUI 边界：
-
-- 保留 Open Config Folder。
-- 保留 Validate Config。
-- 保留 Reload Config。
-- 保留 Show Last Config Error。
-- 保留 Scan Wallpaper Engine Playlists。
-- GUI 不需要提供打开 exe 内嵌 example 的入口；example 是 Release zip 中的普通文件。
-- 不做完整表单式 Config Editor。
-
-建议实施顺序：
-
-1. 在 `utils/config_loader.py` 附近建立新 YAML loader 与 source location 错误模型。
-2. 建立 Release zip 分发用 example 配置和 YAML 示例文件。
-3. 完成 playlist map、严格 tag、Activity matcher 到 runtime `AppConfig` 的 adapter。
-4. 接入 WE path resolve、executor 简化和 validate before swap reload。
-5. 收缩 dashboard 配置页面为配置辅助工具面板。
-6. 后续独立实现 tray `Apply Current Match Now`，不阻塞配置运行时核心落地。
-7. 清理旧 Config Editor 牵引的路由、文档引用和测试假设。
-
-第一批实现边界：
-
-- 先完成配置运行时核心：6 文件 YAML loader、playlist runtime map、严格 tag、Activity matcher、新 WE path 语义、validate before swap、example config 与测试。
-- tray `Apply Current Match Now` 和 Dashboard 配置辅助收缩可以作为紧随其后的独立任务分步实现。
+1. `WEScheduler.exe config` / `python main.py config` 进入 numbered TUI。
+2. Validate config 使用启动和热重载同一套 loader 校验，并输出 config folder path、resolved WE path、playlist count、enabled policies。
+3. Detect Wallpaper Engine 显示 configured value、resolved executable path 和 Wallpaper Engine `config.json` 状态，不写回 YAML。
+4. Scan Wallpaper Engine playlists 输出纯播放列表名和 copy-ready `playlists.yaml` snippet，不自动生成 tag、颜色或 display 名。
 
 验收标准：
 
 - 用户可以只改某个配置文件，不需要面对完整配置树。
-- 配置错误能定位到具体文件和字段路径。
+- 配置错误能定位到具体 source file 和 field path。
 - 配置 reload 失败不破坏当前运行状态。
-- 用户能看出当前 effective config 来自哪个配置目录、最后一次 reload 是否成功。
-- Release zip 中的 example 配置能通过 validate 并启动调度器。
-- 旧 JSON 配置不会被自动迁移；需要手动重建时，文档给出字段对照和最小示例。
-- 旧 Config Editor 文档和页面不会继续牵引主线。
+- Release zip 中包含 example config、`Config Tools.bat` 和 `WEScheduler.exe`。
+- Dashboard / Diagnostics 不再被配置编辑或长期 History 方向牵引。
 
 ## 4. 阶段 3：Diagnostics，而不是 Dashboard
 

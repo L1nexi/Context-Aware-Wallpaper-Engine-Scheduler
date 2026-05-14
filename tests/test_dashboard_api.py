@@ -498,7 +498,7 @@ def test_parse_args_accepts_dashboard_api_port(monkeypatch):
     assert args.dashboard_api_port == 38417
 
 
-def test_resolve_static_root_targets_dashboard_v2():
+def test_resolve_static_root_targets_dashboard_dist():
     static_root = _resolve_static_root()
     assert static_root.endswith(os.path.join(DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR))
 
