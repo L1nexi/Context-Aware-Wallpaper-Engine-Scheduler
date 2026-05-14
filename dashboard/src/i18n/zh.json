@@ -140,6 +140,7 @@
   "dashboard_reason_cycle_blocked_cpu": "壁纸轮播被 CPU 阈值阻止。",
   "dashboard_reason_cycle_blocked_not_idle": "壁纸轮播被“用户尚未空闲足够久”阻止。",
   "dashboard_reason_scheduler_paused": "调度器当前处于暂停状态。",
+  "dashboard_reason_manual_apply_requested": "用户手动应用当前匹配，已绕过自动调度门控。",
   "dashboard_top_matches_title": "Top Matches",
   "dashboard_top_matches_heading": "当前最强候选",
   "dashboard_weather_available": "天气可用",

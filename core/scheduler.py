@@ -72,6 +72,7 @@ class WEScheduler:
         self.pause_until: float = 0
         self.thread: Optional[threading.Thread] = None
         self.stop_event = threading.Event()
+        self._runtime_lock = threading.RLock()
 
         self.on_auto_resume: Optional[Callable[[], None]] = None
         self.on_tick: Optional[Callable[[SchedulerTickTrace], None]] = None
@@ -131,26 +132,28 @@ class WEScheduler:
         logger.info("Scheduler stopped.")
 
     def pause(self, seconds: Optional[int] = None):
-        self.paused = True
-        if seconds is not None:
-            self.pause_until = time.time() + seconds
-            logger.info(
-                "Scheduler paused for %ss (until %s).",
-                seconds,
-                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.pause_until)),
-            )
-        else:
-            self.pause_until = 0
-            logger.info("Scheduler paused (indefinitely).")
-        SchedulerState.save_state(self._build_state())
-        self.history_logger.write(EventType.PAUSE, {"duration": seconds})
+        with self._runtime_lock:
+            self.paused = True
+            if seconds is not None:
+                self.pause_until = time.time() + seconds
+                logger.info(
+                    "Scheduler paused for %ss (until %s).",
+                    seconds,
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.pause_until)),
+                )
+            else:
+                self.pause_until = 0
+                logger.info("Scheduler paused (indefinitely).")
+            SchedulerState.save_state(self._build_state())
+            self.history_logger.write(EventType.PAUSE, {"duration": seconds})
 
     def resume(self):
-        self.paused = False
-        self.pause_until = 0
-        logger.info("Scheduler resumed.")
-        self.history_logger.write(EventType.RESUME, {})
-        SchedulerState.save_state(self._build_state())
+        with self._runtime_lock:
+            self.paused = False
+            self.pause_until = 0
+            logger.info("Scheduler resumed.")
+            self.history_logger.write(EventType.RESUME, {})
+            SchedulerState.save_state(self._build_state())
 
     def get_pause_remaining(self) -> Optional[float]:
         if not self.paused or self.pause_until == 0:
@@ -161,10 +164,11 @@ class WEScheduler:
     def _run_loop(self):
         while not self.stop_event.is_set():
             try:
-                self._check_hot_reload()
-                self._maybe_auto_resume()
-                trace = self._run_tick()
-                self._commit_tick(trace)
+                with self._runtime_lock:
+                    self._check_hot_reload()
+                    self._maybe_auto_resume()
+                    trace = self._run_tick()
+                    self._commit_tick(trace)
 
             except Exception as exc:
                 logger.error("Error in main loop: %s", exc)
@@ -212,6 +216,33 @@ class WEScheduler:
             action=action,
         )
 
+    def apply_current_match_now(self) -> Optional[SchedulerTickTrace]:
+        with self._runtime_lock:
+            logger.info("Manual apply requested.")
+            trace = self._run_manual_apply_tick()
+            self._commit_tick(trace)
+            return trace
+
+    def _run_manual_apply_tick(self) -> SchedulerTickTrace:
+        live_context = self.context_manager.refresh()
+        context_snapshot = copy.deepcopy(live_context)
+        match = self.matcher.evaluate(context_snapshot)
+        active_playlist_before = self.current_playlist
+        action = self.actuator.act_manual(match, active_playlist_before)
+
+        self.tick_id += 1
+        return SchedulerTickTrace(
+            tick_id=self.tick_id,
+            ts=time.time(),
+            paused=self.paused,
+            pause_until=self.pause_until,
+            active_playlist_before=active_playlist_before,
+            active_playlist_after=action.active_playlist_after,
+            context=context_snapshot,
+            match=match,
+            action=action,
+        )
+
     def _build_paused_actuation_outcome(
         self,
         match: MatchEvaluation,
@@ -232,8 +263,15 @@ class WEScheduler:
     def _commit_tick(self, trace: SchedulerTickTrace) -> None:
         self.last_tick_trace = trace
 
+        should_save_state = False
         if trace.active_playlist_after != self.current_playlist:
             self.current_playlist = trace.active_playlist_after
+            should_save_state = True
+
+        if trace.action.executed:
+            should_save_state = True
+
+        if should_save_state:
             SchedulerState.save_state(self._build_state())
 
         self._update_status(trace)

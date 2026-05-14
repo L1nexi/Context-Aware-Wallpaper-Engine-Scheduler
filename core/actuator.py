@@ -7,6 +7,7 @@ from core.controller import SchedulingController
 from core.diagnostics import (
     ActionKind,
     ActuationOutcome,
+    ControllerDecision,
     MatchEvaluation,
 )
 from core.event_logger import EventLogger, EventType
@@ -50,6 +51,25 @@ class Actuator:
             match,
             current_playlist,
         )
+        return self._act_from_decision(match, current_playlist, decision)
+
+    def act_manual(
+        self,
+        match: MatchEvaluation,
+        current_playlist: str,
+    ) -> ActuationOutcome:
+        decision = self.controller.decide_manual_action(
+            match,
+            current_playlist,
+        )
+        return self._act_from_decision(match, current_playlist, decision)
+
+    def _act_from_decision(
+        self,
+        match: MatchEvaluation,
+        current_playlist: str,
+        decision: ControllerDecision,
+    ) -> ActuationOutcome:
         matched_playlist = decision.matched_playlist
         active_playlist_after = current_playlist
         executed = False

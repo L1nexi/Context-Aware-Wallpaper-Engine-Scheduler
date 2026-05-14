@@ -36,6 +36,7 @@ class ActionReasonCode(str, Enum):
     CYCLE_BLOCKED_CPU = "cycle_blocked_cpu"
     CYCLE_BLOCKED_NOT_IDLE = "cycle_blocked_not_idle"
     SCHEDULER_PAUSED = "scheduler_paused"
+    MANUAL_APPLY_REQUESTED = "manual_apply_requested"
 
 
 class ControllerBlocker(str, Enum):

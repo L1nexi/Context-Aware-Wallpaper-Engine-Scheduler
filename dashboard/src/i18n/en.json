@@ -140,6 +140,7 @@
   "dashboard_reason_cycle_blocked_cpu": "A wallpaper cycle was blocked by CPU threshold.",
   "dashboard_reason_cycle_blocked_not_idle": "A wallpaper cycle was blocked because the user was not idle long enough.",
   "dashboard_reason_scheduler_paused": "The scheduler is paused.",
+  "dashboard_reason_manual_apply_requested": "A manual apply request bypassed automatic scheduling gates.",
   "dashboard_top_matches_title": "Top Matches",
   "dashboard_top_matches_heading": "Current top candidates",
   "dashboard_weather_available": "Weather Available",

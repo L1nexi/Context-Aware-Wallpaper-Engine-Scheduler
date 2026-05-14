@@ -40,6 +40,7 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "pause_48h":               {"en": "48 Hours",          "zh": "48 小时"},
     "pause_1w":                {"en": "1 Week",            "zh": "1 周"},
     "pause_custom":            {"en": "Custom...",         "zh": "自定义..."},
+    "apply_current_match_now": {"en": "Schedule From Current Context Now", "zh": "立即按当前上下文调度"},
     "open_config":             {"en": "Open Config",       "zh": "打开配置"},
     "open_logs":               {"en": "Open Logs",         "zh": "打开日志"},
     "exit":                    {"en": "Exit",              "zh": "退出"},

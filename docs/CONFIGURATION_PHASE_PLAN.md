@@ -360,7 +360,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - Dashboard 运行时只服务 Diagnostics。
 - 配置辅助能力若仍保留，不再以 Dashboard 为默认承载面。
 
-## 9. 阶段 7：文本配置辅助入口
+## 9. 阶段 7：文本配置辅助入口 - [DONE]
 
 目标：为文本配置工作流提供一个轻量、离线、可双击的配置辅助入口。该入口不依赖 Dashboard , 不启动 `WEScheduler` runtime；它只复用底层配置解析、WE 路径探测和播放列表扫描能力。
 
@@ -443,7 +443,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 
 ## 10. 阶段 8：Tray Manual Apply
 
-目标：提供一个明确的手动调度入口，让用户“按当前上下文执行一次切换判断”，但不把内部 cooldown 暴露成产品功能。
+目标：提供一个明确的手动调度入口，让用户“按当前上下文执行一次切换”。
 
 文件范围：
 
@@ -454,16 +454,14 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - `core/diagnostics.py`
 - `core/event_logger.py`
 - `utils/i18n.py` 或相关翻译资源
-- `tests/test_core_diagnostics.py`
 
 工作内容：
 
 - Tray 新增 `Apply Current Match Now` / `立即应用当前匹配`。
-- 不提供 `Clear Cooldown`。
-- 不提供 `Next Wallpaper`。
 - 手动 apply 立即采集上下文并计算 best playlist。
 - best playlist 不同于 current playlist 时 switch。
 - best playlist 等于 current playlist 时 cycle。
+- > 也即执行标准的切换语义
 - no match 时不执行副作用并记录原因。
 - 手动 apply 绕过所有 controller gates：
   - cooldown
@@ -478,16 +476,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 
 阶段边界：
 
-- 不把 Manual Apply 放进 Diagnostics。
-- 不让 Reload Config 自动触发 Manual Apply。
-
-验证：
-
-```bash
-pytest tests/test_core_diagnostics.py -q
-```
-
-如 tray 行为可自动化困难，至少补 core-level unit tests，并做一次本地手动 smoke。
+本阶段无需验证
 
 完成标准：
 

@@ -191,6 +191,40 @@ class SchedulingController:
             evaluation=evaluation,
         )
 
+    def decide_manual_action(
+        self,
+        match: MatchEvaluation,
+        active_playlist: str,
+    ) -> ControllerDecision:
+        matched_playlist = match.best_playlist
+
+        if matched_playlist is None:
+            return ControllerDecision(
+                kind=ActionKind.HOLD if active_playlist else ActionKind.NONE,
+                reason_code=ActionReasonCode.NO_MATCH,
+                matched_playlist=None,
+            )
+
+        if matched_playlist != active_playlist:
+            return ControllerDecision(
+                kind=ActionKind.SWITCH,
+                reason_code=ActionReasonCode.MANUAL_APPLY_REQUESTED,
+                matched_playlist=matched_playlist,
+            )
+
+        if active_playlist:
+            return ControllerDecision(
+                kind=ActionKind.CYCLE,
+                reason_code=ActionReasonCode.MANUAL_APPLY_REQUESTED,
+                matched_playlist=matched_playlist,
+            )
+
+        return ControllerDecision(
+            kind=ActionKind.HOLD,
+            reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
+            matched_playlist=matched_playlist,
+        )
+
     def _evaluate_gates(self, context: Context) -> list[ControllerBlocker]:
         blocked_by: list[ControllerBlocker] = []
         for gate in self._gates:

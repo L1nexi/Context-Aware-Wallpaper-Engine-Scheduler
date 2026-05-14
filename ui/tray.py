@@ -246,6 +246,15 @@ class TrayIcon:
         if self.on_show_dashboard:
             self.on_show_dashboard()
 
+    def _on_apply_current_match_now(self, icon, item):
+        def _apply() -> None:
+            try:
+                self.scheduler.apply_current_match_now()
+            except Exception:
+                logger.exception("Manual apply failed")
+
+        threading.Thread(target=_apply, daemon=True).start()
+
     def _on_exit(self, icon, item):
         self.scheduler.stop()
         icon.stop()
@@ -312,6 +321,7 @@ class TrayIcon:
             ),
             # Pause submenu
             pystray.MenuItem(t("pause"), pystray.Menu(*pause_items)),
+            pystray.MenuItem(t("apply_current_match_now"), self._on_apply_current_match_now),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 t("dashboard_show"), self._on_show_dashboard,

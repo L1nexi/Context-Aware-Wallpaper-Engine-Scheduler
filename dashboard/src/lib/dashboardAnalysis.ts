@@ -17,6 +17,7 @@ export type ActionReasonCode =
   | 'cycle_blocked_cpu'
   | 'cycle_blocked_not_idle'
   | 'scheduler_paused'
+  | 'manual_apply_requested'
 
 export type ControllerBlocker = 'cooldown' | 'fullscreen' | 'cpu' | 'idle'
 export type ControllerOperation = 'switch' | 'cycle'
