@@ -441,7 +441,7 @@ pytest tests/test_config_loader.py tests/test_core_diagnostics.py tests/test_das
 - 主程序双击无黑框启动。
 - 配置辅助入口不会重新牵引完整 GUI Config Editor。
 
-## 10. 阶段 8：Tray Manual Apply
+## 10. 阶段 8：Tray Manual Apply - [DONE]
 
 目标：提供一个明确的手动调度入口，让用户“按当前上下文执行一次切换”。
 

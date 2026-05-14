@@ -22,7 +22,7 @@ def mock_resolved_wallpaper_engine_path(monkeypatch, tmp_path):
             return path if Path(path).is_file() else None
         return str(fake_exe)
 
-    monkeypatch.setattr("utils.config_loader.resolve_wallpaper_engine_path", _resolve)
+    monkeypatch.setattr("utils.config_documents.resolve_wallpaper_engine_path", _resolve)
     return str(fake_exe)
 
 
@@ -353,7 +353,7 @@ def test_load_configured_wallpaper_engine_path_reads_scheduler_yaml():
 
 
 def test_config_loader_rejects_unresolved_auto_detect(monkeypatch):
-    monkeypatch.setattr("utils.config_loader.resolve_wallpaper_engine_path", lambda _path: None)
+    monkeypatch.setattr("utils.config_documents.resolve_wallpaper_engine_path", lambda _path: None)
     config_dir = _write_config_dir()
 
     with pytest.raises(ConfigLoadError) as exc_info:

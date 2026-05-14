@@ -392,7 +392,7 @@ def test_hot_reload_config_error_keeps_previous_runtime_and_notifies():
     scheduler.color_of = {"focus": "#F5C518"}
     scheduler.config_loader = mock.Mock()
     scheduler.config_loader.config = mock.Mock()
-    scheduler.config_loader.load.side_effect = ConfigLoadError(
+    scheduler.config_loader.load_verified_config.side_effect = ConfigLoadError(
         [
             ConfigIssue(
                 source_file="scheduler.yaml",
