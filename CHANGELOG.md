@@ -7,6 +7,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-15
+
+配置工作流完成
+
+此版本完成配置系统主线重构：运行时配置从旧 JSON / GUI 编辑器路线切换为固定 6 文件 YAML 文本配置工作流，并补齐配置校验、Wallpaper Engine 路径检测、播放列表扫描、validate-before-swap 热重载和托盘手动调度入口。Dashboard 也正式收敛为 Diagnostics，不再承担通用管理后台或配置编辑职责。
+
+### Added
+
+- **固定 6 文件 YAML 配置目录**：`scheduler.yaml`、`playlists.yaml`、`tags.yaml`、`activity.yaml`、`context.yaml`、`scheduling.yaml` 成为唯一运行时配置入口。
+- **Release example 配置**：发布包包含外部 `config/` 示例目录，用户可直接复制修改。
+- **文本配置辅助工具**：新增 `Config Tools.bat` / `WEScheduler.exe config`，支持配置校验、Wallpaper Engine 路径检测和播放列表扫描。
+- **Activity matcher 新模型**：支持 process / title 简写规则，以及 `exact` / `regex` / `contains` matcher；process exact 支持 `.exe` 等价匹配。
+- **Validate-before-swap 热重载**：配置变更会先完整校验并构建运行时模型，失败时保留上一份有效运行配置。
+- **托盘手动调度入口**：新增 `Schedule From Current Context Now`，可按当前上下文立即执行一次调度。
+- **Diagnostics tick 模型**：基于 `SchedulerTickTrace` 展示 Sense / Think / Act、policy contribution、fallback、controller decision 和 actuation outcome。
+
+### Changed
+
+- **运行时配置模型重构**：`playlists` 改为 map，playlist key 直接对应 Wallpaper Engine 播放列表名。
+- **tag 语义收紧**：tag 不再使用 `#` 前缀；所有引用 tag 必须在 `tags.yaml` 声明。
+- **策略权重字段统一**：配置中的 `weight_scale` 收敛为 `weight`。
+- **Wallpaper Engine 路径处理收紧**：启动 / reload 前解析路径；显式无效路径不再 fallback 自动检测；执行失败不再被隐藏为 no-op。
+- **Dashboard 收敛为 Diagnostics**：前端主线聚焦诊断解释，不再扩展完整 Config Editor 或完整 History 页面。
+- **Dashboard API 收口**：HTTP 层保留健康检查与 diagnostics analysis window，不再暴露配置编辑或 History 产品 API。
+- **构建产物布局更新**：`dist/` 中包含 `WEScheduler.exe`、`Config Tools.bat`、`README.md` 和外部 `config/` 示例目录。
+
+### Removed
+
+- 移除旧 `scheduler_config.example.json` 配置路线。
+- 移除 Dashboard 中的完整 Config Editor 页面与完整 History 页面。
+- 移除 `dashboard-v2/` 旧工作区残留。
+- 归档已完成、冻结或过时的历史设计文档。
+
+### Breaking Changes
+
+- 旧 `scheduler_config.json` 不再是运行时配置入口。
+- 旧 `#tag` 写法不再兼容。
+- 旧 playlist list 模型不再兼容。
+- Dashboard 不再提供配置编辑器或完整历史分析页面。
+
 ---
 
 ## [0.6.2] - 2026-05-02

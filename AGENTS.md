@@ -15,10 +15,8 @@
 
 1. 实际代码与测试
 2. 本文件 `AGENTS.md`
-3. `docs/PRODUCT_DIRECTION.md`
-4. `docs\CONFIGURATION_PHASE_PLAN.md`
-5. `dashboard/docs/UI_ENGINEERING_SPEC.md`
-6. `docs/frontend/CONFIGURATION_SPEC.md`
+3. `dashboard/docs/UI_ENGINEERING_SPEC.md`(涉及前端开发时)
+4. `docs/frontend/CONFIGURATION_SPEC.md`
 
 ## 2. 当前代码现状
 

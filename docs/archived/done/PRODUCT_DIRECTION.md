@@ -51,7 +51,10 @@
 
 目标：停止推进完整 GUI Config Editor，改为高级用户友好的文本配置工作流，并把配置系统变成 Diagnostics 可解释性的事实基础。
 
-正式契约见 [CONFIGURATION_SPEC.md](./frontend/CONFIGURATION_SPEC.md)，实施拆分见 [CONFIGURATION_PHASE_PLAN.md](./CONFIGURATION_PHASE_PLAN.md)。
+配置契约与实施拆分已经归档为完成记录：
+
+- [CONFIGURATION_SPEC.md](./archived/done/CONFIGURATION_SPEC.md)
+- [CONFIGURATION_PHASE_PLAN.md](./archived/done/CONFIGURATION_PHASE_PLAN.md)
 
 当前事实：
 
@@ -65,6 +68,7 @@
 - Reload Config 是配置操作，不会立刻触发 playlist switch 或 wallpaper cycle。
 - Tray 已提供 `Apply Current Match Now` / `立即应用当前匹配`，作为独立的一次性手动调度入口。
 - Dashboard HTTP 层已经收敛为 Diagnostics-only，不再承载配置编辑、配置辅助或独立 History 页面。
+- Dashboard 前端已经删除完整 Config Editor 与独立 History 应用；当前只保留 Diagnostics 入口。
 
 配置文件边界：
 
@@ -88,7 +92,7 @@
 - Release zip 中包含 example config、`Config Tools.bat` 和 `WEScheduler.exe`。
 - Dashboard / Diagnostics 不再被配置编辑或长期 History 方向牵引。
 
-## 4. 阶段 3：Diagnostics，而不是 Dashboard
+## 4. 阶段 3：Diagnostics，而不是 Dashboard - [DONE]
 
 目标：把 Dashboard 收敛成调度诊断工具，只服务近期解释和排错。
 
@@ -127,7 +131,20 @@
 - hover / snapshot 交互不触发逐 tick 请求。
 - 页面不会继续膨胀成长期统计或配置中心。
 
-## 5. 阶段 4：History 降级
+当前事实：
+
+- Dashboard HTTP 层只保留 `GET /api/health` 与 `GET /api/analysis/window`。
+- 前端路由只保留 `/dashboard`，页面内容已经是 Diagnostics 工作台，而不是管理后台。
+- Diagnostics 使用近期 `TickSnapshot` window，前端 hover / snapshot 在本地窗口内切换，不逐 tick 请求。
+- `TickSnapshot` 已覆盖 `Sense -> Think -> Act`、`matchedPlaylist` / `activePlaylist`、policy contribution、controller blocker 与 actuation outcome。
+
+后续只允许作为 Diagnostics 打磨继续推进：
+
+- 将用户可见命名从 Dashboard 统一收敛为 Diagnostics，包括路由、导航和文案。
+- 如果需要展示配置路径、最近 reload 结果或最近配置错误，应作为 Diagnostics 元信息加入，不恢复配置编辑 UI。
+- 如果需要最近事件，应基于近期 tick window 做短窗口摘要，不恢复独立 History 页面或长期统计。
+
+## 5. 阶段 4：History 降级 - [DONE]
 
 目标：保留运行证据，停止把 History 扩展成独立产品模块。
 
@@ -137,9 +154,9 @@
 
 - `HistoryLogger`。
 - 月度 JSONL 事件日志。
-- switch / cycle / pause / resume / config reload / error 等关键事件。
+- start / stop / pause / resume / switch / cycle / actuation failed 等运行事件。
 - 简单读取或导出能力。
-- Diagnostics 中的轻量 Recent Events。
+- Diagnostics 中的轻量事件提示或短窗口 Recent Events。
 
 暂停或删除主线优先级：
 
@@ -156,13 +173,21 @@
 - 前端不再把 History 当成独立产品模块推进。
 - 需要历史信息时，优先在 Diagnostics 内提供短窗口辅助信息。
 
+当前事实：
+
+- `HistoryLogger` 仍作为内部运行证据能力存在，并继续写入按月分片的 JSONL 日志。
+- 当前事件类型覆盖 `start`、`stop`、`pause`、`resume`、`playlist_switch`、`wallpaper_cycle` 与 `actuation_failed`；配置 reload 结果目前通过 scheduler 状态、托盘提示和日志表达，不作为独立 History 产品能力。
+- Dashboard HTTP 层不再暴露 `/api/history` 或 `/api/history/aggregate`。
+- Dashboard 前端不再存在独立 History route、view 或 navigation item。
+- 历史设计文档保留在 `docs/archived/frozen/HISTORY_SPEC.md`，只作为历史记录，不作为主线计划。
+
 ## 6. 推荐执行顺序
 
 按风险和收益排序：
 
 1. 打包减重，先去掉错误体积来源。
 2. 配置体验改线，建立新配置系统主线。
-3. Diagnostics 收敛，保留解释调度的核心 UI。
-4. History 降级，避免继续扩展独立历史产品。
+3. Diagnostics 收敛，保留解释调度的核心 UI。`[DONE]`
+4. History 降级，避免继续扩展独立历史产品。`[DONE]`
 
-这个顺序不是说 Diagnostics 不重要，而是先把体积和配置这两个方向性成本压住，再继续打磨诊断体验。
+这个顺序不是说 Diagnostics 不重要，而是先把体积和配置这两个方向性成本压住，再继续打磨诊断体验。当前四个阶段都已经完成主线收敛；后续工作应作为 Diagnostics polish、配置工具补强或发布质量建设处理。
