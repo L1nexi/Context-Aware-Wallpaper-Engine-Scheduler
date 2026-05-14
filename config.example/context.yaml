@@ -17,8 +17,8 @@ weather:
   enabled: true
   weight: 1.5
   api_key: ""
-  lat: 31.2964
-  lon: 121.5036
+  lat: 0.0
+  lon: 0.0
   fetch_interval: 600
   warmup_timeout: 3
   request_timeout: 10
