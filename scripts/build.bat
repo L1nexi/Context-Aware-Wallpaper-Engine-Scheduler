@@ -50,6 +50,7 @@ if %errorlevel% neq 0 (
 
 echo [5/5] Preparing distribution folder...
 copy README.md dist\README.md
+copy "Config Tools.bat" "dist\Config Tools.bat"
 
 echo ==========================================
 echo      Build Complete!

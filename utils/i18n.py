@@ -83,6 +83,140 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "en": "Scheduler connection lost. This window will close in {seconds} seconds.",
         "zh": "调度器连接丢失。窗口将在 {seconds} 秒后关闭。",
     },
+
+    # -- Config tools --
+    "config_tools_title": {
+        "en": "WEScheduler Config Tools",
+        "zh": "WEScheduler 配置工具",
+    },
+    "config_tools_validate": {
+        "en": "Validate config",
+        "zh": "验证配置",
+    },
+    "config_tools_detect_we": {
+        "en": "Detect Wallpaper Engine",
+        "zh": "检测 Wallpaper Engine",
+    },
+    "config_tools_scan_playlists": {
+        "en": "Scan Wallpaper Engine playlists",
+        "zh": "扫描 Wallpaper Engine 播放列表",
+    },
+    "config_tools_exit": {
+        "en": "Exit",
+        "zh": "退出",
+    },
+    "config_tools_unknown_option": {
+        "en": "Unknown option. Enter 1, 2, 3, or q.",
+        "zh": "未知选项。请输入 1、2、3 或 q。",
+    },
+
+    "config_tools_ok": {
+        "en": "OK",
+        "zh": "OK",
+    },
+    "config_tools_failed": {
+        "en": "FAILED",
+        "zh": "失败",
+    },
+    "config_tools_code": {
+        "en": "code",
+        "zh": "错误码",
+    },
+    "config_tools_config_folder": {
+        "en": "Config folder:",
+        "zh": "配置目录:",
+    },
+    "config_tools_resolved_we": {
+        "en": "Resolved Wallpaper Engine:",
+        "zh": "已解析的 Wallpaper Engine:",
+    },
+    "config_tools_playlists": {
+        "en": "Playlists:",
+        "zh": "播放列表:",
+    },
+    "config_tools_playlists_count": {
+        "en": "Playlists ({count}):",
+        "zh": "播放列表 ({count}):",
+    },
+    "config_tools_enabled_policies": {
+        "en": "Enabled policies:",
+        "zh": "启用的策略:",
+    },
+    "config_tools_none": {
+        "en": "none",
+        "zh": "无",
+    },
+    "config_tools_auto": {
+        "en": "<auto>",
+        "zh": "<自动>",
+    },
+    "config_tools_not_found": {
+        "en": "<not found>",
+        "zh": "<未找到>",
+    },
+    "config_tools_unresolved": {
+        "en": "<unresolved>",
+        "zh": "<未解析>",
+    },
+
+    "config_tools_configured_value": {
+        "en": "Configured value:",
+        "zh": "配置值:",
+    },
+    "config_tools_resolved_executable": {
+        "en": "Resolved executable:",
+        "zh": "已解析的可执行文件:",
+    },
+    "config_tools_we_config_json": {
+        "en": "Wallpaper Engine config.json:",
+        "zh": "Wallpaper Engine config.json:",
+    },
+    "config_tools_read_configured_value_failed": {
+        "en": "Failed to read configured value: {detail}",
+        "zh": "读取配置值失败: {detail}",
+    },
+
+    "config_tools_no_playlists_found": {
+        "en": "No playlists found in Wallpaper Engine.",
+        "zh": "未在 Wallpaper Engine 中找到播放列表。",
+    },
+    "config_tools_copy_ready_snippet": {
+        "en": "Copy-ready playlists.yaml snippet:",
+        "zh": "可复制的 playlists.yaml 片段:",
+    },
+
+    "config_tools_error_configured_path_read_failed": {
+        "en": "Failed to read configured Wallpaper Engine path from scheduler.yaml.",
+        "zh": "无法从 scheduler.yaml 读取 Wallpaper Engine 路径配置。",
+    },
+    "config_tools_error_we_exe_not_found": {
+        "en": "Wallpaper Engine executable not found.",
+        "zh": "未找到 Wallpaper Engine 可执行文件。",
+    },
+    "config_tools_error_we_exe_hint": {
+        "en": "Set runtime.wallpaper_engine_path in scheduler.yaml, or make sure Wallpaper Engine can be auto-detected from Steam.",
+        "zh": "请在 scheduler.yaml 中设置 runtime.wallpaper_engine_path，或确认可通过 Steam 自动检测 Wallpaper Engine。",
+    },
+    "config_tools_error_we_config_not_found": {
+        "en": "Wallpaper Engine config.json not found.",
+        "zh": "未找到 Wallpaper Engine config.json。",
+    },
+    "config_tools_error_we_config_hint": {
+        "en": "Make sure Wallpaper Engine has been launched at least once.",
+        "zh": "请确认 Wallpaper Engine 至少已启动过一次。",
+    },
+    "config_tools_error_we_config_read_failed": {
+        "en": "Failed to read Wallpaper Engine config.json:",
+        "zh": "读取 Wallpaper Engine config.json 失败:",
+    },
+    "config_tools_error_we_config_unexpected_format": {
+        "en": "Wallpaper Engine config.json has an unexpected format.",
+        "zh": "Wallpaper Engine config.json 格式不符合预期。",
+    },
+    "config_tools_error_unknown": {
+        "en": "Error: {error}",
+        "zh": "错误: {error}",
+    },
 }
 
 
