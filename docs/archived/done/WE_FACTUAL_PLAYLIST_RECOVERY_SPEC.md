@@ -1,4 +1,4 @@
-# WE Factual Playlist Recovery Spec
+# WE Factual Playlist Recovery Spec - [COMPLETED]
 
 状态：Draft
 

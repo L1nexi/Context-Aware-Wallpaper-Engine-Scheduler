@@ -65,8 +65,6 @@ const option = computed(() =>
     {
       activeTrack: t('dashboard_timeline_active_track'),
       matchedTrack: t('dashboard_timeline_matched_track'),
-      switch: t('dashboard_timeline_switch_marker'),
-      cycle: t('dashboard_timeline_cycle_marker'),
       similarity: t('similarity'),
       gap: t('gap'),
     },
@@ -364,6 +362,10 @@ onBeforeUnmount(() => {
       <span class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5">
         <span class="size-2.5 rotate-45 bg-primary" />
         {{ t('dashboard_timeline_switch_marker') }}
+      </span>
+      <span class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5">
+        <span class="size-0 border-x-[5px] border-b-[9px] border-x-transparent border-b-[var(--color-chart-3)]" />
+        {{ t('dashboard_timeline_recovery_marker') }}
       </span>
       <span class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5">
         <span class="size-2.5 rounded-full bg-muted-foreground/65" />

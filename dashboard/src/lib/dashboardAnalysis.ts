@@ -18,6 +18,9 @@ export type ActionReasonCode =
   | 'cycle_blocked_not_idle'
   | 'scheduler_paused'
   | 'manual_apply_requested'
+  | 'recovery_no_playlist'
+  | 'recovery_unmanaged_playlist'
+  | 'recovery_no_match'
 
 export type ControllerBlocker = 'cooldown' | 'fullscreen' | 'cpu' | 'idle'
 export type ControllerOperation = 'switch' | 'cycle'

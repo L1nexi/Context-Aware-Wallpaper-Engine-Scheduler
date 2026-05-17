@@ -11,11 +11,11 @@ type Translate = (key: string, params?: Record<string, string | number>) => stri
 interface TimelineLabels {
   activeTrack: string
   matchedTrack: string
-  switch: string
-  cycle: string
   similarity: string
   gap: string
 }
+
+type EventType = 'switch' | 'cycle' | 'recovery'
 
 interface TrackSegmentDatum {
   value: [number, number, number]
@@ -116,44 +116,60 @@ function getGapAxisMax(ticks: TickSnapshot[]): number {
   return Math.max(0.1, Number((maxGap * 1.2).toFixed(3)))
 }
 
+function isRecoveryReason(tick: TickSnapshot): boolean {
+  return tick.summary.reasonCode.startsWith('recovery_')
+}
+
 function buildEventSeries(
   ticks: TickSnapshot[],
-  type: 'switch' | 'cycle',
+  type: EventType,
   t: Translate,
 ): SeriesOption {
   const primary = getCssColor('--primary', '#4f8cff')
+  const recovery = getCssColor('--chart-3', '#f97316')
   const border = getCssColor('--background', '#ffffff')
+  const isRecovery = type === 'recovery'
+  const markerColor = isRecovery ? recovery : primary
+  const markerLabel = isRecovery
+    ? t('dashboard_timeline_recovery_marker')
+    : type === 'switch'
+      ? t('dashboard_timeline_switch_marker')
+      : t('dashboard_timeline_cycle_marker')
 
   const data = ticks
     .map((tick, index) => ({ tick, index }))
-    .filter(({ tick }) => tick.summary.actionKind === type)
+    .filter(({ tick }) =>
+      isRecovery
+        ? isRecoveryReason(tick)
+        : tick.summary.actionKind === type && !isRecoveryReason(tick),
+    )
     .map(({ tick, index }) => {
       const label = getTickPlaylistLabel(tick, 'active', t)
       return {
         value: [index, tick.summary.similarity],
         label: {
-          show: type === 'switch',
+          show: type !== 'cycle',
           position: 'top' as const,
           distance: 10,
-          color: primary,
+          color: markerColor,
           fontSize: 11,
           fontFamily: 'Geist Mono, monospace',
-          formatter: `${t('dashboard_timeline_switch_marker')}: ${label}`,
+          formatter: `${markerLabel}: ${label}`,
         },
       }
     })
 
   return {
-    name: type === 'switch' ? t('dashboard_timeline_switch_marker') : t('dashboard_timeline_cycle_marker'),
+    name: markerLabel,
     type: 'scatter',
     xAxisIndex: 0,
     yAxisIndex: 0,
     z: 4,
     data,
-    symbol: type === 'switch' ? 'diamond' : 'circle',
-    symbolSize: type === 'switch' ? 10 : 6,
+    symbol: isRecovery ? 'triangle' : type === 'switch' ? 'diamond' : 'circle',
+    symbolSize: type === 'cycle' ? 6 : 10,
     itemStyle: {
-      color: primary,
+      color: markerColor,
       borderColor: border,
       borderWidth: 1.5,
     },
@@ -420,6 +436,10 @@ export function buildTimelineOption(
       {
         ...buildEventSeries(ticks, 'cycle', t),
         id: 'event-cycle',
+      },
+      {
+        ...buildEventSeries(ticks, 'recovery', t),
+        id: 'event-recovery',
       },
       {
         id: 'track-active',
