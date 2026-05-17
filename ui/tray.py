@@ -285,6 +285,37 @@ class TrayIcon:
             parts.append(f"{minutes}m")
         return t("status_paused_remaining", remaining=" ".join(parts))
 
+    def _get_active_text(self) -> str:
+        playlist = self.scheduler.cached_playlist
+        if not self.scheduler.paused and self.scheduler.last_tick_trace is not None:
+            playlist = self.scheduler.last_tick_trace.action.effective_playlist_after or playlist
+
+        if playlist:
+            active = self.scheduler.display_of.get(playlist, playlist)
+        else:
+            active = t("tray_outside_configured_playlists")
+        return t("tray_active", playlist=active)
+
+    def _current_match_display(self) -> str | None:
+        trace = self.scheduler.last_tick_trace
+        if trace is None:
+            return None
+        playlist = trace.match.best_playlist
+        if playlist is None:
+            return None
+        return self.scheduler.display_of.get(playlist, playlist)
+
+    def _can_apply_match(self) -> bool:
+        return self._current_match_display() is not None
+
+    def _get_match_text(self) -> str:
+        match = self._current_match_display() or t("tray_no_schedulable_target")
+        return t("tray_match", playlist=match)
+
+    def _get_apply_match_text(self) -> str:
+        match = self._current_match_display() or t("tray_unavailable")
+        return t("tray_apply_match", playlist=match)
+
     # ── Menu construction ────────────────────────────────────────
 
     def _build_menu(self) -> pystray.Menu:
@@ -314,6 +345,16 @@ class TrayIcon:
                 lambda icon, item: None,
                 enabled=False,
             ),
+            pystray.MenuItem(
+                lambda item: self._get_active_text(),
+                lambda icon, item: None,
+                enabled=False,
+            ),
+            pystray.MenuItem(
+                lambda item: self._get_match_text(),
+                lambda icon, item: None,
+                enabled=False,
+            ),
             # Resume — visible only when paused (callable)
             pystray.MenuItem(
                 t("resume"), self._on_resume,
@@ -321,7 +362,11 @@ class TrayIcon:
             ),
             # Pause submenu
             pystray.MenuItem(t("pause"), pystray.Menu(*pause_items)),
-            pystray.MenuItem(t("apply_current_match_now"), self._on_apply_current_match_now),
+            pystray.MenuItem(
+                lambda item: self._get_apply_match_text(),
+                self._on_apply_current_match_now,
+                enabled=lambda item: self._can_apply_match(),
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 t("dashboard_show"), self._on_show_dashboard,

@@ -90,6 +90,8 @@ cd dashboard
 npm run dev
 ```
 
+如果需要改成其他 API 端口，保持 `python main.py --dashboard-api-port <port>` 与前端 `DASHBOARD_API_PORT=<port>` 一致；`dashboard/vite.config.ts` 默认端口是 `38417`。
+
 ## 3. 前端重写准则
 
 - 产品路线以 `docs/PRODUCT_DIRECTION.md` 为准。
@@ -149,7 +151,14 @@ pip install -r requirements.txt
 python main.py
 python main.py --no-tray
 python main.py config
+python main.py config --config <config_dir>
 pytest -q
+```
+
+### Build / package
+
+```bash
+.\scripts\build.bat
 ```
 
 ### `dashboard/` 新前端工作区
@@ -164,6 +173,8 @@ npm run build-only
 
 说明：
 
+- `python main.py config` 是单独的配置工具入口；如果要指定配置目录，参数写成 `python main.py config --config <config_dir>`，不要和宿主模式参数顺序混用。
+- `npm run lint` 会运行带 `--fix` 的 Oxlint 和 ESLint。
 - 在某些受限代理环境里，`npm run build` 可能因为 `run-p` 派生进程限制报 `spawn EPERM`。
 - 遇到这种情况，直接分开跑 `npm run type-check` 和 `npm run build-only`。
 

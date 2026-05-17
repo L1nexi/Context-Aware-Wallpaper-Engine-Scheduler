@@ -25,9 +25,21 @@ logger = logging.getLogger("WEScheduler.I18n")
 
 _STRINGS: Dict[str, Dict[str, str]] = {
     # -- Tray: status --
-    "status_running":          {"en": "Status: Running",                     "zh": "状态: 运行中"},
-    "status_paused":           {"en": "Status: Paused",                      "zh": "状态: 已暂停"},
-    "status_paused_remaining": {"en": "Status: Paused ({remaining} left)",   "zh": "状态: 已暂停 (剩余 {remaining})"},
+    "status_running":          {"en": "Status: Running",                     "zh": "调度状态: 运行中"},
+    "status_paused":           {"en": "Status: Paused",                      "zh": "调度状态: 已暂停"},
+    "status_paused_remaining": {"en": "Status: Paused ({remaining} left)",   "zh": "调度状态: 已暂停 (剩余 {remaining})"},
+    "tray_active":             {"en": "Active: {playlist}",                  "zh": "当前活跃: {playlist}"},
+    "tray_match":              {"en": "Match: {playlist}",                   "zh": "当前匹配: {playlist}"},
+    "tray_outside_configured_playlists": {
+        "en": "Outside configured playlists",
+        "zh": "不在已配置播单中",
+    },
+    "tray_no_schedulable_target": {
+        "en": "No schedulable target found",
+        "zh": "无可调度目标",
+    },
+    "tray_apply_match":        {"en": "Apply Match: {playlist}",             "zh": "应用匹配: {playlist}"},
+    "tray_unavailable":        {"en": "Unavailable",                         "zh": "不可用"},
 
     # -- Tray: actions --
     "resume":                  {"en": "Resume",            "zh": "恢复"},
