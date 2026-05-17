@@ -13,7 +13,7 @@ from typing import Callable, Dict, List, Optional
 from pydantic import BaseModel
 
 from core.actuator import Actuator
-from core.context import Context, ContextManager
+from core.context import ContextManager
 from core.controller import SchedulingController
 from core.diagnostics import (
     ActionKind,

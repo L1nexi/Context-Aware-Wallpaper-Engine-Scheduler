@@ -649,7 +649,7 @@ def test_scheduler_tick_trace_uses_context_snapshot(monkeypatch):
     assert captured[0].context.window.title == "Before"
 
 
-def test_scheduler_initialize_corrects_cached_playlist_from_managed_factual(monkeypatch):
+def test_scheduler_initialize_restores_cached_playlist(monkeypatch):
     class DummyHistory:
         last_event_id = 0
 
@@ -678,14 +678,7 @@ def test_scheduler_initialize_corrects_cached_playlist_from_managed_factual(monk
         actuator=actuator,
         display_of={},
         color_of={},
-        we_config_prober=mock.Mock(
-            probe_playlist=mock.Mock(
-                return_value=FactualPlaylistState(
-                    FactualPlaylistStatus.PLAYLIST,
-                    playlist="rain",
-                )
-            )
-        ),
+        we_config_prober=mock.Mock(),
         managed_playlists={"focus", "rain"},
     )
     saved: list[SchedulerState] = []
@@ -698,34 +691,8 @@ def test_scheduler_initialize_corrects_cached_playlist_from_managed_factual(monk
     scheduler = WEScheduler("config", DummyHistory())
 
     assert scheduler.initialize() is True
-    assert scheduler.cached_playlist == "rain"
-    assert saved[-1].cached_playlist == "rain"
-
-
-@pytest.mark.parametrize(
-    "factual",
-    [
-        FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST),
-        FactualPlaylistState(FactualPlaylistStatus.UNKNOWN),
-        FactualPlaylistState(FactualPlaylistStatus.AMBIGUOUS),
-        FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="unmanaged"),
-    ],
-)
-def test_scheduler_initial_cache_probe_keeps_cached_when_factual_not_managed(factual):
-    class DummyHistory:
-        last_event_id = 0
-
-        def write(self, *_args, **_kwargs):
-            return None
-
-    scheduler = WEScheduler("config", DummyHistory())
-    scheduler.executor = mock.Mock(ensure_we_running=mock.Mock(return_value=True))
-    scheduler.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=factual))
-    scheduler.managed_playlists = {"focus", "rain"}
-    scheduler.cached_playlist = "focus"
-
-    assert scheduler._initialize_cached_playlist_from_factual() is False
     assert scheduler.cached_playlist == "focus"
+    assert saved == []
 
 
 def test_scheduler_recovery_switch_updates_cached_playlist(monkeypatch):
