@@ -151,7 +151,7 @@ export interface ControllerDiagnostic {
 export interface PlaylistRef {
   name: string
   display: string
-  color: string
+  color: string | null
 }
 
 export interface ActionDecision {

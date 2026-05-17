@@ -21,7 +21,7 @@ from core.diagnostics import (
 )
 from core.matcher import Matcher
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
-from core.scheduler import WEScheduler
+from core.scheduler import WEScheduler, _RuntimeComponents
 from ui.dashboard_analysis import DashboardRuntimeMetadata, map_tick_snapshot
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
@@ -414,6 +414,66 @@ def test_hot_reload_config_error_keeps_previous_runtime_and_notifies():
     assert scheduler.matcher is old_matcher
     assert scheduler.actuator is old_actuator
     assert scheduler.last_reload_error is captured[0]
+    assert scheduler._config_fingerprint == fingerprint
+
+
+def test_hot_reload_state_import_error_keeps_previous_runtime():
+    class DummyHistory:
+        last_event_id = 0
+
+        def write(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+    class StatefulPolicy:
+        def __init__(self, raise_on_import: bool = False):
+            self.raise_on_import = raise_on_import
+
+        def export_state(self) -> dict[str, str]:
+            return {"state": "old"}
+
+        def import_state(self, _state: object) -> None:
+            if self.raise_on_import:
+                raise RuntimeError("import failed")
+
+    scheduler = WEScheduler("config", DummyHistory())
+    old_executor = object()
+    old_context_manager = object()
+    old_matcher = mock.Mock()
+    old_matcher.policies = [StatefulPolicy()]
+    old_actuator = mock.Mock()
+    old_actuator.controller.export_state.return_value = {"controller": "old"}
+
+    scheduler.executor = old_executor
+    scheduler.context_manager = old_context_manager
+    scheduler.matcher = old_matcher
+    scheduler.actuator = old_actuator
+    scheduler.display_of = {"focus": "Focus"}
+    scheduler.color_of = {"focus": "#F5C518"}
+    scheduler.config_loader = mock.Mock()
+    previous_config = mock.Mock()
+    scheduler.config_loader.config = previous_config
+    scheduler.config_loader.load_verified_config.return_value = mock.Mock()
+
+    next_runtime = _RuntimeComponents(
+        executor=object(),
+        context_manager=object(),
+        matcher=mock.Mock(policies=[StatefulPolicy(raise_on_import=True)]),
+        actuator=mock.Mock(),
+        display_of={"rain": "Rain"},
+        color_of={"rain": "#2563EB"},
+    )
+    scheduler._build_runtime_components = mock.Mock(return_value=next_runtime)
+
+    fingerprint = (("scheduler.yaml", True, 3),)
+    scheduler._hot_reload(fingerprint)
+
+    assert scheduler.executor is old_executor
+    assert scheduler.context_manager is old_context_manager
+    assert scheduler.matcher is old_matcher
+    assert scheduler.actuator is old_actuator
+    assert scheduler.display_of == {"focus": "Focus"}
+    assert scheduler.color_of == {"focus": "#F5C518"}
+    assert scheduler.config_loader.config is previous_config
     assert scheduler._config_fingerprint == fingerprint
 
 

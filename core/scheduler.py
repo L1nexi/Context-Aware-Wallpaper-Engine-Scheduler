@@ -7,6 +7,7 @@ import os
 import sys
 import threading
 import time
+from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
 from pydantic import BaseModel
@@ -30,6 +31,7 @@ from core.sensors import SENSOR_REGISTRY
 from utils.app_context import get_data_dir
 from utils.config_errors import ConfigLoadError
 from utils.config_loader import ConfigLoader
+from utils.runtime_config import SchedulerConfig
 
 logger = logging.getLogger("WEScheduler.Core")
 
@@ -60,6 +62,16 @@ class SchedulerState(BaseModel):
                 f.write(state.model_dump_json(indent=2))
         except Exception:
             logger.warning("Failed to write state.json", exc_info=True)
+
+
+@dataclass(frozen=True)
+class _RuntimeComponents:
+    executor: WEExecutor
+    context_manager: ContextManager
+    matcher: Matcher
+    actuator: Actuator
+    display_of: Dict[str, str]
+    color_of: Dict[str, str]
 
 
 class WEScheduler:
@@ -97,7 +109,7 @@ class WEScheduler:
         self._config_fingerprint = self.config_loader.fingerprint()
         logger.info("Loaded %d playlists.", len(config.playlists))
 
-        self._build_runtime_components()
+        self._install_runtime_components(self._build_runtime_components(config))
         self._restore_state(SchedulerState.load_state())
 
         logger.info("Scheduler initialized successfully.")
@@ -287,8 +299,7 @@ class WEScheduler:
         if fingerprint != self._config_fingerprint:
             self._hot_reload(fingerprint)
 
-    def _build_runtime_components(self) -> None:
-        config = self.config_loader.config
+    def _build_runtime_components(self, config: SchedulerConfig) -> _RuntimeComponents:
         executor = WEExecutor(config.wallpaper_engine_path)
 
         context_manager = ContextManager()
@@ -316,12 +327,22 @@ class WEScheduler:
             for playlist_name, playlist in config.playlists.items()
         }
 
-        self.executor=executor
-        self.context_manager=context_manager
-        self.matcher=matcher
-        self.actuator=actuator
-        self.display_of=display_of
-        self.color_of=color_of
+        return _RuntimeComponents(
+            executor=executor,
+            context_manager=context_manager,
+            matcher=matcher,
+            actuator=actuator,
+            display_of=display_of,
+            color_of=color_of,
+        )
+
+    def _install_runtime_components(self, runtime: _RuntimeComponents) -> None:
+        self.executor = runtime.executor
+        self.context_manager = runtime.context_manager
+        self.matcher = runtime.matcher
+        self.actuator = runtime.actuator
+        self.display_of = runtime.display_of
+        self.color_of = runtime.color_of
 
     def _hot_reload(self, fingerprint: tuple[tuple[str, bool, int], ...]) -> None:
         previous_config = self.config_loader.config
@@ -332,20 +353,18 @@ class WEScheduler:
             }
             controller_state = self.actuator.controller.export_state()
 
-            self.config_loader.load_verified_config()
-            config = self.config_loader.config
+            config = self.config_loader.load_verified_config()
             logger.info("Hot reload: config changed, rebuilding components.")
 
-            # NOTE: 严格来说，这里应该采取 build - import - swap 来进行原子替换。但是 import_state 都不会抛出异常
-            # 因此保留当前实现，不做过度工程化。
-            self._build_runtime_components()
+            next_runtime = self._build_runtime_components(config)
 
-            for policy in self.matcher.policies:
+            for policy in next_runtime.matcher.policies:
                 saved = policy_states.get(type(policy).__name__)
                 if saved:
                     policy.import_state(saved)
 
-            self.actuator.controller.import_state(controller_state)
+            next_runtime.actuator.controller.import_state(controller_state)
+            self._install_runtime_components(next_runtime)
             self.last_reload_error = None
 
             logger.info("Hot reload complete. %d playlists loaded.", len(config.playlists))
