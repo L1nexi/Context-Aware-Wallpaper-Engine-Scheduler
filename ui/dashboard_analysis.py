@@ -439,8 +439,8 @@ def map_tick_snapshot(
 ) -> TickSnapshotDto:
     matched_playlist = _playlist_or_none(trace.match.best_playlist)
     action_matched_playlist = _playlist_or_none(trace.action.matched_playlist)
-    active_playlist_after = _playlist_or_none(trace.action.active_playlist_after)
-    active_playlist_before = _playlist_or_none(trace.action.active_playlist_before)
+    active_playlist_after = _playlist_or_none(trace.action.effective_playlist_after)
+    active_playlist_before = _playlist_or_none(trace.action.effective_playlist_before)
     matched_playlist_ref = _playlist_ref(matched_playlist, metadata)
     action_matched_playlist_ref = _playlist_ref(action_matched_playlist, metadata)
     active_playlist_after_ref = _playlist_ref(active_playlist_after, metadata)

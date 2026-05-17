@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import getpass
-import json
 import os
 import yaml
 from dataclasses import dataclass, field
 
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.config_loader import ConfigLoader
+from utils.we_config import WEConfigProber, WEConfigReadError
 from utils.we_path import find_we_config_json, resolve_wallpaper_engine_path
 
 
@@ -127,36 +126,13 @@ def scan_wallpaper_engine_playlists(config_dir: str) -> PlaylistScanResult:
         )
 
     try:
-        with open(config_json_path, "r", encoding="utf-8") as f:
-            we_data = json.load(f)
-    except Exception:
+        names = WEConfigProber(detection.resolved_executable).scan_playlist_names()
+    except WEConfigReadError as exc:
         return PlaylistScanResult(
             ok=False,
-            we_config_json=config_json_path,
-            error="wallpaper_engine_config_read_failed",
+            we_config_json=exc.config_json or config_json_path,
+            error=exc.code,
         )
-
-    if not isinstance(we_data, dict):
-        return PlaylistScanResult(
-            ok=False,
-            we_config_json=config_json_path,
-            error="unexpected_wallpaper_engine_config_format",
-        )
-
-    username = getpass.getuser()
-    user_entry = we_data.get(username)
-    if isinstance(user_entry, dict):
-        general = user_entry.get("general", {})
-        playlists = general.get("playlists", []) if isinstance(general, dict) else []
-    else:
-        playlists = []
-
-    names: list[str] = []
-    for p in playlists:
-        if isinstance(p, dict) and "name" in p and isinstance(p["name"], str):
-            name = p["name"].strip()
-            if name:
-                names.append(name)
 
     return PlaylistScanResult(
         ok=True,

@@ -37,6 +37,9 @@ class ActionReasonCode(str, Enum):
     CYCLE_BLOCKED_NOT_IDLE = "cycle_blocked_not_idle"
     SCHEDULER_PAUSED = "scheduler_paused"
     MANUAL_APPLY_REQUESTED = "manual_apply_requested"
+    RECOVERY_NO_PLAYLIST = "recovery_no_playlist"
+    RECOVERY_UNMANAGED_PLAYLIST = "recovery_unmanaged_playlist"
+    RECOVERY_NO_MATCH = "recovery_no_match"
 
 
 class ControllerBlocker(str, Enum):
@@ -186,8 +189,8 @@ class ControllerDecision:
 @dataclass
 class ActuationOutcome:
     decision: ControllerDecision
-    active_playlist_before: str
-    active_playlist_after: str
+    effective_playlist_before: str
+    effective_playlist_after: str
     executed: bool = False
 
     @property
@@ -213,8 +216,6 @@ class SchedulerTickTrace:
     ts: float
     paused: bool
     pause_until: float
-    active_playlist_before: str
-    active_playlist_after: str
     context: Context
     match: MatchEvaluation
     action: ActuationOutcome

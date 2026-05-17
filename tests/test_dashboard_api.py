@@ -129,8 +129,6 @@ def _make_trace(
         ts=1714800000.0 + tick_id,
         paused=paused,
         pause_until=1714803600.0 if paused else 0.0,
-        active_playlist_before=active_playlist_before,
-        active_playlist_after=active_playlist_after,
         context=Context(
             window=WindowData(process="chrome.exe", title="Code Review"),
             idle=12.5,
@@ -155,8 +153,8 @@ def _make_trace(
                 matched_playlist=matched_playlist,
                 evaluation=evaluation,
             ),
-            active_playlist_before=active_playlist_before,
-            active_playlist_after=active_playlist_after,
+            effective_playlist_before=active_playlist_before,
+            effective_playlist_after=active_playlist_after,
             executed=executed,
         ),
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -20,8 +21,9 @@ from core.diagnostics import (
     MatchEvaluation,
 )
 from core.matcher import Matcher
+from core.playlist_state import PlaylistRecoveryReason, resolve_playlist_state
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
-from core.scheduler import WEScheduler, _RuntimeComponents
+from core.scheduler import SchedulerState, WEScheduler, _RuntimeComponents
 from ui.dashboard_analysis import DashboardRuntimeMetadata, map_tick_snapshot
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
@@ -32,6 +34,7 @@ from utils.runtime_config import (
     TagSpec,
     WeatherPolicyConfig,
 )
+from utils.we_config import FactualPlaylistState, FactualPlaylistStatus
 
 
 def test_activity_policy_distinguishes_title_and_process_matchers():
@@ -152,8 +155,8 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
             matched_playlist="focus",
             evaluation=None,
         ),
-        active_playlist_before="focus",
-        active_playlist_after="focus",
+        effective_playlist_before="focus",
+        effective_playlist_after="focus",
         executed=False,
     )
 
@@ -369,6 +372,103 @@ def test_actuator_switch_logs_event():
     assert history.write.call_args.args[1]["reason_code"] == "switch_allowed"
 
 
+def test_actuator_recovery_switch_bypasses_controller_gates():
+    executor = mock.Mock()
+    history = mock.Mock()
+    controller = mock.Mock()
+    actuator = Actuator(executor, controller, history)
+
+    outcome = actuator.act_recovery(
+        MatchEvaluation(
+            best_playlist="rain",
+            playlist_matches=[("rain", 0.9), ("focus", 0.5)],
+            raw_context_vector={"rain": 1.0},
+        ),
+        "",
+        PlaylistRecoveryReason.NO_PLAYLIST,
+    )
+
+    assert outcome.kind == ActionKind.SWITCH
+    assert outcome.reason_code == ActionReasonCode.RECOVERY_NO_PLAYLIST
+    assert outcome.executed is True
+    executor.open_playlist.assert_called_once_with("rain")
+    controller.decide_action.assert_not_called()
+    controller.notify_playlist_switch.assert_called_once()
+    history.write.assert_called_once()
+    assert history.write.call_args.args[1]["reason_code"] == "recovery_no_playlist"
+
+
+def test_playlist_state_uses_managed_factual_playlist():
+    resolution = resolve_playlist_state(
+        FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="rain"),
+        cached_playlist="focus",
+        managed_playlists={"focus", "rain"},
+        paused=False,
+    )
+
+    assert resolution.effective_playlist == "rain"
+    assert resolution.recovery_needed is False
+    assert resolution.recovery_reason is None
+
+
+@pytest.mark.parametrize(
+    ("factual", "expected_reason"),
+    [
+        (
+            FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="other"),
+            PlaylistRecoveryReason.UNMANAGED_PLAYLIST,
+        ),
+        (
+            FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST),
+            PlaylistRecoveryReason.NO_PLAYLIST,
+        ),
+    ],
+)
+def test_playlist_state_requests_recovery_for_running_broken_state(
+    factual,
+    expected_reason,
+):
+    resolution = resolve_playlist_state(
+        factual,
+        cached_playlist="focus",
+        managed_playlists={"focus", "rain"},
+        paused=False,
+    )
+
+    assert resolution.effective_playlist == ""
+    assert resolution.recovery_needed is True
+    assert resolution.recovery_reason == expected_reason
+
+
+def test_playlist_state_suppresses_recovery_while_paused():
+    resolution = resolve_playlist_state(
+        FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST),
+        cached_playlist="focus",
+        managed_playlists={"focus"},
+        paused=True,
+    )
+
+    assert resolution.effective_playlist == ""
+    assert resolution.recovery_needed is False
+    assert resolution.recovery_reason == PlaylistRecoveryReason.NO_PLAYLIST
+
+
+@pytest.mark.parametrize(
+    "status",
+    [FactualPlaylistStatus.UNKNOWN, FactualPlaylistStatus.AMBIGUOUS],
+)
+def test_playlist_state_falls_back_to_cached_playlist_when_factual_unknown(status):
+    resolution = resolve_playlist_state(
+        FactualPlaylistState(status),
+        cached_playlist="focus",
+        managed_playlists={"focus"},
+        paused=False,
+    )
+
+    assert resolution.effective_playlist == "focus"
+    assert resolution.recovery_needed is False
+
+
 def test_hot_reload_config_error_keeps_previous_runtime_and_notifies():
     class DummyHistory:
         last_event_id = 0
@@ -461,6 +561,8 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
         actuator=mock.Mock(),
         display_of={"rain": "Rain"},
         color_of={"rain": "#2563EB"},
+        we_config_prober=mock.Mock(),
+        managed_playlists={"rain"},
     )
     scheduler._build_runtime_components = mock.Mock(return_value=next_runtime)
 
@@ -507,8 +609,8 @@ def test_scheduler_tick_trace_uses_context_snapshot(monkeypatch):
                     matched_playlist=match.best_playlist,
                     evaluation=ControllerEvaluation(operation="cycle", allowed=False),
                 ),
-                active_playlist_before=current_playlist,
-                active_playlist_after=current_playlist,
+                effective_playlist_before=current_playlist,
+                effective_playlist_after=current_playlist,
             )
 
     monkeypatch.setattr("core.scheduler.time.sleep", lambda _seconds: None)
@@ -518,7 +620,12 @@ def test_scheduler_tick_trace_uses_context_snapshot(monkeypatch):
     scheduler.context_manager = FakeContextManager(live_context)
     scheduler.matcher = FakeMatcher()
     scheduler.actuator = FakeActuator()
-    scheduler.current_playlist = "focus"
+    scheduler.executor = mock.Mock(ensure_we_running=mock.Mock(return_value=True))
+    scheduler.we_config_prober = mock.Mock(
+        probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN))
+    )
+    scheduler.managed_playlists = {"focus", "rain"}
+    scheduler.cached_playlist = "focus"
     scheduler.paused = False
     scheduler.stop_event = threading.Event()
     scheduler._check_hot_reload = lambda: None
@@ -540,3 +647,243 @@ def test_scheduler_tick_trace_uses_context_snapshot(monkeypatch):
     assert len(captured) == 1
     assert captured[0].context.window.process == "before.exe"
     assert captured[0].context.window.title == "Before"
+
+
+def test_scheduler_initialize_corrects_cached_playlist_from_managed_factual(monkeypatch):
+    class DummyHistory:
+        last_event_id = 0
+
+        def write(self, *_args, **_kwargs):
+            return None
+
+    class FakeConfigLoader:
+        def __init__(self, _config_dir):
+            return None
+
+        def load_verified_config(self):
+            return SimpleNamespace(playlists={"focus": object(), "rain": object()})
+
+        def fingerprint(self):
+            return (("scheduler.yaml", True, 1),)
+
+    controller = mock.Mock()
+    controller.last_playlist_switch_time = 0.0
+    controller.last_wallpaper_switch_time = 0.0
+    actuator = mock.Mock(controller=controller)
+    executor = mock.Mock(ensure_we_running=mock.Mock(return_value=True))
+    runtime = _RuntimeComponents(
+        executor=executor,
+        context_manager=mock.Mock(),
+        matcher=mock.Mock(),
+        actuator=actuator,
+        display_of={},
+        color_of={},
+        we_config_prober=mock.Mock(
+            probe_playlist=mock.Mock(
+                return_value=FactualPlaylistState(
+                    FactualPlaylistStatus.PLAYLIST,
+                    playlist="rain",
+                )
+            )
+        ),
+        managed_playlists={"focus", "rain"},
+    )
+    saved: list[SchedulerState] = []
+
+    monkeypatch.setattr("core.scheduler.ConfigLoader", FakeConfigLoader)
+    monkeypatch.setattr("core.scheduler.SchedulerState.load_state", lambda: SchedulerState(cached_playlist="focus"))
+    monkeypatch.setattr("core.scheduler.SchedulerState.save_state", saved.append)
+    monkeypatch.setattr(WEScheduler, "_build_runtime_components", lambda _self, _config: runtime)
+
+    scheduler = WEScheduler("config", DummyHistory())
+
+    assert scheduler.initialize() is True
+    assert scheduler.cached_playlist == "rain"
+    assert saved[-1].cached_playlist == "rain"
+
+
+@pytest.mark.parametrize(
+    "factual",
+    [
+        FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST),
+        FactualPlaylistState(FactualPlaylistStatus.UNKNOWN),
+        FactualPlaylistState(FactualPlaylistStatus.AMBIGUOUS),
+        FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="unmanaged"),
+    ],
+)
+def test_scheduler_initial_cache_probe_keeps_cached_when_factual_not_managed(factual):
+    class DummyHistory:
+        last_event_id = 0
+
+        def write(self, *_args, **_kwargs):
+            return None
+
+    scheduler = WEScheduler("config", DummyHistory())
+    scheduler.executor = mock.Mock(ensure_we_running=mock.Mock(return_value=True))
+    scheduler.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=factual))
+    scheduler.managed_playlists = {"focus", "rain"}
+    scheduler.cached_playlist = "focus"
+
+    assert scheduler._initialize_cached_playlist_from_factual() is False
+    assert scheduler.cached_playlist == "focus"
+
+
+def test_scheduler_recovery_switch_updates_cached_playlist(monkeypatch):
+    class DummyHistory:
+        last_event_id = 0
+
+        def write(self, *_args, **_kwargs):
+            return None
+
+    class FakeContextManager:
+        def refresh(self):
+            return Context(window=WindowData(title="Docs", process="Code.exe"), idle=5.0)
+
+    class FakeMatcher:
+        def evaluate(self, _context):
+            return MatchEvaluation(
+                best_playlist="rain",
+                playlist_matches=[("rain", 0.8), ("focus", 0.6)],
+                raw_context_vector={"rain": 1.0},
+            )
+
+    executor = mock.Mock()
+    executor.ensure_we_running.return_value = True
+    executor.open_playlist.return_value = True
+    controller = mock.Mock()
+    controller.last_playlist_switch_time = 0.0
+    controller.last_wallpaper_switch_time = 0.0
+    scheduler = WEScheduler("config", DummyHistory())
+    scheduler.context_manager = FakeContextManager()
+    scheduler.matcher = FakeMatcher()
+    scheduler.executor = executor
+    scheduler.actuator = Actuator(executor, controller, scheduler.history_logger)
+    scheduler.we_config_prober = mock.Mock(
+        probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST))
+    )
+    scheduler.managed_playlists = {"focus", "rain"}
+    scheduler.cached_playlist = "focus"
+    scheduler.display_of = {"focus": "Focus", "rain": "Rain"}
+    scheduler.paused = False
+    scheduler._update_status = lambda _trace: None
+    monkeypatch.setattr("core.scheduler.SchedulerState.save_state", lambda _state: None)
+
+    trace = scheduler._run_tick()
+    scheduler._commit_tick(trace)
+
+    assert trace.action.reason_code == ActionReasonCode.RECOVERY_NO_PLAYLIST
+    assert trace.action.effective_playlist_before == ""
+    assert trace.action.effective_playlist_after == "rain"
+    assert scheduler.cached_playlist == "rain"
+    controller.notify_playlist_switch.assert_called_once()
+
+
+def test_scheduler_recovery_failure_keeps_cached_playlist(monkeypatch):
+    class DummyHistory:
+        last_event_id = 0
+
+        def write(self, *_args, **_kwargs):
+            return None
+
+    class FakeContextManager:
+        def refresh(self):
+            return Context(window=WindowData(title="Docs", process="Code.exe"), idle=5.0)
+
+    class FakeMatcher:
+        def evaluate(self, _context):
+            return MatchEvaluation(
+                best_playlist="rain",
+                playlist_matches=[("rain", 0.8), ("focus", 0.6)],
+            )
+
+    executor = mock.Mock()
+    executor.ensure_we_running.return_value = True
+    executor.open_playlist.return_value = False
+    controller = mock.Mock()
+    controller.last_playlist_switch_time = 0.0
+    controller.last_wallpaper_switch_time = 0.0
+    scheduler = WEScheduler("config", DummyHistory())
+    scheduler.context_manager = FakeContextManager()
+    scheduler.matcher = FakeMatcher()
+    scheduler.executor = executor
+    scheduler.actuator = Actuator(executor, controller, scheduler.history_logger)
+    scheduler.we_config_prober = mock.Mock(
+        probe_playlist=mock.Mock(
+            return_value=FactualPlaylistState(
+                FactualPlaylistStatus.PLAYLIST,
+                playlist="unmanaged",
+            )
+        )
+    )
+    scheduler.managed_playlists = {"focus", "rain"}
+    scheduler.cached_playlist = "focus"
+    scheduler.display_of = {"focus": "Focus", "rain": "Rain"}
+    scheduler.paused = False
+    scheduler._update_status = lambda _trace: None
+    monkeypatch.setattr("core.scheduler.SchedulerState.save_state", lambda _state: None)
+
+    trace = scheduler._run_tick()
+    scheduler._commit_tick(trace)
+
+    assert trace.action.reason_code == ActionReasonCode.RECOVERY_UNMANAGED_PLAYLIST
+    assert trace.action.executed is False
+    assert trace.action.effective_playlist_after == ""
+    assert scheduler.cached_playlist == "focus"
+    controller.notify_playlist_switch.assert_not_called()
+
+
+def test_scheduler_managed_factual_playlist_corrects_cached_playlist(monkeypatch):
+    class DummyHistory:
+        last_event_id = 0
+
+        def write(self, *_args, **_kwargs):
+            return None
+
+    class FakeContextManager:
+        def refresh(self):
+            return Context(window=WindowData(title="Docs", process="Code.exe"), idle=5.0)
+
+    class FakeMatcher:
+        def evaluate(self, _context):
+            return MatchEvaluation(
+                best_playlist="rain",
+                playlist_matches=[("rain", 0.8), ("focus", 0.6)],
+            )
+
+    executor = mock.Mock()
+    executor.ensure_we_running.return_value = True
+    controller = mock.Mock()
+    controller.last_playlist_switch_time = 0.0
+    controller.last_wallpaper_switch_time = 0.0
+    controller.decide_action.return_value = ControllerDecision(
+        kind=ActionKind.HOLD,
+        reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
+        matched_playlist="rain",
+    )
+    scheduler = WEScheduler("config", DummyHistory())
+    scheduler.context_manager = FakeContextManager()
+    scheduler.matcher = FakeMatcher()
+    scheduler.executor = executor
+    scheduler.actuator = Actuator(executor, controller, scheduler.history_logger)
+    scheduler.we_config_prober = mock.Mock(
+        probe_playlist=mock.Mock(
+            return_value=FactualPlaylistState(
+                FactualPlaylistStatus.PLAYLIST,
+                playlist="rain",
+            )
+        )
+    )
+    scheduler.managed_playlists = {"focus", "rain"}
+    scheduler.cached_playlist = "focus"
+    scheduler.display_of = {"focus": "Focus", "rain": "Rain"}
+    scheduler.paused = False
+    scheduler._update_status = lambda _trace: None
+    monkeypatch.setattr("core.scheduler.SchedulerState.save_state", lambda _state: None)
+
+    trace = scheduler._run_tick()
+    scheduler._commit_tick(trace)
+
+    controller.decide_action.assert_called_once()
+    assert controller.decide_action.call_args.args[2] == "rain"
+    assert trace.action.effective_playlist_before == "rain"
+    assert scheduler.cached_playlist == "rain"
