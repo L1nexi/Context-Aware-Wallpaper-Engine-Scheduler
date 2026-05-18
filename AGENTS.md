@@ -16,7 +16,7 @@
 1. 实际代码与测试
 2. 本文件 `AGENTS.md`
 3. `dashboard/docs/UI_ENGINEERING_SPEC.md`(涉及前端开发时)
-4. `docs/frontend/CONFIGURATION_SPEC.md`
+4. `docs/archived/done/CONFIGURATION_SPEC.md`
 
 ## 2. 当前代码现状
 
@@ -94,12 +94,12 @@ npm run dev
 
 ## 3. 前端重写准则
 
-- 产品路线以 `docs/PRODUCT_DIRECTION.md` 为准。
+- 产品路线以 `docs/archived/done/PRODUCT_DIRECTION.md` 为准。
 - 前端工程规范以 `dashboard/docs/UI_ENGINEERING_SPEC.md` 为准。
-- 配置系统目标与契约以 `docs/frontend/CONFIGURATION_SPEC.md` 为准。
+- 配置系统目标与契约以 `docs/archived/done/CONFIGURATION_SPEC.md` 为准。
 - Diagnostics 细节可参考 `docs/archived/done/DASHBOARD_ANALYSIS_SPEC.md` 与同目录 implementation spec。
-- `docs/archived/frozen/CONFIG_EDITOR_SPEC.md`、`CONFIG_EDITOR_IMPLEMENTATION_SPEC.md`、`CONFIG_EDITOR_R5_SPEC.md` 已冻结，只作历史设计记录。
-- `docs/archived/frozen/HISTORY_SPEC.md` 已冻结，完整 History 页面不再是当前主线。
+- `docs/archived/deprecated/CONFIG_EDITOR_SPEC.md`、`CONFIG_EDITOR_IMPLEMENTATION_SPEC.md`、`CONFIG_EDITOR_R5_SPEC.md` 已冻结，只作历史设计记录。
+- `docs/archived/deprecated/HISTORY_SPEC.md` 已冻结，完整 History 页面不再是当前主线。
 
 ### 3.1 前端改动的强约束
 
@@ -125,7 +125,7 @@ npm run dev
 
 这意味着：
 
-- 如果你在做配置系统重构，应优先参考 `docs/frontend/CONFIGURATION_SPEC.md`，围绕固定 6 文件 YAML、Release zip 分发的 example 配置、严格 tag、playlist runtime map、Activity matcher、validate before swap 和配置辅助工具推进；不要新增 `include` 或隐藏配置层
+- 如果你在做配置系统重构，应优先参考 `docs/archived/done/CONFIGURATION_SPEC.md`，围绕固定 6 文件 YAML、Release zip 分发的 example 配置、严格 tag、playlist runtime map、Activity matcher、validate before swap 和配置辅助工具推进；不要新增 `include` 或隐藏配置层
 - 如果你在做 Dashboard 分析页重构，应直接基于 `SchedulerTickTrace` 新建更正确的分析接口，而不是恢复旧摘要状态契约
 
 ## 5. 目录地图
@@ -134,10 +134,10 @@ npm run dev
 - `ui/`: 托盘 UI、Bottle dashboard server、pywebview 窗口
 - `utils/`: 配置、日志、i18n、路径解析、历史记录
 - `dashboard/`: 新前端工作区与工程基座
-- `docs/PRODUCT_DIRECTION.md`: 当前产品路线与阶段优先级
-- `docs/frontend/`: 当前仍活跃的前端 / 配置规格
-- `docs/archived/done/`: 已完成的历史规格和参考设计
-- `docs/archived/frozen/`: 已冻结、不再作为主线推进的历史规格
+- `docs/archived/done/`: 当前仍被引用的完成规格与产品方向文档
+- `docs/archived/deprecated/`: 已冻结、不再作为主线推进的历史规格
+- `docs/archived/reference/`: 可参考但不主导当前路线的历史资料
+- `docs/half-finished/`: 半完成或待重新评估的规划材料
 - `tests/`: Python pytest 测试
 
 ## 6. 常用命令
@@ -169,12 +169,16 @@ npm install
 npm run lint
 npm run type-check
 npm run build-only
+npm run format
+npm run preview
 ```
 
 说明：
 
 - `python main.py config` 是单独的配置工具入口；如果要指定配置目录，参数写成 `python main.py config --config <config_dir>`，不要和宿主模式参数顺序混用。
 - `npm run lint` 会运行带 `--fix` 的 Oxlint 和 ESLint。
+- `npm run format` 只格式化 `dashboard/src/`。
+- `npm run preview` 用 Vite 预览已构建的 `dashboard/dist/`，通常先跑 `npm run build-only`。
 - 在某些受限代理环境里，`npm run build` 可能因为 `run-p` 派生进程限制报 `spawn EPERM`。
 - 遇到这种情况，直接分开跑 `npm run type-check` 和 `npm run build-only`。
 
@@ -188,7 +192,7 @@ npm run build-only
 
 ## 8. 面向代理的行动建议
 
-- 如果任务属于新前端建设，优先在 `dashboard/`、`docs/frontend/*` 对齐的数据模型和 `ui/dashboard.py` 的新接口上动手。
+- 如果任务属于新前端建设，优先在 `dashboard/`、`docs/archived/done/*` 对齐的数据模型和 `ui/dashboard.py` 的新接口上动手。
 - 如果任务属于配置体验，默认走文本配置工作流：固定 6 文件 YAML、Release zip 分发的 example 配置、Pydantic normalized runtime config、validate before swap。配置辅助默认通过 `Config Tools.bat` / `WEScheduler.exe config` 承载；tray 的 `Apply Current Match Now` 是独立手动调度入口，不应和 reload 混在一起。
 - 如果任务需要 breaking change，需要评估改动量，如果改动面偏小，就连同调用方、测试、静态资源接线一起改，不要把过渡态长期留在主线上；如果改动面大，则允许迭代适配。迭代过程中也并不强求集成测试通过。
 - 不要把 `dashboard` 的工程规范退化回旧式做法：大段 scoped CSS、页面私有全局类、绕开 token 的硬编码颜色/尺寸、用局部状态假装全局状态。
