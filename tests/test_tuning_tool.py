@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,13 @@ from tools.tuning.models import (
     focus,
     matrix,
     weather,
+)
+from tools.tuning.heatmaps import (
+    HeatmapFigure,
+    HeatmapRenderDependencyError,
+    HeatmapSampling,
+    activity_from_axis,
+    build_heatmap_grid,
 )
 from tools.tuning.tune import run_tuning
 from utils.config_loader import ConfigLoader
@@ -172,6 +180,48 @@ def test_matrix_builds_observed_cartesian_scenarios() -> None:
     assert all(scenario.note == "matrix trial" for scenario in scenarios)
 
 
+def test_heatmap_activity_axis_maps_chill_idle_focus() -> None:
+    chill_signal = activity_from_axis(-0.4)
+    idle_signal = activity_from_axis(0.0)
+    focus_signal = activity_from_axis(0.6)
+
+    assert chill_signal is not None
+    assert chill_signal.direction == {"chill": 1.0}
+    assert chill_signal.intensity == pytest.approx(0.4)
+    assert idle_signal is None
+    assert focus_signal is not None
+    assert focus_signal.direction == {"focus": 1.0}
+    assert focus_signal.intensity == pytest.approx(0.6)
+
+
+def test_heatmap_grid_uses_evaluate_scenario_results(tmp_path: Path) -> None:
+    config = ConfigLoader(str(_write_config_dir(tmp_path))).load_verified_config()
+    sampling = HeatmapSampling(hour_step=12.0)
+
+    current_grid = build_heatmap_grid(
+        config,
+        MatchProfile("current"),
+        "weather-hour",
+        sampling=sampling,
+    )
+    candidate_grid = build_heatmap_grid(
+        config,
+        MatchProfile("candidate", gamma_playlist=1.2, gamma_context=1.1),
+        "weather-hour",
+        sampling=sampling,
+    )
+
+    assert current_grid.profile.name == "current"
+    assert candidate_grid.profile.name == "candidate"
+    assert current_grid.x_axis.values == (0.0, 12.0)
+    assert len(current_grid.y_axis.values) == 11
+    assert len(current_grid.cells) == 11
+    assert all(len(row) == 2 for row in current_grid.cells)
+    assert current_grid.cells[0][0].winner in {"FOCUS", "CHILL", None}
+    assert current_grid.cells[0][0].score >= 0.0
+    assert current_grid.cells[0][0].gap >= 0.0
+
+
 def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> None:
     config = ConfigLoader(str(_write_config_dir(tmp_path))).load_verified_config()
     scenario = Scenario(
@@ -200,7 +250,7 @@ def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> Non
         assert actual[1] == pytest.approx(expected[1])
 
 
-def test_run_tuning_writes_report_artifacts(tmp_path: Path) -> None:
+def test_run_tuning_writes_report_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config_dir = _write_config_dir(tmp_path)
     scenarios = [
         Scenario(
@@ -220,6 +270,20 @@ def test_run_tuning_writes_report_artifacts(tmp_path: Path) -> None:
         ),
     ]
     profiles = [MatchProfile("current"), MatchProfile("candidate", gamma_playlist=1.2, gamma_context=1.1)]
+    figures = [
+        HeatmapFigure(
+            path="figures/current-weather-hour-winner.png",
+            profile="current",
+            mode="weather-hour",
+            type="winner",
+        )
+    ]
+
+    def fake_generate_default_heatmaps(*_args: object, **_kwargs: object) -> list[HeatmapFigure]:
+        return figures
+
+    monkeypatch.setattr("tools.tuning.tune.require_heatmap_renderer", lambda: None)
+    monkeypatch.setattr("tools.tuning.tune.generate_default_heatmaps", fake_generate_default_heatmaps)
 
     run_dir = run_tuning(
         config_dir=config_dir,
@@ -242,6 +306,9 @@ def test_run_tuning_writes_report_artifacts(tmp_path: Path) -> None:
     assert "- Policy contributions:" in summary
     assert "activity: active=True" in summary
     assert "time: active=True" in summary
+
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["figures"] == [figures[0].to_manifest()]
 
     with (run_dir / "compare.csv").open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -272,3 +339,26 @@ def test_run_tuning_rejects_duplicate_names(tmp_path: Path) -> None:
             out_root=tmp_path / "runs",
             run_name="test",
         )
+
+
+def test_run_tuning_requires_heatmap_renderer_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_dir = _write_config_dir(tmp_path)
+    scenario = Scenario("day focus clear", hour=14, day_of_year=95, expected="FOCUS")
+
+    def fail_require_heatmap_renderer() -> None:
+        raise HeatmapRenderDependencyError("missing renderer")
+
+    monkeypatch.setattr("tools.tuning.tune.require_heatmap_renderer", fail_require_heatmap_renderer)
+
+    with pytest.raises(HeatmapRenderDependencyError, match="missing renderer"):
+        run_tuning(
+            config_dir=config_dir,
+            scenarios=[scenario],
+            profiles=[MatchProfile("current")],
+            out_root=tmp_path / "runs",
+            run_name="test",
+        )
+    assert not (tmp_path / "runs").exists()

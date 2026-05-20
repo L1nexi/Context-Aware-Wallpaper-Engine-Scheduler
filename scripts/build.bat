@@ -39,6 +39,8 @@ pyinstaller --noconsole --onefile --name "WEScheduler" ^
     --hidden-import=win32gui ^
     --hidden-import=win32con ^
     --hidden-import=win32api ^
+    --exclude-module=matplotlib ^
+    --exclude-module=numpy ^
     --clean ^
     main.py
 

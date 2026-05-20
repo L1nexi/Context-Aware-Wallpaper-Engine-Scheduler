@@ -22,6 +22,12 @@ from tools.tuning.models import (  # noqa: E402
     profile_to_dict,
     scenario_to_dict,
 )
+from tools.tuning.heatmaps import (  # noqa: E402
+    HeatmapFigure,
+    HeatmapSampling,
+    generate_default_heatmaps,
+    require_heatmap_renderer,
+)
 from utils.config_loader import ConfigLoader  # noqa: E402
 
 
@@ -32,6 +38,7 @@ def run_tuning(
     profiles: Iterable[MatchProfile],
     out_root: Path,
     run_name: str,
+    heatmap_sampling: HeatmapSampling = HeatmapSampling(),
 ) -> Path:
     scenario_list = list(scenarios)
     profile_list = list(profiles)
@@ -41,6 +48,7 @@ def run_tuning(
         raise ValueError("at least one scenario is required")
     _ensure_unique_names((scenario.name for scenario in scenario_list), "scenario")
     _ensure_unique_names((profile.name for profile in profile_list), "profile")
+    require_heatmap_renderer()
 
     config = ConfigLoader(str(config_dir)).load_verified_config()
     run_dir = _make_run_dir(out_root, run_name)
@@ -52,7 +60,14 @@ def run_tuning(
         for profile in profile_list:
             scenario_results[profile.name] = evaluate_scenario(config, scenario, profile)
 
-    _write_manifest(run_dir, config_dir, run_name, scenario_list, profile_list)
+    figures = generate_default_heatmaps(
+        config,
+        profile_list,
+        run_dir / "figures",
+        sampling=heatmap_sampling,
+    )
+
+    _write_manifest(run_dir, config_dir, run_name, scenario_list, profile_list, figures)
     _write_rankings(run_dir, scenario_list, profile_list, results)
     _write_compare(run_dir, scenario_list, profile_list, results)
     _write_summary(run_dir, scenario_list, profile_list, results)
@@ -109,6 +124,7 @@ def _write_manifest(
     run_name: str,
     scenarios: list[Scenario],
     profiles: list[MatchProfile],
+    figures: list[HeatmapFigure],
 ) -> None:
     manifest = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -117,6 +133,7 @@ def _write_manifest(
         "scenario_count": len(scenarios),
         "profiles": [profile_to_dict(profile) for profile in profiles],
         "scenarios": [scenario_to_dict(scenario) for scenario in scenarios],
+        "figures": [figure.to_manifest() for figure in figures],
     }
     (run_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False),
