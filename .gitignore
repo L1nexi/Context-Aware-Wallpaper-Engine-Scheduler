@@ -40,3 +40,7 @@ docs/superpowers/
 
 venv313/
 config/
+
+# Internal tuning tool outputs
+tools/tuning/runs/*
+!tools/tuning/runs/.gitkeep
