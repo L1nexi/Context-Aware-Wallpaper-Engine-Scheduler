@@ -1,5 +1,7 @@
 # Context Aware WE Scheduler
 
+> Scheduler that keeps your flow.
+
 基于上下文感知的 Wallpaper Engine 智能调度器。
 
 ## 核心特性
