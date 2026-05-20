@@ -28,6 +28,12 @@ from tools.tuning.heatmaps import (  # noqa: E402
     generate_default_heatmaps,
     require_heatmap_renderer,
 )
+from tools.tuning.sweep import (  # noqa: E402
+    SweepReport,
+    evaluate_parameter_sweep,
+    sorted_sweep_rows,
+    write_sweep_csv,
+)
 from utils.config_loader import ConfigLoader  # noqa: E402
 
 
@@ -66,11 +72,21 @@ def run_tuning(
         run_dir / "figures",
         sampling=heatmap_sampling,
     )
+    sweep_report = evaluate_parameter_sweep(config, scenario_list)
 
-    _write_manifest(run_dir, config_dir, run_name, scenario_list, profile_list, figures)
+    _write_manifest(
+        run_dir,
+        config_dir,
+        run_name,
+        scenario_list,
+        profile_list,
+        figures,
+        sweep_report,
+    )
     _write_rankings(run_dir, scenario_list, profile_list, results)
     _write_compare(run_dir, scenario_list, profile_list, results)
-    _write_summary(run_dir, scenario_list, profile_list, results)
+    write_sweep_csv(run_dir / "sweep.csv", sweep_report)
+    _write_summary(run_dir, scenario_list, profile_list, results, sweep_report)
     return run_dir
 
 
@@ -125,6 +141,7 @@ def _write_manifest(
     scenarios: list[Scenario],
     profiles: list[MatchProfile],
     figures: list[HeatmapFigure],
+    sweep_report: SweepReport,
 ) -> None:
     manifest = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -134,6 +151,7 @@ def _write_manifest(
         "profiles": [profile_to_dict(profile) for profile in profiles],
         "scenarios": [scenario_to_dict(scenario) for scenario in scenarios],
         "figures": [figure.to_manifest() for figure in figures],
+        "sweep": sweep_report.to_manifest(),
     }
     (run_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False),
@@ -223,6 +241,7 @@ def _write_summary(
     scenarios: list[Scenario],
     profiles: list[MatchProfile],
     results: dict[str, dict[str, ScenarioProfileResult]],
+    sweep_report: SweepReport,
 ) -> None:
     expected_scenarios = [scenario for scenario in scenarios if scenario.expected is not None]
     observed_scenarios = [scenario for scenario in scenarios if scenario.expected is None]
@@ -239,6 +258,8 @@ def _write_summary(
         failed = sum(1 for result in profile_results if result.expected_status == "fail")
         avg_gap = _average(result.gap for result in profile_results)
         lines.append(f"| {profile.name} | {passed} | {failed} | {_fmt_float(avg_gap)} |")
+
+    _append_parameter_sweep_summary(lines, sweep_report)
 
     if len(profiles) > 1:
         baseline = profiles[0]
@@ -331,6 +352,31 @@ def _write_summary(
         lines.append("")
 
     (run_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def _append_parameter_sweep_summary(lines: list[str], sweep_report: SweepReport) -> None:
+    lines.extend(["", "## Parameter Sweep", ""])
+    lines.append("Baseline current:")
+    lines.append("")
+    lines.append("| Profile | Pass Rate | Pass | Fail | Avg Gap |")
+    lines.append("| --- | ---: | ---: | ---: | ---: |")
+    baseline = sweep_report.baseline
+    lines.append(
+        f"| {baseline.profile} | {_fmt_float(baseline.pass_rate)} | "
+        f"{baseline.pass_count} | {baseline.fail_count} | {_fmt_float(baseline.avg_gap)} |"
+    )
+    lines.append("")
+    lines.append("Top sweep profiles:")
+    lines.append("")
+    lines.append("| Profile | Gamma Playlist | Gamma Context | Pass Rate | Pass | Fail | Avg Gap | Churn Rate |")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    for row in sorted_sweep_rows(sweep_report.rows)[:10]:
+        lines.append(
+            f"| {row.profile} | {_fmt_float(row.gamma_playlist)} | "
+            f"{_fmt_float(row.gamma_context)} | {_fmt_float(row.pass_rate)} | "
+            f"{row.pass_count} | {row.fail_count} | {_fmt_float(row.avg_gap)} | "
+            f"{_fmt_float(row.churn_rate)} |"
+        )
 
 
 def _average(values: Iterable[float]) -> float:

@@ -27,6 +27,7 @@ from tools.tuning.heatmaps import (
     activity_from_axis,
     build_heatmap_grid,
 )
+from tools.tuning.sweep import evaluate_parameter_sweep, write_sweep_csv
 from tools.tuning.tune import run_tuning
 from utils.config_loader import ConfigLoader
 from utils.runtime_config import ActivityPolicyConfig
@@ -250,6 +251,101 @@ def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> Non
         assert actual[1] == pytest.approx(expected[1])
 
 
+def test_parameter_sweep_summarizes_pass_gap_and_churn(tmp_path: Path) -> None:
+    config = ConfigLoader(str(_write_config_dir(tmp_path))).load_verified_config()
+    scenarios = [
+        Scenario(
+            "balanced clear midnight",
+            hour=0,
+            day_of_year=1,
+            weather=weather("clear"),
+            activity=ActivitySignal({"focus": 1.0, "chill": 0.8}),
+            expected="FOCUS",
+        ),
+        Scenario(
+            "day focus clear",
+            hour=14,
+            day_of_year=95,
+            weather=weather("clear"),
+            activity=focus(),
+            expected="FOCUS",
+        ),
+        Scenario(
+            "observed rain mix",
+            hour=17,
+            day_of_year=220,
+            weather=weather("light_rain"),
+            activity=ActivitySignal({"focus": 0.7, "chill": 0.3}, intensity=0.4),
+        ),
+    ]
+
+    report = evaluate_parameter_sweep(
+        config,
+        scenarios,
+        gamma_playlist=[1.0, 1.2],
+        gamma_context=[1.0],
+    )
+
+    assert report.profile_count == 2
+    assert [row.profile for row in report.rows] == ["gp1-gc1", "gp1.2-gc1"]
+    current_row = report.rows[0]
+    assert current_row.expected_total == 2
+    assert current_row.pass_count == 2
+    assert current_row.fail_count == 0
+    assert current_row.pass_rate == pytest.approx(1.0)
+    assert current_row.avg_gap == pytest.approx(0.4119700861881485)
+    assert current_row.churn_count == 0
+    assert current_row.churn_rate == pytest.approx(0.0)
+
+    tuned_row = report.rows[1]
+    assert tuned_row.pass_count == 1
+    assert tuned_row.fail_count == 1
+    assert tuned_row.pass_rate == pytest.approx(0.5)
+    assert tuned_row.avg_gap == pytest.approx(0.42170840149684613)
+    assert tuned_row.churn_count == 1
+    assert tuned_row.churn_rate == pytest.approx(1 / 3)
+
+    csv_path = tmp_path / "sweep.csv"
+    write_sweep_csv(csv_path, report)
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[1]["profile"] == "gp1.2-gc1"
+    assert rows[1]["pass_rate"] == "0.500000"
+    assert rows[1]["churn_rate"] == "0.333333"
+
+
+def test_parameter_sweep_uses_zero_pass_rate_without_expected_scenarios(tmp_path: Path) -> None:
+    config = ConfigLoader(str(_write_config_dir(tmp_path))).load_verified_config()
+    scenarios = [
+        Scenario(
+            "observed rain mix",
+            hour=17,
+            day_of_year=220,
+            weather=weather("light_rain"),
+            activity=ActivitySignal({"focus": 0.7, "chill": 0.3}, intensity=0.4),
+        )
+    ]
+
+    report = evaluate_parameter_sweep(
+        config,
+        scenarios,
+        gamma_playlist=[1.0],
+        gamma_context=[1.0],
+    )
+
+    assert report.baseline.expected_total == 0
+    assert report.baseline.pass_rate == pytest.approx(0.0)
+    assert report.rows[0].expected_total == 0
+    assert report.rows[0].pass_rate == pytest.approx(0.0)
+
+    csv_path = tmp_path / "sweep.csv"
+    write_sweep_csv(csv_path, report)
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[0]["expected_total"] == "0"
+    assert rows[0]["pass_rate"] == "0.000000"
+
+
 def test_run_tuning_writes_report_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config_dir = _write_config_dir(tmp_path)
     scenarios = [
@@ -297,8 +393,10 @@ def test_run_tuning_writes_report_artifacts(tmp_path: Path, monkeypatch: pytest.
     assert (run_dir / "rankings.csv").is_file()
     assert (run_dir / "compare.csv").is_file()
     assert (run_dir / "summary.md").is_file()
+    assert (run_dir / "sweep.csv").is_file()
 
     summary = (run_dir / "summary.md").read_text(encoding="utf-8")
+    assert "## Parameter Sweep" in summary
     assert "## Scenario Diagnostics" in summary
     assert "### day focus clear" in summary
     assert "- Raw context:" in summary
@@ -309,6 +407,12 @@ def test_run_tuning_writes_report_artifacts(tmp_path: Path, monkeypatch: pytest.
 
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["figures"] == [figures[0].to_manifest()]
+    assert manifest["sweep"] == {
+        "path": "sweep.csv",
+        "profile_count": 36,
+        "gamma_playlist": [0.8, 0.9, 1.0, 1.1, 1.2, 1.3],
+        "gamma_context": [0.8, 0.9, 1.0, 1.1, 1.2, 1.3],
+    }
 
     with (run_dir / "compare.csv").open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
