@@ -16,6 +16,7 @@ from tools.tuning.models import (
     build_context,
     evaluate_scenario,
     focus,
+    matrix,
     weather,
 )
 from tools.tuning.tune import run_tuning
@@ -130,10 +131,12 @@ def _write_config_dir(tmp_path: Path) -> Path:
 
 
 def test_direct_activity_policy_preserves_direction_and_intensity() -> None:
+    direction = {"focus": 0.7, "chill": 0.3}
     policy = DirectActivityPolicy(
         ActivityPolicyConfig(enabled=True, weight=1.2),
-        ActivitySignal({"focus": 0.7, "chill": 0.3}, intensity=0.5),
+        ActivitySignal(direction, intensity=0.5),
     )
+    direction["focus"] = 0.1
 
     evaluation = policy.evaluate(build_context(Scenario("base", hour=12, day_of_year=100)))
 
@@ -143,6 +146,30 @@ def test_direct_activity_policy_preserves_direction_and_intensity() -> None:
     assert evaluation.direction["chill"] == pytest.approx(0.3 / (0.7**2 + 0.3**2) ** 0.5)
     assert evaluation.raw_contribution["focus"] == pytest.approx(evaluation.direction["focus"] * 0.6)
     assert evaluation.raw_contribution["chill"] == pytest.approx(evaluation.direction["chill"] * 0.6)
+
+
+def test_build_context_rounds_fractional_hour_through_midnight() -> None:
+    context = build_context(Scenario("late", hour=23.999, day_of_year=100))
+
+    assert context.time.tm_yday == 101
+    assert context.time.tm_hour == 0
+    assert context.time.tm_min == 0
+
+
+def test_matrix_builds_observed_cartesian_scenarios() -> None:
+    scenarios = matrix(
+        "trial",
+        hours=[14, 23],
+        days=[95],
+        weathers=[None, "clear"],
+        activities=[None, focus(0.4)],
+    )
+
+    assert len(scenarios) == 8
+    assert scenarios[0].name == "trial doy95 h14 idle none"
+    assert scenarios[-1].name == "trial doy95 h23 focus1-i0.4 clear"
+    assert all(scenario.expected is None for scenario in scenarios)
+    assert all(scenario.note == "matrix trial" for scenario in scenarios)
 
 
 def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> None:
@@ -207,9 +234,41 @@ def test_run_tuning_writes_report_artifacts(tmp_path: Path) -> None:
     assert (run_dir / "compare.csv").is_file()
     assert (run_dir / "summary.md").is_file()
 
+    summary = (run_dir / "summary.md").read_text(encoding="utf-8")
+    assert "## Scenario Diagnostics" in summary
+    assert "### day focus clear" in summary
+    assert "- Raw context:" in summary
+    assert "- Resolved context:" in summary
+    assert "- Policy contributions:" in summary
+    assert "activity: active=True" in summary
+    assert "time: active=True" in summary
+
     with (run_dir / "compare.csv").open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
     observed = next(row for row in rows if row["scenario"] == "observed drizzle")
     assert observed["current_status"] == "observed"
     assert observed["candidate_status"] == "observed"
+
+
+def test_run_tuning_rejects_duplicate_names(tmp_path: Path) -> None:
+    config_dir = _write_config_dir(tmp_path)
+    scenario = Scenario("duplicate", hour=14, day_of_year=95, expected="FOCUS")
+
+    with pytest.raises(ValueError, match="scenario names must be unique"):
+        run_tuning(
+            config_dir=config_dir,
+            scenarios=[scenario, scenario],
+            profiles=[MatchProfile("current")],
+            out_root=tmp_path / "runs",
+            run_name="test",
+        )
+
+    with pytest.raises(ValueError, match="profile names must be unique"):
+        run_tuning(
+            config_dir=config_dir,
+            scenarios=[scenario],
+            profiles=[MatchProfile("current"), MatchProfile("current")],
+            out_root=tmp_path / "runs",
+            run_name="test",
+        )

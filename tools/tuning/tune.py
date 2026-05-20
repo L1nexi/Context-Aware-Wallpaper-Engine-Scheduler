@@ -5,7 +5,7 @@ import csv
 import json
 import re
 import sys
-from collections import defaultdict
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
@@ -39,14 +39,18 @@ def run_tuning(
         raise ValueError("at least one match profile is required")
     if not scenario_list:
         raise ValueError("at least one scenario is required")
+    _ensure_unique_names((scenario.name for scenario in scenario_list), "scenario")
+    _ensure_unique_names((profile.name for profile in profile_list), "profile")
 
     config = ConfigLoader(str(config_dir)).load_verified_config()
     run_dir = _make_run_dir(out_root, run_name)
 
-    results: dict[str, dict[str, ScenarioProfileResult]] = defaultdict(dict)
+    results: dict[str, dict[str, ScenarioProfileResult]] = {}
     for scenario in scenario_list:
+        scenario_results: dict[str, ScenarioProfileResult] = {}
+        results[scenario.name] = scenario_results
         for profile in profile_list:
-            results[scenario.name][profile.name] = evaluate_scenario(config, scenario, profile)
+            scenario_results[profile.name] = evaluate_scenario(config, scenario, profile)
 
     _write_manifest(run_dir, config_dir, run_name, scenario_list, profile_list)
     _write_rankings(run_dir, scenario_list, profile_list, results)
@@ -57,7 +61,7 @@ def run_tuning(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run internal matcher tuning scenarios.")
-    parser.add_argument("--config", default="config.example", help="Config directory to load.")
+    parser.add_argument("--config", default="config", help="Config directory to load.")
     parser.add_argument("--run-name", default="r6-tuning", help="Name suffix for the run output directory.")
     parser.add_argument(
         "--out-root",
@@ -81,9 +85,22 @@ def main() -> None:
 def _make_run_dir(out_root: Path, run_name: str) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "-", run_name.strip()).strip("-_.") or "run"
-    run_dir = out_root / f"{timestamp}_{safe_name}"
-    run_dir.mkdir(parents=True, exist_ok=False)
-    return run_dir
+    for index in range(100):
+        suffix = "" if index == 0 else f"-{index + 1}"
+        run_dir = out_root / f"{timestamp}_{safe_name}{suffix}"
+        try:
+            run_dir.mkdir(parents=True, exist_ok=False)
+            return run_dir
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"could not create a unique run directory for {safe_name!r}")
+
+
+def _ensure_unique_names(names: Iterable[str], label: str) -> None:
+    counts = Counter(names)
+    duplicates = [name for name, count in counts.items() if count > 1]
+    if duplicates:
+        raise ValueError(f"{label} names must be unique: {', '.join(sorted(duplicates))}")
 
 
 def _write_manifest(
@@ -252,6 +269,50 @@ def _write_summary(
             lines.append(f"- {profile.name}: {result.winner} gap={_fmt_float(result.gap)} top3={top3}")
         lines.append("")
 
+    lines.extend(["", "## Scenario Diagnostics", ""])
+    for scenario in scenarios:
+        lines.append(f"### {scenario.name}")
+        if scenario.expected is not None:
+            lines.append(f"Expected: {scenario.expected}")
+        else:
+            lines.append("Expected: observed")
+        if scenario.note:
+            lines.append(f"Note: {scenario.note}")
+
+        for profile in profiles:
+            result = results[scenario.name][profile.name]
+            lines.append("")
+            lines.append(f"#### {profile.name}")
+            lines.append(
+                "- Result: "
+                f"winner={result.winner or 'none'} "
+                f"status={result.expected_status} "
+                f"score={_fmt_float(result.score)} "
+                f"gap={_fmt_float(result.gap)}"
+            )
+            lines.append(f"- Top 3: {_format_top_rankings(result)}")
+            lines.append(f"- Raw context: {_format_vector(result.match.raw_context_vector)}")
+            lines.append(f"- Resolved context: {_format_vector(result.match.resolved_context_vector)}")
+            if result.match.fallback_expansions:
+                lines.append(
+                    f"- Fallback expansions: {_format_nested_vector(result.match.fallback_expansions)}"
+                )
+            lines.append("- Policy contributions:")
+            for evaluation in result.match.policy_evaluations:
+                lines.append(
+                    "  - "
+                    f"{evaluation.policy_id}: "
+                    f"active={evaluation.active} "
+                    f"weight={_fmt_float(evaluation.weight)} "
+                    f"salience={_fmt_float(evaluation.salience)} "
+                    f"intensity={_fmt_float(evaluation.intensity)} "
+                    f"magnitude={_fmt_float(evaluation.effective_magnitude)} "
+                    f"dominant={evaluation.dominant_tag or 'none'} "
+                    f"raw={_format_vector(evaluation.raw_contribution)} "
+                    f"resolved={_format_vector(evaluation.resolved_contribution)}"
+                )
+        lines.append("")
+
     (run_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -264,6 +325,33 @@ def _average(values: Iterable[float]) -> float:
 
 def _fmt_float(value: float) -> str:
     return f"{value:.6f}"
+
+
+def _format_top_rankings(result: ScenarioProfileResult, limit: int = 3) -> str:
+    if not result.rankings:
+        return "none"
+    return ", ".join(
+        f"{row.playlist}({_fmt_float(row.score)})"
+        for row in result.rankings[:limit]
+    )
+
+
+def _format_vector(vector: dict[str, float]) -> str:
+    if not vector:
+        return "{}"
+    return "{" + ", ".join(
+        f"{tag}: {_fmt_float(vector[tag])}"
+        for tag in sorted(vector)
+    ) + "}"
+
+
+def _format_nested_vector(vector: dict[str, dict[str, float]]) -> str:
+    if not vector:
+        return "{}"
+    return "{" + ", ".join(
+        f"{tag}: {_format_vector(vector[tag])}"
+        for tag in sorted(vector)
+    ) + "}"
 
 
 if __name__ == "__main__":

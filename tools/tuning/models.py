@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from itertools import product
+from types import MappingProxyType
 
 from core.context import Context, WeatherData
 from core.diagnostics import ActivityPolicyDetails, ActivityPolicyEvaluation, MatchEvaluation
@@ -16,7 +19,7 @@ _EPSILON = 1e-6
 
 @dataclass(frozen=True)
 class ActivitySignal:
-    direction: dict[str, float]
+    direction: Mapping[str, float]
     intensity: float = 1.0
     salience: float = 1.0
 
@@ -24,6 +27,7 @@ class ActivitySignal:
         _validate_vector(self.direction, "activity direction")
         _validate_non_negative(self.intensity, "activity intensity")
         _validate_non_negative(self.salience, "activity salience")
+        object.__setattr__(self, "direction", MappingProxyType(dict(self.direction)))
 
 
 @dataclass(frozen=True)
@@ -124,10 +128,73 @@ def activity_signal(
     return ActivitySignal(direction, intensity=intensity, salience=salience)
 
 
+def matrix(
+    prefix: str,
+    *,
+    hours: list[float],
+    days: list[int],
+    weathers: list[str | None] | None = None,
+    activities: list[ActivitySignal | None] | None = None,
+    note: str = "matrix trial",
+) -> list[Scenario]:
+    """Build observed scenarios from a small Cartesian matrix.
+
+    Raises:
+        ValueError: If `prefix`, `hours`, or `days` is empty, or if an axis
+            value fails the underlying `Scenario` or weather preset validation.
+    """
+    if not prefix.strip():
+        raise ValueError("matrix prefix must not be empty")
+    if not hours:
+        raise ValueError("matrix hours must not be empty")
+    if not days:
+        raise ValueError("matrix days must not be empty")
+
+    weather_axis = weathers or [None]
+    activity_axis = activities or [None]
+    if not weather_axis:
+        raise ValueError("matrix weathers must not be empty")
+    if not activity_axis:
+        raise ValueError("matrix activities must not be empty")
+
+    scenarios: list[Scenario] = []
+    for day, hour, activity, weather_name in product(days, hours, activity_axis, weather_axis):
+        scenarios.append(
+            Scenario(
+                " ".join(
+                    (
+                        prefix,
+                        f"doy{day}",
+                        f"h{hour:g}",
+                        _activity_name(activity),
+                        weather_name or "none",
+                    )
+                ),
+                hour=hour,
+                day_of_year=day,
+                weather=weather(weather_name),
+                activity=activity,
+                note=note,
+            )
+        )
+    return scenarios
+
+
+def _activity_name(activity: ActivitySignal | None) -> str:
+    if activity is None:
+        return "idle"
+    tags = "-".join(
+        f"{tag}{activity.direction[tag]:g}"
+        for tag in sorted(activity.direction)
+    )
+    return f"{tags}-i{activity.intensity:g}"
+
+
 WEATHER_PRESETS: dict[str, WeatherInput] = {
     "clear": WeatherInput(800, "Clear"),
     "few_clouds": WeatherInput(801, "Clouds"),
     "overcast": WeatherInput(804, "Clouds"),
+    "light_drizzle": WeatherInput(300, "Drizzle"),
     "drizzle": WeatherInput(301, "Drizzle"),
     "light_rain": WeatherInput(500, "Rain"),
     "mod_rain": WeatherInput(501, "Rain"),
@@ -135,6 +202,7 @@ WEATHER_PRESETS: dict[str, WeatherInput] = {
     "light_snow": WeatherInput(600, "Snow"),
     "heavy_snow": WeatherInput(602, "Snow"),
     "storm": WeatherInput(211, "Thunderstorm"),
+    "storm_rain": WeatherInput(201, "Thunderstorm"),
     "heavy_storm": WeatherInput(212, "Thunderstorm"),
     "fog": WeatherInput(741, "Fog"),
 }
@@ -214,13 +282,10 @@ def evaluate_scenario(
 
 
 def build_context(scenario: Scenario) -> Context:
-    date = datetime(_EVAL_YEAR, 1, 1) + timedelta(days=scenario.day_of_year - 1)
-    hour = int(scenario.hour)
-    minute = int(round((scenario.hour - hour) * 60))
-    if minute >= 60:
-        hour += 1
-        minute -= 60
-    date = date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    date = datetime(_EVAL_YEAR, 1, 1) + timedelta(
+        days=scenario.day_of_year - 1,
+        minutes=round(scenario.hour * 60),
+    )
 
     weather_data = None
     if scenario.weather is not None:
@@ -277,7 +342,7 @@ def scenario_to_dict(scenario: Scenario) -> dict[str, object]:
             None
             if scenario.activity is None
             else {
-                "direction": scenario.activity.direction,
+                "direction": dict(scenario.activity.direction),
                 "intensity": scenario.activity.intensity,
                 "salience": scenario.activity.salience,
             }
@@ -305,7 +370,7 @@ def _dot(left: dict[str, float], right: dict[str, float]) -> float:
     return sum(value * right.get(tag, 0.0) for tag, value in left.items())
 
 
-def _validate_vector(vector: dict[str, float], label: str) -> None:
+def _validate_vector(vector: Mapping[str, float], label: str) -> None:
     if not vector:
         raise ValueError(f"{label} must not be empty")
     for tag, value in vector.items():

@@ -1,11 +1,31 @@
 from __future__ import annotations
 
-from tools.tuning.models import MatchProfile, Scenario, activity_signal, chill, focus, weather
+from tools.tuning.models import (
+    MatchProfile,
+    Scenario,
+    activity_signal,
+    chill,
+    focus,
+    matrix,
+    weather,
+)
 
 PROFILES = [
     MatchProfile("current"),
     MatchProfile("r6-gp1.25-gc1.20", gamma_playlist=1.25, gamma_context=1.20),
 ]
+
+MATRIX_TRIALS = matrix(
+    "matrix late-summer rain boundary",
+    hours=[17],
+    days=[235],
+    weathers=[None, "light_rain", "mod_rain"],
+    activities=[
+        None,
+        activity_signal({"focus": 0.7, "chill": 0.3}, intensity=0.45),
+        activity_signal({"chill": 0.7, "focus": 0.3}, intensity=0.45),
+    ],
+)
 
 SCENARIOS = [
     Scenario(
@@ -48,11 +68,142 @@ SCENARIOS = [
         expected="SUNSET_GLOW",
     ),
     Scenario(
+        "sunset chill clear",
+        hour=20,
+        day_of_year=95,
+        weather=weather("clear"),
+        activity=chill(),
+        expected="SUNSET_GLOW",
+    ),
+    Scenario(
+        "dawn focus clear",
+        hour=8,
+        day_of_year=95,
+        weather=weather("clear"),
+        activity=focus(),
+        expected="BRIGHT_FLOW",
+    ),
+    Scenario(
+        "day idle light drizzle",
+        hour=14,
+        day_of_year=95,
+        weather=weather("light_drizzle"),
+        expected="CASUAL_ANIME",
+    ),
+    Scenario(
+        "day idle drizzle",
+        hour=14,
+        day_of_year=95,
+        weather=weather("drizzle"),
+        expected="RAINY_MOOD",
+    ),
+    Scenario(
+        "day idle light rain",
+        hour=14,
+        day_of_year=95,
+        weather=weather("light_rain"),
+        expected="RAINY_MOOD",
+    ),
+    Scenario(
+        "day focus light rain",
+        hour=14,
+        day_of_year=95,
+        weather=weather("light_rain"),
+        activity=focus(),
+        expected="BRIGHT_FLOW",
+    ),
+    Scenario(
         "day idle moderate rain",
         hour=14,
         day_of_year=95,
         weather=weather("mod_rain"),
         expected="RAINY_MOOD",
+    ),
+    Scenario(
+        "day focus moderate rain",
+        hour=14,
+        day_of_year=95,
+        weather=weather("mod_rain"),
+        activity=focus(),
+        expected="BRIGHT_FLOW",
+    ),
+    Scenario(
+        "night idle heavy rain",
+        hour=23,
+        day_of_year=95,
+        weather=weather("heavy_rain"),
+        expected="RAINY_MOOD",
+    ),
+    Scenario(
+        "night chill moderate rain",
+        hour=23,
+        day_of_year=95,
+        weather=weather("mod_rain"),
+        activity=chill(),
+        expected="RAINY_MOOD",
+    ),
+    Scenario(
+        "night idle storm rain",
+        hour=23,
+        day_of_year=95,
+        weather=weather("storm_rain"),
+        expected="RAINY_MOOD",
+    ),
+    Scenario(
+        "day idle storm",
+        hour=14,
+        day_of_year=95,
+        weather=weather("storm"),
+        expected="RAINY_MOOD",
+    ),
+    Scenario(
+        "day idle few clouds",
+        hour=14,
+        day_of_year=95,
+        weather=weather("few_clouds"),
+        expected="CASUAL_ANIME",
+    ),
+    Scenario(
+        "day idle overcast",
+        hour=14,
+        day_of_year=95,
+        weather=weather("overcast"),
+        expected="CASUAL_ANIME",
+    ),
+    Scenario(
+        "dawn idle fog",
+        hour=8,
+        day_of_year=95,
+        weather=weather("fog"),
+        expected="BRIGHT_FLOW",
+    ),
+    Scenario(
+        "summer day chill clear",
+        hour=14,
+        day_of_year=172,
+        weather=weather("clear"),
+        activity=chill(),
+        expected="SUMMER_GLOW",
+    ),
+    Scenario(
+        "autumn sunset idle none",
+        hour=20,
+        day_of_year=265,
+        expected="AUTUMN_DRIFT",
+    ),
+    Scenario(
+        "autumn sunset idle overcast",
+        hour=20,
+        day_of_year=265,
+        weather=weather("overcast"),
+        expected="AUTUMN_DRIFT",
+    ),
+    Scenario(
+        "winter sunset idle clear",
+        hour=20,
+        day_of_year=355,
+        weather=weather("clear"),
+        expected="WINTER_VIBES",
     ),
     Scenario(
         "winter sunset snow",
@@ -62,6 +213,19 @@ SCENARIOS = [
         expected="WINTER_VIBES",
     ),
     Scenario(
+        "winter night idle snow",
+        hour=23,
+        day_of_year=355,
+        weather=weather("heavy_snow"),
+        expected="WINTER_VIBES",
+    ),
+    Scenario(
+        "spring day idle none",
+        hour=14,
+        day_of_year=95,
+        expected="SPRING_BLOOM",
+    ),
+    Scenario(
         "late summer light rain rising focus",
         hour=17,
         day_of_year=235,
@@ -69,4 +233,5 @@ SCENARIOS = [
         activity=activity_signal({"focus": 0.7, "chill": 0.3}, intensity=0.45),
         note="subtle observed boundary",
     ),
+    *MATRIX_TRIALS,
 ]
