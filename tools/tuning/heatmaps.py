@@ -16,7 +16,7 @@ from tools.tuning.models import (
 )
 from utils.runtime_config import SchedulerConfig
 
-HeatmapMode = Literal["weather-hour", "activity-hour", "weather-activity", "hour-doy"]
+HeatmapMode = Literal["wx-hour", "act-hour", "wx-act", "hour-doy"]
 HeatmapType = Literal["winner", "margin"]
 AxisName = Literal["weather", "hour", "activity", "day_of_year"]
 
@@ -34,9 +34,9 @@ WEATHER_HEATMAP_PRESETS: tuple[str | None, ...] = (
     "fog",
 )
 DEFAULT_VIEW_MODES: tuple[HeatmapMode, ...] = (
-    "weather-hour",
-    "activity-hour",
-    "weather-activity",
+    "wx-hour",
+    "act-hour",
+    "wx-act",
     "hour-doy",
 )
 DEFAULT_MARGIN_MAX = 0.35
@@ -116,20 +116,20 @@ class _ViewSpec:
 
 
 _VIEW_SPECS: dict[HeatmapMode, _ViewSpec] = {
-    "weather-hour": _ViewSpec(
-        mode="weather-hour",
+    "wx-hour": _ViewSpec(
+        mode="wx-hour",
         x_axis="hour",
         y_axis="weather",
         fixed={"activity": None, "day_of_year": 172},
     ),
-    "activity-hour": _ViewSpec(
-        mode="activity-hour",
+    "act-hour": _ViewSpec(
+        mode="act-hour",
         x_axis="hour",
         y_axis="activity",
         fixed={"weather": "clear", "day_of_year": 172},
     ),
-    "weather-activity": _ViewSpec(
-        mode="weather-activity",
+    "wx-act": _ViewSpec(
+        mode="wx-act",
         x_axis="activity",
         y_axis="weather",
         fixed={"hour": 14.0, "day_of_year": 172},
@@ -202,7 +202,6 @@ def generate_default_heatmaps(
         HeatmapRenderDependencyError: If matplotlib or numpy is not installed.
         ValueError: If a requested mode cannot be evaluated or rendered.
     """
-    require_heatmap_renderer()
     figures_dir.mkdir(parents=True, exist_ok=True)
     figures: list[HeatmapFigure] = []
     for profile in profiles:
@@ -223,16 +222,6 @@ def generate_default_heatmaps(
                 )
     return figures
 
-
-def require_heatmap_renderer() -> None:
-    """Validate that heatmap rendering dependencies are installed.
-
-    Raises:
-        HeatmapRenderDependencyError: If matplotlib or numpy is not installed.
-    """
-    _load_plotting()
-
-
 def render_heatmap(
     grid: HeatmapGrid,
     config: SchedulerConfig,
@@ -247,7 +236,10 @@ def render_heatmap(
         HeatmapRenderDependencyError: If matplotlib or numpy is not installed.
         ValueError: If `heatmap_type` is unknown.
     """
-    plt, np, mpl_colors, patches = _load_plotting()
+    import matplotlib.colors as mpl_colors
+    import matplotlib.patches as patches
+    import matplotlib.pyplot as plt
+    import numpy as np
     fig, ax = plt.subplots(figsize=_figure_size(grid))
     try:
         if heatmap_type == "winner":
@@ -497,7 +489,7 @@ def _title(grid: HeatmapGrid, heatmap_type: HeatmapType) -> str:
 def _figure_size(grid: HeatmapGrid) -> tuple[float, float]:
     if grid.mode == "hour-doy":
         return (12.0, 7.0)
-    if grid.mode == "activity-hour":
+    if grid.mode == "act-hour":
         return (12.0, 6.0)
     return (10.0, 5.6)
 
@@ -513,17 +505,3 @@ def _value_label(value: object) -> str:
 def _slug(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip()).strip("-_.")
     return slug or "profile"
-
-
-def _load_plotting():
-    try:
-        import matplotlib.colors as mpl_colors
-        import matplotlib.patches as patches
-        import matplotlib.pyplot as plt
-        import numpy as np
-    except ImportError as exc:
-        raise HeatmapRenderDependencyError(
-            "heatmap rendering requires matplotlib and numpy; install with "
-            "`pip install matplotlib numpy`"
-        ) from exc
-    return plt, np, mpl_colors, patches

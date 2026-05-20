@@ -22,7 +22,6 @@ from tools.tuning.models import (
 )
 from tools.tuning.heatmaps import (
     HeatmapFigure,
-    HeatmapRenderDependencyError,
     HeatmapSampling,
     activity_from_axis,
     build_heatmap_grid,
@@ -378,7 +377,6 @@ def test_run_tuning_writes_report_artifacts(tmp_path: Path, monkeypatch: pytest.
     def fake_generate_default_heatmaps(*_args: object, **_kwargs: object) -> list[HeatmapFigure]:
         return figures
 
-    monkeypatch.setattr("tools.tuning.tune.require_heatmap_renderer", lambda: None)
     monkeypatch.setattr("tools.tuning.tune.generate_default_heatmaps", fake_generate_default_heatmaps)
 
     run_dir = run_tuning(
@@ -443,26 +441,3 @@ def test_run_tuning_rejects_duplicate_names(tmp_path: Path) -> None:
             out_root=tmp_path / "runs",
             run_name="test",
         )
-
-
-def test_run_tuning_requires_heatmap_renderer_dependencies(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    config_dir = _write_config_dir(tmp_path)
-    scenario = Scenario("day focus clear", hour=14, day_of_year=95, expected="FOCUS")
-
-    def fail_require_heatmap_renderer() -> None:
-        raise HeatmapRenderDependencyError("missing renderer")
-
-    monkeypatch.setattr("tools.tuning.tune.require_heatmap_renderer", fail_require_heatmap_renderer)
-
-    with pytest.raises(HeatmapRenderDependencyError, match="missing renderer"):
-        run_tuning(
-            config_dir=config_dir,
-            scenarios=[scenario],
-            profiles=[MatchProfile("current")],
-            out_root=tmp_path / "runs",
-            run_name="test",
-        )
-    assert not (tmp_path / "runs").exists()

@@ -26,7 +26,6 @@ from tools.tuning.heatmaps import (  # noqa: E402
     HeatmapFigure,
     HeatmapSampling,
     generate_default_heatmaps,
-    require_heatmap_renderer,
 )
 from tools.tuning.sweep import (  # noqa: E402
     SweepReport,
@@ -54,7 +53,6 @@ def run_tuning(
         raise ValueError("at least one scenario is required")
     _ensure_unique_names((scenario.name for scenario in scenario_list), "scenario")
     _ensure_unique_names((profile.name for profile in profile_list), "profile")
-    require_heatmap_renderer()
 
     config = ConfigLoader(str(config_dir)).load_verified_config()
     run_dir = _make_run_dir(out_root, run_name)
