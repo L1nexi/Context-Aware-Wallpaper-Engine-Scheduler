@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Literal, Sequence, Tuple
 
 from tools.tuning.models import (
     ActivitySignal,
@@ -16,8 +16,8 @@ from tools.tuning.models import (
 )
 from utils.runtime_config import SchedulerConfig
 
-HeatmapMode = Literal["wx-hour", "act-hour", "wx-act", "hour-doy"]
-HeatmapType = Literal["winner", "margin"]
+HeatmapMode = Literal["wx-hour", "act-hour", "wx-act", "wx-doy", "act-doy", "hour-doy"]
+HeatmapType = Literal["winner"]
 AxisName = Literal["weather", "hour", "activity", "day_of_year"]
 
 WEATHER_HEATMAP_PRESETS: tuple[str | None, ...] = (
@@ -33,13 +33,6 @@ WEATHER_HEATMAP_PRESETS: tuple[str | None, ...] = (
     "heavy_storm",
     "fog",
 )
-DEFAULT_VIEW_MODES: tuple[HeatmapMode, ...] = (
-    "wx-hour",
-    "act-hour",
-    "wx-act",
-    "hour-doy",
-)
-DEFAULT_MARGIN_MAX = 0.35
 _ACTIVITY_IDLE_EPSILON = 1e-9
 
 
@@ -81,6 +74,7 @@ class HeatmapAxis:
 class HeatmapGrid:
     mode: HeatmapMode
     profile: MatchProfile
+    case_name: str
     x_axis: HeatmapAxis
     y_axis: HeatmapAxis
     fixed: dict[str, object]
@@ -92,15 +86,8 @@ class HeatmapFigure:
     path: str
     profile: str
     mode: HeatmapMode
+    case_name: str
     type: HeatmapType
-
-    def to_manifest(self) -> dict[str, str]:
-        return {
-            "path": self.path,
-            "profile": self.profile,
-            "mode": self.mode,
-            "type": self.type,
-        }
 
 
 class HeatmapRenderDependencyError(RuntimeError):
@@ -108,39 +95,98 @@ class HeatmapRenderDependencyError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class _ViewSpec:
+class ViewSpec:
     mode: HeatmapMode
     x_axis: AxisName
     y_axis: AxisName
     fixed: dict[str, object]
 
 
-_VIEW_SPECS: dict[HeatmapMode, _ViewSpec] = {
-    "wx-hour": _ViewSpec(
-        mode="wx-hour",
-        x_axis="hour",
-        y_axis="weather",
-        fixed={"activity": None, "day_of_year": 172},
-    ),
-    "act-hour": _ViewSpec(
-        mode="act-hour",
-        x_axis="hour",
-        y_axis="activity",
-        fixed={"weather": "clear", "day_of_year": 172},
-    ),
-    "wx-act": _ViewSpec(
-        mode="wx-act",
-        x_axis="activity",
-        y_axis="weather",
-        fixed={"hour": 14.0, "day_of_year": 172},
-    ),
-    "hour-doy": _ViewSpec(
-        mode="hour-doy",
-        x_axis="hour",
-        y_axis="day_of_year",
-        fixed={"activity": None, "weather": "clear"},
-    ),
+@dataclass(frozen=True)
+class HeatmapCase:
+    name: str
+    mode: HeatmapMode
+    fixed: dict[str, object]
+
+
+_MODE_TO_AXES: dict[HeatmapMode, Tuple[AxisName, AxisName]] = {
+    "wx-hour": ("hour", "weather"),
+    "act-hour": ("hour", "activity"),
+    "wx-act": ("activity", "weather"),
+    "wx-doy": ("day_of_year", "weather"),
+    "act-doy": ("day_of_year", "activity"),
+    "hour-doy": ("hour", "day_of_year"),
 }
+
+
+DEFAULT_HEATMAP_CASES: tuple[HeatmapCase, ...] = (
+    HeatmapCase("wxhr-idle-haru", "wx-hour", {"activity": None, "day_of_year": 80}),
+    HeatmapCase("wxhr-idle-natsu", "wx-hour", {"activity": None, "day_of_year": 172}),
+    HeatmapCase("wxhr-idle-aki", "wx-hour", {"activity": None, "day_of_year": 265}),
+    HeatmapCase("wxhr-idle-fuyu", "wx-hour", {"activity": None, "day_of_year": 355}),
+    HeatmapCase("wxhr-idle-fuyu-haru", "wx-hour", {"activity": None, "day_of_year": 35}),
+    HeatmapCase("wxhr-idle-haru-natsu", "wx-hour", {"activity": None, "day_of_year": 126}),
+    HeatmapCase("wxhr-idle-natsu-aki", "wx-hour", {"activity": None, "day_of_year": 218}),
+    HeatmapCase("wxhr-idle-aki-fuyu", "wx-hour", {"activity": None, "day_of_year": 310}),
+    HeatmapCase("wxhr-focus-haru", "wx-hour", {"activity": "#focus", "day_of_year": 80}),
+    HeatmapCase("wxhr-focus-natsu", "wx-hour", {"activity": "#focus", "day_of_year": 172}),
+    HeatmapCase("wxhr-chill-natsu", "wx-hour", {"activity": "#chill", "day_of_year": 172}),
+    HeatmapCase("wxhr-chill-fuyu", "wx-hour", {"activity": "#chill", "day_of_year": 355}),
+    HeatmapCase("acthr-none-haru", "act-hour", {"weather": None, "day_of_year": 80}),
+    HeatmapCase("acthr-none-natsu-aki", "act-hour", {"weather": None, "day_of_year": 218}),
+    HeatmapCase("acthr-none-fuyu", "act-hour", {"weather": None, "day_of_year": 355}),
+    HeatmapCase("acthr-clear-haru", "act-hour", {"weather": "clear", "day_of_year": 80}),
+    HeatmapCase("acthr-clear-haru-natsu", "act-hour", {"weather": "clear", "day_of_year": 126}),
+    HeatmapCase("acthr-clear-natsu", "act-hour", {"weather": "clear", "day_of_year": 172}),
+    HeatmapCase("acthr-clear-fuyu", "act-hour", {"weather": "clear", "day_of_year": 355}),
+    HeatmapCase("acthr-rain-natsu", "act-hour", {"weather": "mod_rain", "day_of_year": 172}),
+    HeatmapCase("acthr-rain-aki-fuyu", "act-hour", {"weather": "mod_rain", "day_of_year": 310}),
+    HeatmapCase("acthr-storm-fuyu-haru", "act-hour", {"weather": "storm", "day_of_year": 35}),
+    HeatmapCase("acthr-storm-haru", "act-hour", {"weather": "storm", "day_of_year": 80}),
+    HeatmapCase("acthr-storm-fuyu", "act-hour", {"weather": "storm", "day_of_year": 355}),
+    HeatmapCase("wxdoy-idle-06", "wx-doy", {"activity": None, "hour": 6.0}),
+    HeatmapCase("wxdoy-idle-10", "wx-doy", {"activity": None, "hour": 10.0}),
+    HeatmapCase("wxdoy-idle-14", "wx-doy", {"activity": None, "hour": 14.0}),
+    HeatmapCase("wxdoy-idle-18", "wx-doy", {"activity": None, "hour": 18.0}),
+    HeatmapCase("wxdoy-idle-22", "wx-doy", {"activity": None, "hour": 22.0}),
+    HeatmapCase("wxdoy-focus-10", "wx-doy", {"activity": "#focus", "hour": 10.0}),
+    HeatmapCase("wxdoy-focus-22", "wx-doy", {"activity": "#focus", "hour": 22.0}),
+    HeatmapCase("wxdoy-chill-14", "wx-doy", {"activity": "#chill", "hour": 14.0}),
+    HeatmapCase("wxdoy-chill-20", "wx-doy", {"activity": "#chill", "hour": 20.0}),
+    HeatmapCase("actdoy-none-10", "act-doy", {"weather": None, "hour": 10.0}),
+    HeatmapCase("actdoy-none-22", "act-doy", {"weather": None, "hour": 22.0}),
+    HeatmapCase("actdoy-clear-10", "act-doy", {"weather": "clear", "hour": 10.0}),
+    HeatmapCase("actdoy-clear-14", "act-doy", {"weather": "clear", "hour": 14.0}),
+    HeatmapCase("actdoy-clear-22", "act-doy", {"weather": "clear", "hour": 22.0}),
+    HeatmapCase("actdoy-rain-10", "act-doy", {"weather": "mod_rain", "hour": 10.0}),
+    HeatmapCase("actdoy-rain-22", "act-doy", {"weather": "mod_rain", "hour": 22.0}),
+    HeatmapCase("actdoy-storm-14", "act-doy", {"weather": "storm", "hour": 14.0}),
+    HeatmapCase("actdoy-storm-22", "act-doy", {"weather": "storm", "hour": 22.0}),
+    HeatmapCase("wxact-haru-08", "wx-act", {"hour": 8.0, "day_of_year": 80}),
+    HeatmapCase("wxact-haru-20", "wx-act", {"hour": 20.0, "day_of_year": 80}),
+    HeatmapCase("wxact-natsu-14", "wx-act", {"hour": 14.0, "day_of_year": 172}),
+    HeatmapCase("wxact-natsu-23", "wx-act", {"hour": 23.0, "day_of_year": 172}),
+    HeatmapCase("wxact-aki-14", "wx-act", {"hour": 14.0, "day_of_year": 265}),
+    HeatmapCase("wxact-aki-23", "wx-act", {"hour": 23.0, "day_of_year": 265}),
+    HeatmapCase("wxact-fuyu-20", "wx-act", {"hour": 20.0, "day_of_year": 355}),
+    HeatmapCase("wxact-fuyu-23", "wx-act", {"hour": 23.0, "day_of_year": 355}),
+    HeatmapCase("wxact-fuyu-haru-14", "wx-act", {"hour": 14.0, "day_of_year": 35}),
+    HeatmapCase("wxact-haru-natsu-14", "wx-act", {"hour": 14.0, "day_of_year": 126}),
+    HeatmapCase("wxact-natsu-aki-14", "wx-act", {"hour": 14.0, "day_of_year": 218}),
+    HeatmapCase("wxact-aki-fuyu-14", "wx-act", {"hour": 14.0, "day_of_year": 310}),
+    HeatmapCase("hrdoy-idle-none", "hour-doy", {"activity": None, "weather": None}),
+    HeatmapCase("hrdoy-idle-clear", "hour-doy", {"activity": None, "weather": "clear"}),
+    HeatmapCase("hrdoy-idle-drizzle", "hour-doy", {"activity": None, "weather": "drizzle"}),
+    HeatmapCase("hrdoy-idle-rain", "hour-doy", {"activity": None, "weather": "mod_rain"}),
+    HeatmapCase("hrdoy-idle-storm", "hour-doy", {"activity": None, "weather": "storm"}),
+    HeatmapCase("hrdoy-idle-snow", "hour-doy", {"activity": None, "weather": "heavy_snow"}),
+    HeatmapCase("hrdoy-focus-clear", "hour-doy", {"activity": "#focus", "weather": "clear"}),
+    HeatmapCase("hrdoy-chill-clear", "hour-doy", {"activity": "#chill", "weather": "clear"}),
+    HeatmapCase("hrdoy-focus-cloud", "hour-doy", {"activity": "#focus", "weather": "overcast"}),
+    HeatmapCase("hrdoy-focus-rain", "hour-doy", {"activity": "#focus", "weather": "mod_rain"}),
+    HeatmapCase("hrdoy-chill-rain", "hour-doy", {"activity": "#chill", "weather": "mod_rain"}),
+    HeatmapCase("hrdoy-chill-storm", "hour-doy", {"activity": "#chill", "weather": "storm"}),
+)
 
 
 def activity_from_axis(value: float) -> ActivitySignal | None:
@@ -157,7 +203,8 @@ def build_heatmap_grid(
     mode: HeatmapMode,
     *,
     sampling: HeatmapSampling = HeatmapSampling(),
-    fixed: dict[str, object] | None = None,
+    fixed: dict[str, object],
+    case_name: str | None = None,
 ) -> HeatmapGrid:
     """Evaluate one heatmap grid against the real matcher pipeline.
 
@@ -165,7 +212,7 @@ def build_heatmap_grid(
         ValueError: If `mode` is unknown or a fixed/axis value cannot be
             converted into a valid tuning scenario.
     """
-    spec = _view_spec(mode, fixed)
+    spec = _case2spec(mode, fixed)
     x_axis = HeatmapAxis(spec.x_axis, _axis_values(spec.x_axis, sampling))
     y_axis = HeatmapAxis(spec.y_axis, _axis_values(spec.y_axis, sampling))
     rows: list[tuple[HeatmapCell, ...]] = []
@@ -181,6 +228,7 @@ def build_heatmap_grid(
     return HeatmapGrid(
         mode=mode,
         profile=profile,
+        case_name=case_name or mode,
         x_axis=x_axis,
         y_axis=y_axis,
         fixed=dict(spec.fixed),
@@ -194,9 +242,9 @@ def generate_default_heatmaps(
     figures_dir: Path,
     *,
     sampling: HeatmapSampling = HeatmapSampling(),
-    modes: Sequence[HeatmapMode] = DEFAULT_VIEW_MODES,
+    cases: Sequence[HeatmapCase] = DEFAULT_HEATMAP_CASES,
 ) -> list[HeatmapFigure]:
-    """Render the default winner and margin heatmaps for all profiles.
+    """Render the default case-based winner heatmaps for all profiles.
 
     Raises:
         HeatmapRenderDependencyError: If matplotlib or numpy is not installed.
@@ -205,32 +253,38 @@ def generate_default_heatmaps(
     figures_dir.mkdir(parents=True, exist_ok=True)
     figures: list[HeatmapFigure] = []
     for profile in profiles:
-        for mode in modes:
-            grid = build_heatmap_grid(config, profile, mode, sampling=sampling)
-            profile_slug = _slug(profile.name)
-            for heatmap_type in ("winner", "margin"):
-                file_name = f"{profile_slug}-{mode}-{heatmap_type}.png"
-                output_path = figures_dir / file_name
-                render_heatmap(grid, config, output_path, heatmap_type)
-                figures.append(
-                    HeatmapFigure(
-                        path=f"figures/{file_name}",
-                        profile=profile.name,
-                        mode=mode,
-                        type=heatmap_type,
-                    )
+        for case in cases:
+            grid = build_heatmap_grid(
+                config,
+                profile,
+                case.mode,
+                sampling=sampling,
+                fixed=case.fixed,
+                case_name=case.name,
+            )
+            profile_slug = _profile_slug(profile)
+            file_name = f"{profile_slug}-{_slug(case.name)}.png"
+            output_path = figures_dir / file_name
+            render_heatmap(grid, config, output_path, "winner")
+            figures.append(
+                HeatmapFigure(
+                    path=f"heatmaps/{file_name}",
+                    profile=profile.name,
+                    mode=case.mode,
+                    case_name=case.name,
+                    type="winner",
                 )
+            )
     return figures
+
 
 def render_heatmap(
     grid: HeatmapGrid,
     config: SchedulerConfig,
     output_path: Path,
     heatmap_type: HeatmapType,
-    *,
-    margin_max: float = DEFAULT_MARGIN_MAX,
 ) -> None:
-    """Render a single heatmap PNG.
+    """Render a single winner heatmap PNG.
 
     Raises:
         HeatmapRenderDependencyError: If matplotlib or numpy is not installed.
@@ -242,15 +296,10 @@ def render_heatmap(
     import numpy as np
     fig, ax = plt.subplots(figsize=_figure_size(grid))
     try:
-        if heatmap_type == "winner":
-            _draw_winner_map(ax, grid, config, np, mpl_colors)
-            _add_winner_legend(fig, config, patches)
-        elif heatmap_type == "margin":
-            mesh = _draw_margin_map(ax, grid, np, margin_max)
-            colorbar = fig.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
-            colorbar.set_label("Winner margin")
-        else:
+        if heatmap_type != "winner":
             raise ValueError(f"unknown heatmap type: {heatmap_type}")
+        _draw_winner_map(ax, grid, config, np, mpl_colors)
+        _add_winner_legend(fig, config, patches)
 
         _style_axes(ax, grid)
         ax.set_title(_title(grid, heatmap_type), fontsize=12, pad=10)
@@ -260,15 +309,12 @@ def render_heatmap(
         plt.close(fig)
 
 
-def _view_spec(mode: HeatmapMode, fixed: dict[str, object] | None) -> _ViewSpec:
+def _case2spec(mode: HeatmapMode, fixed: dict[str, object]) -> ViewSpec:
     try:
-        base = _VIEW_SPECS[mode]
+        axes = _MODE_TO_AXES[mode]
     except KeyError as exc:
         raise ValueError(f"unknown heatmap mode: {mode}") from exc
-    merged = dict(base.fixed)
-    if fixed:
-        merged.update(fixed)
-    return _ViewSpec(mode=base.mode, x_axis=base.x_axis, y_axis=base.y_axis, fixed=merged)
+    return ViewSpec(mode, x_axis=axes[0], y_axis=axes[1], fixed=fixed)
 
 
 def _axis_values(
@@ -295,7 +341,7 @@ def _float_axis(start: float, stop: float, step: float) -> list[float]:
 
 
 def _scenario_for_point(
-    spec: _ViewSpec,
+    spec: ViewSpec,
     x_name: AxisName,
     x_value: float | int | str | None,
     y_name: AxisName,
@@ -305,11 +351,7 @@ def _scenario_for_point(
     values[x_name] = x_value
     values[y_name] = y_value
     activity_value = values.get("activity")
-    activity = (
-        activity_value
-        if isinstance(activity_value, ActivitySignal) or activity_value is None
-        else activity_from_axis(float(activity_value))
-    )
+    activity = _coerce_activity(activity_value)
     weather_value = values.get("weather")
     weather_name = None if weather_value is None else str(weather_value)
     hour = float(values["hour"])
@@ -346,26 +388,6 @@ def _draw_winner_map(ax, grid: HeatmapGrid, config: SchedulerConfig, np, mpl_col
         data,
         cmap=cmap,
         norm=norm,
-        shading="flat",
-        rasterized=True,
-    )
-
-
-def _draw_margin_map(ax, grid: HeatmapGrid, np, margin_max: float):
-    data = np.array(
-        [
-            [min(max(cell.gap, 0.0), margin_max) for cell in row]
-            for row in grid.cells
-        ],
-        dtype=float,
-    )
-    return ax.pcolormesh(
-        _axis_edges(grid.x_axis, np),
-        _axis_edges(grid.y_axis, np),
-        data,
-        cmap="YlOrRd",
-        vmin=0.0,
-        vmax=margin_max,
         shading="flat",
         rasterized=True,
     )
@@ -482,15 +504,16 @@ def _title(grid: HeatmapGrid, heatmap_type: HeatmapType) -> str:
         f"{name}={_value_label(value)}"
         for name, value in sorted(grid.fixed.items())
     )
-    label = "Winner map" if heatmap_type == "winner" else "Margin map"
-    return f"{label} | profile={grid.profile.name} | mode={grid.mode} | fixed: {fixed}"
+    return f"Winner map | profile={grid.profile.name} | case={grid.case_name} | mode={grid.mode} | fixed: {fixed}"
 
 
 def _figure_size(grid: HeatmapGrid) -> tuple[float, float]:
     if grid.mode == "hour-doy":
         return (12.0, 7.0)
-    if grid.mode == "act-hour":
+    if grid.mode in {"act-hour", "act-doy"}:
         return (12.0, 6.0)
+    if grid.mode == "wx-doy":
+        return (12.0, 5.6)
     return (10.0, 5.6)
 
 
@@ -505,3 +528,23 @@ def _value_label(value: object) -> str:
 def _slug(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip()).strip("-_.")
     return slug or "profile"
+
+
+def _profile_slug(profile: MatchProfile) -> str:
+    if profile.name == "current":
+        return "cur"
+    return f"p{_compact_gamma(profile.gamma_playlist)}c{_compact_gamma(profile.gamma_context)}"
+
+
+def _compact_gamma(value: float) -> str:
+    return f"{round(value * 100):03d}"
+
+
+def _coerce_activity(value: object) -> ActivitySignal | None:
+    if isinstance(value, ActivitySignal) or value is None:
+        return value
+    if value == "#focus":
+        return focus()
+    if value == "#chill":
+        return chill()
+    return activity_from_axis(float(value))

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import csv
-import json
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
@@ -19,21 +17,22 @@ from tools.tuning.models import (  # noqa: E402
     Scenario,
     ScenarioProfileResult,
     evaluate_scenario,
-    profile_to_dict,
-    scenario_to_dict,
 )
 from tools.tuning.heatmaps import (  # noqa: E402
-    HeatmapFigure,
     HeatmapSampling,
     generate_default_heatmaps,
 )
 from tools.tuning.sweep import (  # noqa: E402
     SweepReport,
+    SweepRow,
     evaluate_parameter_sweep,
     sorted_sweep_rows,
-    write_sweep_csv,
 )
 from utils.config_loader import ConfigLoader  # noqa: E402
+
+AMBIGUOUS_FAILURE_GAP = 0.05
+CONFIDENT_FAILURE_GAP = 0.15
+LOW_CHURN_PASS_RATE_TOLERANCE = 0.02
 
 
 def run_tuning(
@@ -67,24 +66,16 @@ def run_tuning(
     figures = generate_default_heatmaps(
         config,
         profile_list,
-        run_dir / "figures",
+        run_dir / "heatmaps",
         sampling=heatmap_sampling,
     )
-    sweep_report = evaluate_parameter_sweep(config, scenario_list)
-
-    _write_manifest(
-        run_dir,
-        config_dir,
-        run_name,
+    sweep_report = evaluate_parameter_sweep(
+        config,
         scenario_list,
-        profile_list,
-        figures,
-        sweep_report,
+        confident_failure_gap=CONFIDENT_FAILURE_GAP,
     )
-    _write_rankings(run_dir, scenario_list, profile_list, results)
-    _write_compare(run_dir, scenario_list, profile_list, results)
-    write_sweep_csv(run_dir / "sweep.csv", sweep_report)
-    _write_summary(run_dir, scenario_list, profile_list, results, sweep_report)
+
+    _write_report(run_dir, scenario_list, profile_list, results, sweep_report, len(figures))
     return run_dir
 
 
@@ -132,256 +123,161 @@ def _ensure_unique_names(names: Iterable[str], label: str) -> None:
         raise ValueError(f"{label} names must be unique: {', '.join(sorted(duplicates))}")
 
 
-def _write_manifest(
+def _write_report(
     run_dir: Path,
-    config_dir: Path,
-    run_name: str,
     scenarios: list[Scenario],
     profiles: list[MatchProfile],
-    figures: list[HeatmapFigure],
+    results: dict[str, dict[str, ScenarioProfileResult]],
     sweep_report: SweepReport,
-) -> None:
-    manifest = {
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "run_name": run_name,
-        "config_dir": str(config_dir),
-        "scenario_count": len(scenarios),
-        "profiles": [profile_to_dict(profile) for profile in profiles],
-        "scenarios": [scenario_to_dict(scenario) for scenario in scenarios],
-        "figures": [figure.to_manifest() for figure in figures],
-        "sweep": sweep_report.to_manifest(),
-    }
-    (run_dir / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-
-
-def _write_rankings(
-    run_dir: Path,
-    scenarios: list[Scenario],
-    profiles: list[MatchProfile],
-    results: dict[str, dict[str, ScenarioProfileResult]],
-) -> None:
-    with (run_dir / "rankings.csv").open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["scenario", "profile", "rank", "playlist", "score"],
-        )
-        writer.writeheader()
-        for scenario in scenarios:
-            for profile in profiles:
-                for ranking in results[scenario.name][profile.name].rankings:
-                    writer.writerow(
-                        {
-                            "scenario": ranking.scenario,
-                            "profile": ranking.profile,
-                            "rank": ranking.rank,
-                            "playlist": ranking.playlist,
-                            "score": _fmt_float(ranking.score),
-                        }
-                    )
-
-
-def _write_compare(
-    run_dir: Path,
-    scenarios: list[Scenario],
-    profiles: list[MatchProfile],
-    results: dict[str, dict[str, ScenarioProfileResult]],
+    figure_count: int,
 ) -> None:
     baseline = profiles[0]
-    candidates = profiles[1:] or profiles[:1]
-    with (run_dir / "compare.csv").open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=[
-                "scenario",
-                "expected",
-                "candidate_profile",
-                "current_winner",
-                "candidate_winner",
-                "current_gap",
-                "candidate_gap",
-                "current_status",
-                "candidate_status",
-                "winner_changed",
-                "status_changed",
-                "gap_delta",
-                "note",
-            ],
-        )
-        writer.writeheader()
-        for scenario in scenarios:
-            current = results[scenario.name][baseline.name]
-            for candidate_profile in candidates:
-                candidate = results[scenario.name][candidate_profile.name]
-                writer.writerow(
-                    {
-                        "scenario": scenario.name,
-                        "expected": scenario.expected or "",
-                        "candidate_profile": candidate_profile.name,
-                        "current_winner": current.winner or "",
-                        "candidate_winner": candidate.winner or "",
-                        "current_gap": _fmt_float(current.gap),
-                        "candidate_gap": _fmt_float(candidate.gap),
-                        "current_status": current.expected_status,
-                        "candidate_status": candidate.expected_status,
-                        "winner_changed": current.winner != candidate.winner,
-                        "status_changed": current.expected_status != candidate.expected_status,
-                        "gap_delta": _fmt_float(candidate.gap - current.gap),
-                        "note": scenario.note,
-                    }
-                )
-
-
-def _write_summary(
-    run_dir: Path,
-    scenarios: list[Scenario],
-    profiles: list[MatchProfile],
-    results: dict[str, dict[str, ScenarioProfileResult]],
-    sweep_report: SweepReport,
-) -> None:
+    baseline_results = [results[scenario.name][baseline.name] for scenario in scenarios]
     expected_scenarios = [scenario for scenario in scenarios if scenario.expected is not None]
     observed_scenarios = [scenario for scenario in scenarios if scenario.expected is None]
-    lines = ["# Tuning Summary", ""]
-    lines.append(f"Scenarios: {len(scenarios)} ({len(expected_scenarios)} expected, {len(observed_scenarios)} observed)")
-    lines.append("")
-    lines.append("## Profile Results")
-    lines.append("")
-    lines.append("| Profile | Pass | Fail | Avg Gap |")
-    lines.append("| --- | ---: | ---: | ---: |")
-    for profile in profiles:
-        profile_results = [results[scenario.name][profile.name] for scenario in expected_scenarios]
-        passed = sum(1 for result in profile_results if result.expected_status == "pass")
-        failed = sum(1 for result in profile_results if result.expected_status == "fail")
-        avg_gap = _average(result.gap for result in profile_results)
-        lines.append(f"| {profile.name} | {passed} | {failed} | {_fmt_float(avg_gap)} |")
+    lines = ["# Tuning Report", ""]
+    lines.append(
+        f"Baseline profile: {baseline.name}. Scenarios: {len(scenarios)} "
+        f"({len(expected_scenarios)} expected, {len(observed_scenarios)} observed). "
+        f"Winner heatmaps: {figure_count}."
+    )
+    lines.extend(["", "## Scenario Results", ""])
+    lines.append("| Scenario | Category | Expected | Winner | Status | Gap | Top3 | Resolved Tags Top |")
+    lines.append("| --- | --- | --- | --- | --- | ---: | --- | --- |")
+    for scenario, result in zip(scenarios, baseline_results):
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _escape_table(scenario.name),
+                    _escape_table(scenario.category),
+                    _escape_table(scenario.expected or "observed"),
+                    _escape_table(result.winner or "none"),
+                    result.expected_status,
+                    _fmt_float(result.gap),
+                    _escape_table(_format_top_rankings(result)),
+                    _escape_table(_format_resolved_tags_top(result)),
+                ]
+            )
+            + " |"
+        )
 
+    _append_coverage_summary(lines, scenarios, baseline_results)
     _append_parameter_sweep_summary(lines, sweep_report)
 
-    if len(profiles) > 1:
-        baseline = profiles[0]
-        lines.extend(["", "## Changes vs Current", ""])
-        for candidate_profile in profiles[1:]:
-            changed = []
-            status_changed = []
-            for scenario in scenarios:
-                current = results[scenario.name][baseline.name]
-                candidate = results[scenario.name][candidate_profile.name]
-                if current.winner != candidate.winner:
-                    changed.append((scenario, current, candidate))
-                if current.expected_status != candidate.expected_status:
-                    status_changed.append((scenario, current, candidate))
+    (run_dir / "report.md").write_text("\n".join(lines), encoding="utf-8")
 
-            lines.append(f"### {candidate_profile.name}")
-            lines.append("")
-            lines.append(f"Winner changes: {len(changed)}")
-            for scenario, current, candidate in changed[:20]:
-                marker = "observed" if scenario.expected is None else scenario.expected
-                lines.append(f"- {scenario.name}: {current.winner} -> {candidate.winner} ({marker})")
-            if len(changed) > 20:
-                lines.append(f"- ... {len(changed) - 20} more")
-            lines.append("")
-            lines.append(f"Status changes: {len(status_changed)}")
-            for scenario, current, candidate in status_changed[:20]:
-                lines.append(
-                    f"- {scenario.name}: {current.expected_status} -> {candidate.expected_status}"
-                )
-            lines.append("")
 
-    lines.extend(["", "## Top 3", ""])
-    for scenario in scenarios:
-        lines.append(f"### {scenario.name}")
-        if scenario.expected is not None:
-            lines.append(f"Expected: {scenario.expected}")
-        if scenario.note:
-            lines.append(f"Note: {scenario.note}")
-        for profile in profiles:
-            result = results[scenario.name][profile.name]
-            top3 = ", ".join(
-                f"{row.playlist}({_fmt_float(row.score)})"
-                for row in result.rankings[:3]
-            )
-            lines.append(f"- {profile.name}: {result.winner} gap={_fmt_float(result.gap)} top3={top3}")
-        lines.append("")
+def _append_coverage_summary(
+    lines: list[str],
+    scenarios: list[Scenario],
+    results: list[ScenarioProfileResult],
+) -> None:
+    expected_results = [
+        result
+        for scenario, result in zip(scenarios, results)
+        if scenario.expected is not None
+    ]
+    pass_count = sum(1 for result in expected_results if result.expected_status == "pass")
+    lines.extend(["", "## Coverage Summary", ""])
+    lines.append(f"Overall expected pass: {pass_count}/{len(expected_results)}")
+    lines.append("")
+    lines.append("| Category | Pass | Fail | Observed |")
+    lines.append("| --- | ---: | ---: | ---: |")
+    grouped: dict[str, Counter[str]] = defaultdict(Counter)
+    for scenario, result in zip(scenarios, results):
+        grouped[scenario.category][result.expected_status] += 1
+    for category in sorted(grouped):
+        counts = grouped[category]
+        lines.append(
+            f"| {category} | {counts['pass']} | {counts['fail']} | {counts['observed']} |"
+        )
+    ambiguous = [
+        (scenario, result)
+        for scenario, result in zip(scenarios, results)
+        if result.expected_status == "fail" and result.gap < AMBIGUOUS_FAILURE_GAP
+    ]
+    confident = [
+        (scenario, result)
+        for scenario, result in zip(scenarios, results)
+        if result.expected_status == "fail" and result.gap >= CONFIDENT_FAILURE_GAP
+    ]
+    lines.extend(["", "Ambiguous failures:"])
+    _append_failure_list(lines, ambiguous)
+    lines.extend(["", "Confident failures:"])
+    _append_failure_list(lines, confident)
 
-    lines.extend(["", "## Scenario Diagnostics", ""])
-    for scenario in scenarios:
-        lines.append(f"### {scenario.name}")
-        if scenario.expected is not None:
-            lines.append(f"Expected: {scenario.expected}")
-        else:
-            lines.append("Expected: observed")
-        if scenario.note:
-            lines.append(f"Note: {scenario.note}")
 
-        for profile in profiles:
-            result = results[scenario.name][profile.name]
-            lines.append("")
-            lines.append(f"#### {profile.name}")
-            lines.append(
-                "- Result: "
-                f"winner={result.winner or 'none'} "
-                f"status={result.expected_status} "
-                f"score={_fmt_float(result.score)} "
-                f"gap={_fmt_float(result.gap)}"
-            )
-            lines.append(f"- Top 3: {_format_top_rankings(result)}")
-            lines.append(f"- Raw context: {_format_vector(result.match.raw_context_vector)}")
-            lines.append(f"- Resolved context: {_format_vector(result.match.resolved_context_vector)}")
-            if result.match.fallback_expansions:
-                lines.append(
-                    f"- Fallback expansions: {_format_nested_vector(result.match.fallback_expansions)}"
-                )
-            lines.append("- Policy contributions:")
-            for evaluation in result.match.policy_evaluations:
-                lines.append(
-                    "  - "
-                    f"{evaluation.policy_id}: "
-                    f"active={evaluation.active} "
-                    f"weight={_fmt_float(evaluation.weight)} "
-                    f"salience={_fmt_float(evaluation.salience)} "
-                    f"intensity={_fmt_float(evaluation.intensity)} "
-                    f"magnitude={_fmt_float(evaluation.effective_magnitude)} "
-                    f"dominant={evaluation.dominant_tag or 'none'} "
-                    f"raw={_format_vector(evaluation.raw_contribution)} "
-                    f"resolved={_format_vector(evaluation.resolved_contribution)}"
-                )
-        lines.append("")
-
-    (run_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
+def _append_failure_list(
+    lines: list[str],
+    failures: list[tuple[Scenario, ScenarioProfileResult]],
+) -> None:
+    if not failures:
+        lines.append("- none")
+        return
+    for scenario, result in failures:
+        lines.append(
+            f"- {scenario.name}: expected {scenario.expected}, got {result.winner or 'none'}, "
+            f"gap={_fmt_float(result.gap)}"
+        )
 
 
 def _append_parameter_sweep_summary(lines: list[str], sweep_report: SweepReport) -> None:
-    lines.extend(["", "## Parameter Sweep", ""])
+    lines.extend(["", "## Sweep Summary", ""])
     lines.append("Baseline current:")
     lines.append("")
-    lines.append("| Profile | Pass Rate | Pass | Fail | Avg Gap |")
-    lines.append("| --- | ---: | ---: | ---: | ---: |")
     baseline = sweep_report.baseline
     lines.append(
-        f"| {baseline.profile} | {_fmt_float(baseline.pass_rate)} | "
-        f"{baseline.pass_count} | {baseline.fail_count} | {_fmt_float(baseline.avg_gap)} |"
+        f"- pass_rate_expected={_fmt_float(baseline.pass_rate_expected)}, "
+        f"avg_gap_expected={_fmt_float(baseline.avg_gap_expected)}, "
+        f"confident_fail_count_expected={baseline.confident_fail_count_expected}"
     )
     lines.append("")
-    lines.append("Top sweep profiles:")
+    best_pass_rate = sorted_sweep_rows(sweep_report.rows)[0]
+    best_low_churn = _best_low_churn_candidate(sweep_report.rows, best_pass_rate.pass_rate_expected)
+    lines.append("Best pass-rate candidate:")
+    lines.append(f"- {_format_sweep_row(best_pass_rate)}")
     lines.append("")
-    lines.append("| Profile | Gamma Playlist | Gamma Context | Pass Rate | Pass | Fail | Avg Gap | Churn Rate |")
-    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
-    for row in sorted_sweep_rows(sweep_report.rows)[:10]:
-        lines.append(
-            f"| {row.profile} | {_fmt_float(row.gamma_playlist)} | "
-            f"{_fmt_float(row.gamma_context)} | {_fmt_float(row.pass_rate)} | "
-            f"{row.pass_count} | {row.fail_count} | {_fmt_float(row.avg_gap)} | "
-            f"{_fmt_float(row.churn_rate)} |"
+    lines.append("Best low-churn candidate:")
+    lines.append(f"- {_format_sweep_row(best_low_churn)}")
+
+
+def _best_low_churn_candidate(rows: Iterable[SweepRow], best_pass_rate: float) -> SweepRow:
+    eligible = [
+        row
+        for row in rows
+        if (
+            row.core_regression_count_expected == 0
+            and row.pass_rate_expected >= best_pass_rate - LOW_CHURN_PASS_RATE_TOLERANCE
         )
+    ]
+    if not eligible:
+        eligible = [
+            row
+            for row in rows
+            if row.pass_rate_expected >= best_pass_rate - LOW_CHURN_PASS_RATE_TOLERANCE
+        ]
+    return sorted(
+        eligible,
+        key=lambda row: (
+            row.core_regression_count_expected,
+            row.churn_rate_expected,
+            row.confident_fail_count_expected,
+            -row.pass_rate_expected,
+            -row.avg_gap_expected,
+            row.profile,
+        ),
+    )[0]
 
 
-def _average(values: Iterable[float]) -> float:
-    collected = list(values)
-    if not collected:
-        return 0.0
-    return sum(collected) / len(collected)
+def _format_sweep_row(row: SweepRow) -> str:
+    return (
+        f"{row.profile}: pass_rate_expected={_fmt_float(row.pass_rate_expected)}, "
+        f"avg_gap_expected={_fmt_float(row.avg_gap_expected)}, "
+        f"churn_rate_expected={_fmt_float(row.churn_rate_expected)}, "
+        f"confident_fail_count_expected={row.confident_fail_count_expected}, "
+        f"core_regression_count_expected={row.core_regression_count_expected}"
+    )
 
 
 def _fmt_float(value: float) -> str:
@@ -392,27 +288,23 @@ def _format_top_rankings(result: ScenarioProfileResult, limit: int = 3) -> str:
     if not result.rankings:
         return "none"
     return ", ".join(
-        f"{row.playlist}({_fmt_float(row.score)})"
+        f"{row.playlist} {_fmt_float(row.score)}"
         for row in result.rankings[:limit]
     )
 
 
-def _format_vector(vector: dict[str, float]) -> str:
-    if not vector:
-        return "{}"
-    return "{" + ", ".join(
-        f"{tag}: {_fmt_float(vector[tag])}"
-        for tag in sorted(vector)
-    ) + "}"
+def _format_resolved_tags_top(result: ScenarioProfileResult, limit: int = 5) -> str:
+    if not result.match.resolved_context_vector:
+        return "none"
+    items = sorted(
+        result.match.resolved_context_vector.items(),
+        key=lambda item: (-item[1], item[0]),
+    )
+    return ", ".join(f"{tag} {_fmt_float(value)}" for tag, value in items[:limit])
 
 
-def _format_nested_vector(vector: dict[str, dict[str, float]]) -> str:
-    if not vector:
-        return "{}"
-    return "{" + ", ".join(
-        f"{tag}: {_format_vector(vector[tag])}"
-        for tag in sorted(vector)
-    ) + "}"
+def _escape_table(value: str) -> str:
+    return value.replace("|", "\\|").replace("\n", " ")
 
 
 if __name__ == "__main__":

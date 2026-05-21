@@ -44,6 +44,7 @@ class Scenario:
     weather: WeatherInput | None = None
     activity: ActivitySignal | None = None
     expected: str | None = None
+    category: str = ""
     note: str = ""
 
     def __post_init__(self) -> None:
@@ -53,6 +54,10 @@ class Scenario:
             raise ValueError("scenario hour must be in [0, 24)")
         if not 1 <= self.day_of_year <= 365:
             raise ValueError("scenario day_of_year must be in [1, 365]")
+        category = self.category.strip()
+        if not category:
+            category = "observed" if self.expected is None else "core"
+        object.__setattr__(self, "category", category)
 
 
 @dataclass(frozen=True)
@@ -135,6 +140,7 @@ def matrix(
     days: list[int],
     weathers: list[str | None] | None = None,
     activities: list[ActivitySignal | None] | None = None,
+    category: str = "observed",
     note: str = "matrix trial",
 ) -> list[Scenario]:
     """Build observed scenarios from a small Cartesian matrix.
@@ -174,6 +180,7 @@ def matrix(
                 day_of_year=day,
                 weather=weather(weather_name),
                 activity=activity,
+                category=category,
                 note=note,
             )
         )
@@ -318,38 +325,6 @@ def rank_for_profile(
 
     scores.sort(reverse=True)
     return [(playlist_name, score) for score, playlist_name in scores]
-
-
-def profile_to_dict(profile: MatchProfile) -> dict[str, object]:
-    return {
-        "name": profile.name,
-        "gamma_playlist": profile.gamma_playlist,
-        "gamma_context": profile.gamma_context,
-    }
-
-
-def scenario_to_dict(scenario: Scenario) -> dict[str, object]:
-    return {
-        "name": scenario.name,
-        "hour": scenario.hour,
-        "day_of_year": scenario.day_of_year,
-        "weather": (
-            None
-            if scenario.weather is None
-            else {"id": scenario.weather.weather_id, "main": scenario.weather.main}
-        ),
-        "activity": (
-            None
-            if scenario.activity is None
-            else {
-                "direction": dict(scenario.activity.direction),
-                "intensity": scenario.activity.intensity,
-                "salience": scenario.activity.salience,
-            }
-        ),
-        "expected": scenario.expected,
-        "note": scenario.note,
-    }
 
 
 def _normalize_pow(vector: dict[str, float], gamma: float) -> dict[str, float]:

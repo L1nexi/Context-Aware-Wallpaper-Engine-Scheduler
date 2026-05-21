@@ -25,6 +25,7 @@ MATRIX_TRIALS = matrix(
         activity_signal({"focus": 0.7, "chill": 0.3}, intensity=0.45),
         activity_signal({"chill": 0.7, "focus": 0.3}, intensity=0.45),
     ],
+    category="boundary",
 )
 
 SCENARIOS = [
@@ -89,6 +90,7 @@ SCENARIOS = [
         day_of_year=95,
         weather=weather("light_drizzle"),
         expected="CASUAL_ANIME",
+        category="boundary",
     ),
     Scenario(
         "day idle drizzle",
@@ -96,6 +98,7 @@ SCENARIOS = [
         day_of_year=95,
         weather=weather("drizzle"),
         expected="RAINY_MOOD",
+        category="boundary",
     ),
     Scenario(
         "day idle light rain",
@@ -103,6 +106,7 @@ SCENARIOS = [
         day_of_year=95,
         weather=weather("light_rain"),
         expected="RAINY_MOOD",
+        category="boundary",
     ),
     Scenario(
         "day focus light rain",
@@ -111,6 +115,7 @@ SCENARIOS = [
         weather=weather("light_rain"),
         activity=focus(),
         expected="BRIGHT_FLOW",
+        category="boundary",
     ),
     Scenario(
         "day idle moderate rain",
@@ -133,6 +138,7 @@ SCENARIOS = [
         day_of_year=95,
         weather=weather("heavy_rain"),
         expected="RAINY_MOOD",
+        category="nice_to_have",
     ),
     Scenario(
         "night chill moderate rain",
@@ -148,6 +154,7 @@ SCENARIOS = [
         day_of_year=95,
         weather=weather("storm_rain"),
         expected="RAINY_MOOD",
+        category="nice_to_have",
     ),
     Scenario(
         "day idle storm",
@@ -155,6 +162,7 @@ SCENARIOS = [
         day_of_year=95,
         weather=weather("storm"),
         expected="RAINY_MOOD",
+        category="nice_to_have",
     ),
     Scenario(
         "day idle few clouds",
@@ -176,6 +184,7 @@ SCENARIOS = [
         day_of_year=95,
         weather=weather("fog"),
         expected="BRIGHT_FLOW",
+        category="nice_to_have",
     ),
     Scenario(
         "summer day chill clear",
@@ -184,12 +193,14 @@ SCENARIOS = [
         weather=weather("clear"),
         activity=chill(),
         expected="SUMMER_GLOW",
+        category="nice_to_have",
     ),
     Scenario(
         "autumn sunset idle none",
         hour=20,
         day_of_year=265,
         expected="AUTUMN_DRIFT",
+        category="nice_to_have",
     ),
     Scenario(
         "autumn sunset idle overcast",
@@ -197,6 +208,7 @@ SCENARIOS = [
         day_of_year=265,
         weather=weather("overcast"),
         expected="AUTUMN_DRIFT",
+        category="nice_to_have",
     ),
     Scenario(
         "winter sunset idle clear",
@@ -204,6 +216,7 @@ SCENARIOS = [
         day_of_year=355,
         weather=weather("clear"),
         expected="WINTER_VIBES",
+        category="nice_to_have",
     ),
     Scenario(
         "winter sunset snow",
@@ -211,6 +224,7 @@ SCENARIOS = [
         day_of_year=355,
         weather=weather("light_snow"),
         expected="WINTER_VIBES",
+        category="nice_to_have",
     ),
     Scenario(
         "winter night idle snow",
@@ -218,12 +232,14 @@ SCENARIOS = [
         day_of_year=355,
         weather=weather("heavy_snow"),
         expected="WINTER_VIBES",
+        category="nice_to_have",
     ),
     Scenario(
         "spring day idle none",
         hour=14,
         day_of_year=95,
         expected="SPRING_BLOOM",
+        category="nice_to_have",
     ),
     Scenario(
         "late summer light rain rising focus",
@@ -231,6 +247,7 @@ SCENARIOS = [
         day_of_year=235,
         weather=weather("light_rain"),
         activity=activity_signal({"focus": 0.7, "chill": 0.3}, intensity=0.45),
+        category="boundary",
         note="subtle observed boundary",
     ),
     *MATRIX_TRIALS,

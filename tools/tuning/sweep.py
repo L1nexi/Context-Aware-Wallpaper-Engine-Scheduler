@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import csv
 from dataclasses import dataclass
 from itertools import product
-from pathlib import Path
 from typing import Iterable, Sequence
 
 from tools.tuning.models import (
@@ -24,8 +22,14 @@ class SweepBaseline:
     expected_total: int
     pass_count: int
     fail_count: int
-    pass_rate: float
-    avg_gap: float
+    pass_rate_expected: float
+    avg_gap_expected: float
+    churn_count_expected: int
+    churn_rate_expected: float
+    confident_fail_count_expected: int
+    core_regression_count_expected: int
+    avg_gap_all: float
+    churn_rate_all: float
 
 
 @dataclass(frozen=True)
@@ -33,8 +37,10 @@ class _ProfileSummary:
     expected_total: int
     pass_count: int
     fail_count: int
-    pass_rate: float
-    avg_gap: float
+    pass_rate_expected: float
+    avg_gap_expected: float
+    avg_gap_all: float
+    confident_fail_count_expected: int
 
 
 @dataclass(frozen=True)
@@ -45,10 +51,15 @@ class SweepRow:
     expected_total: int
     pass_count: int
     fail_count: int
-    pass_rate: float
-    avg_gap: float
-    churn_count: int
-    churn_rate: float
+    pass_rate_expected: float
+    avg_gap_expected: float
+    churn_count_expected: int
+    churn_rate_expected: float
+    confident_fail_count_expected: int
+    core_regression_count_expected: int
+    avg_gap_all: float
+    churn_count_all: int
+    churn_rate_all: float
 
 
 @dataclass(frozen=True)
@@ -62,14 +73,6 @@ class SweepReport:
     def profile_count(self) -> int:
         return len(self.rows)
 
-    def to_manifest(self) -> dict[str, object]:
-        return {
-            "path": "sweep.csv",
-            "profile_count": self.profile_count,
-            "gamma_playlist": list(self.gamma_playlist),
-            "gamma_context": list(self.gamma_context),
-        }
-
 
 def evaluate_parameter_sweep(
     config: SchedulerConfig,
@@ -77,6 +80,7 @@ def evaluate_parameter_sweep(
     *,
     gamma_playlist: Sequence[float] = DEFAULT_GAMMA_PLAYLIST,
     gamma_context: Sequence[float] = DEFAULT_GAMMA_CONTEXT,
+    confident_failure_gap: float = 0.15,
 ) -> SweepReport:
     """Evaluate the fixed gamma grid against the real matcher pipeline.
 
@@ -91,14 +95,24 @@ def evaluate_parameter_sweep(
         evaluate_scenario(config, scenario, baseline_profile)
         for scenario in scenario_list
     ]
-    baseline_summary = _summarize_results(scenario_list, baseline_results)
+    baseline_summary = _summarize_results(
+        scenario_list,
+        baseline_results,
+        confident_failure_gap=confident_failure_gap,
+    )
     baseline = SweepBaseline(
         profile=baseline_profile.name,
         expected_total=baseline_summary.expected_total,
         pass_count=baseline_summary.pass_count,
         fail_count=baseline_summary.fail_count,
-        pass_rate=baseline_summary.pass_rate,
-        avg_gap=baseline_summary.avg_gap,
+        pass_rate_expected=baseline_summary.pass_rate_expected,
+        avg_gap_expected=baseline_summary.avg_gap_expected,
+        churn_count_expected=0,
+        churn_rate_expected=0.0,
+        confident_fail_count_expected=baseline_summary.confident_fail_count_expected,
+        core_regression_count_expected=0,
+        avg_gap_all=baseline_summary.avg_gap_all,
+        churn_rate_all=0.0,
     )
 
     rows: list[SweepRow] = []
@@ -115,11 +129,29 @@ def evaluate_parameter_sweep(
             evaluate_scenario(config, scenario, profile)
             for scenario in scenario_list
         ]
-        summary = _summarize_results(scenario_list, results)
-        churn_count = sum(
+        summary = _summarize_results(
+            scenario_list,
+            results,
+            confident_failure_gap=confident_failure_gap,
+        )
+        churn_count_expected = sum(
+            1
+            for scenario, baseline_result, result in zip(scenario_list, baseline_results, results)
+            if scenario.expected is not None and baseline_result.winner != result.winner
+        )
+        churn_count_all = sum(
             1
             for baseline_result, result in zip(baseline_results, results)
             if baseline_result.winner != result.winner
+        )
+        core_regression_count_expected = sum(
+            1
+            for scenario, baseline_result, result in zip(scenario_list, baseline_results, results)
+            if (
+                scenario.category == "core"
+                and baseline_result.expected_status == "pass"
+                and result.expected_status != "pass"
+            )
         )
         rows.append(
             SweepRow(
@@ -129,10 +161,15 @@ def evaluate_parameter_sweep(
                 expected_total=baseline.expected_total,
                 pass_count=summary.pass_count,
                 fail_count=summary.fail_count,
-                pass_rate=summary.pass_rate,
-                avg_gap=summary.avg_gap,
-                churn_count=churn_count,
-                churn_rate=(churn_count / len(scenario_list)) if scenario_list else 0.0,
+                pass_rate_expected=summary.pass_rate_expected,
+                avg_gap_expected=summary.avg_gap_expected,
+                churn_count_expected=churn_count_expected,
+                churn_rate_expected=_pass_rate(churn_count_expected, baseline.expected_total),
+                confident_fail_count_expected=summary.confident_fail_count_expected,
+                core_regression_count_expected=core_regression_count_expected,
+                avg_gap_all=summary.avg_gap_all,
+                churn_count_all=churn_count_all,
+                churn_rate_all=(churn_count_all / len(scenario_list)) if scenario_list else 0.0,
             )
         )
 
@@ -144,50 +181,17 @@ def evaluate_parameter_sweep(
     )
 
 
-def write_sweep_csv(path: Path, report: SweepReport) -> None:
-    """Write parameter sweep metrics.
-
-    Raises:
-        OSError: If the destination cannot be written.
-    """
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=[
-                "profile",
-                "gamma_playlist",
-                "gamma_context",
-                "expected_total",
-                "pass_count",
-                "fail_count",
-                "pass_rate",
-                "avg_gap",
-                "churn_count",
-                "churn_rate",
-            ],
-        )
-        writer.writeheader()
-        for row in report.rows:
-            writer.writerow(
-                {
-                    "profile": row.profile,
-                    "gamma_playlist": _fmt_float(row.gamma_playlist),
-                    "gamma_context": _fmt_float(row.gamma_context),
-                    "expected_total": row.expected_total,
-                    "pass_count": row.pass_count,
-                    "fail_count": row.fail_count,
-                    "pass_rate": _fmt_float(row.pass_rate),
-                    "avg_gap": _fmt_float(row.avg_gap),
-                    "churn_count": row.churn_count,
-                    "churn_rate": _fmt_float(row.churn_rate),
-                }
-            )
-
-
 def sorted_sweep_rows(rows: Iterable[SweepRow]) -> list[SweepRow]:
     return sorted(
         rows,
-        key=lambda row: (-row.pass_rate, -row.avg_gap, row.churn_rate, row.profile),
+        key=lambda row: (
+            row.core_regression_count_expected,
+            -row.pass_rate_expected,
+            row.confident_fail_count_expected,
+            row.churn_rate_expected,
+            -row.avg_gap_expected,
+            row.profile,
+        ),
     )
 
 
@@ -198,15 +202,28 @@ def _expected_total(scenarios: list[Scenario]) -> int:
 def _summarize_results(
     scenarios: list[Scenario],
     results: list[ScenarioProfileResult],
+    *,
+    confident_failure_gap: float,
 ) -> _ProfileSummary:
     expected_total = _expected_total(scenarios)
     pass_count, fail_count = _expected_counts(scenarios, results)
+    expected_results = [
+        result
+        for scenario, result in zip(scenarios, results)
+        if scenario.expected is not None
+    ]
     return _ProfileSummary(
         expected_total=expected_total,
         pass_count=pass_count,
         fail_count=fail_count,
-        pass_rate=_pass_rate(pass_count, expected_total),
-        avg_gap=_average(result.gap for result in results),
+        pass_rate_expected=_pass_rate(pass_count, expected_total),
+        avg_gap_expected=_average(result.gap for result in expected_results),
+        avg_gap_all=_average(result.gap for result in results),
+        confident_fail_count_expected=sum(
+            1
+            for result in expected_results
+            if result.expected_status == "fail" and result.gap >= confident_failure_gap
+        ),
     )
 
 
@@ -237,7 +254,3 @@ def _average(values: Iterable[float]) -> float:
     if not collected:
         return 0.0
     return sum(collected) / len(collected)
-
-
-def _fmt_float(value: float) -> str:
-    return f"{value:.6f}"
