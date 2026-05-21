@@ -33,7 +33,7 @@ from utils.app_context import get_data_dir
 from utils.config_errors import ConfigLoadError
 from utils.config_loader import ConfigLoader
 from utils.runtime_config import SchedulerConfig
-from utils.we_config import FactualPlaylistState, FactualPlaylistStatus, WEConfigProber
+from utils.we_config import WEConfigProber
 
 logger = logging.getLogger("WEScheduler.Core")
 
@@ -213,7 +213,7 @@ class WEScheduler:
         context_snapshot = copy.deepcopy(live_context)
         match = self.matcher.evaluate(context_snapshot)     # Think
         cached_playlist_before = self.cached_playlist
-        factual = self._probe_factual_playlist()
+        factual = self.we_config_prober.probe_playlist()
         resolution = resolve_playlist_state(
             factual,
             cached_playlist=cached_playlist_before,
@@ -372,14 +372,6 @@ class WEScheduler:
         self.color_of = runtime.color_of
         self.we_config_prober = runtime.we_config_prober
         self.managed_playlists = runtime.managed_playlists
-
-    def _probe_factual_playlist(self) -> FactualPlaylistState:
-        if not self.executor.ensure_we_running():
-            return FactualPlaylistState(
-                status=FactualPlaylistStatus.UNKNOWN,
-                issue="wallpaper_engine_start_failed",
-            )
-        return self.we_config_prober.probe_playlist()
 
     def _hot_reload(self, fingerprint: tuple[tuple[str, bool, int], ...]) -> None:
         previous_config = self.config_loader.config

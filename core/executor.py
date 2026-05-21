@@ -14,7 +14,6 @@ class WEExecutor:
         self.process_name = os.path.basename(self.we_path).lower()
 
     def is_we_running(self) -> bool:
-        """Checks if the Wallpaper Engine process is currently running."""
         try:
             for proc in psutil.process_iter(['name']):
                 if proc.info['name'] and proc.info['name'].lower() == self.process_name:
@@ -23,12 +22,7 @@ class WEExecutor:
             pass
         return False
 
-    def ensure_we_running(self) -> bool:
-        """Ensures WE is running, attempts to start it if not."""
-        if self.is_we_running():
-            return True
-
-        logger.warning(f"Wallpaper Engine ({self.process_name}) is not running. Attempting to start...")
+    def request_we_start(self) -> bool:
         try:
             subprocess.Popen([self.we_path],
                              stdout=subprocess.DEVNULL,
@@ -41,9 +35,10 @@ class WEExecutor:
             return False
 
     def _run_command(self, args: List[str]) -> bool:
-        """Runs a command silently, ensuring WE is running first."""
-        if not self.ensure_we_running():
-            logger.error("Cannot execute command: Wallpaper Engine is not running and failed to start.")
+        """Runs a command silently when WE is already ready for control."""
+        if not self.is_we_running():
+            logger.warning("Command %s skipped as Wallpaper Engine is not running. Requesting restart command.", args)
+            self.request_we_start()
             return False
 
         cmd = [self.we_path, "-control"] + args
