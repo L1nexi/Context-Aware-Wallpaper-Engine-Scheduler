@@ -31,7 +31,7 @@ def _trace(
 
 
 def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
-    monkeypatch.setattr("utils.i18n._current_lang", "en")
+    monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.cached_playlist = "focus"
     scheduler.display_of = {"focus": "Focus Flow", "rain": "Rain Mood"}
@@ -49,7 +49,7 @@ def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
 
 
 def test_tray_summary_disables_apply_when_no_match(monkeypatch):
-    monkeypatch.setattr("utils.i18n._current_lang", "en")
+    monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.cached_playlist = "focus"
     scheduler.display_of = {"focus": "Focus Flow"}
@@ -66,7 +66,7 @@ def test_tray_summary_disables_apply_when_no_match(monkeypatch):
 
 
 def test_tray_summary_reports_outside_configured_playlists(monkeypatch):
-    monkeypatch.setattr("utils.i18n._current_lang", "en")
+    monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.last_tick_trace = _trace(
         effective_playlist_after="",
@@ -79,7 +79,7 @@ def test_tray_summary_reports_outside_configured_playlists(monkeypatch):
 
 
 def test_tray_summary_falls_back_to_cached_active_playlist(monkeypatch):
-    monkeypatch.setattr("utils.i18n._current_lang", "en")
+    monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.cached_playlist = "focus"
     scheduler.display_of = {"focus": "Focus Flow"}
@@ -94,7 +94,7 @@ def test_tray_summary_falls_back_to_cached_active_playlist(monkeypatch):
 
 
 def test_tray_summary_uses_cached_active_playlist_while_paused(monkeypatch):
-    monkeypatch.setattr("utils.i18n._current_lang", "en")
+    monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.paused = True
     scheduler.cached_playlist = "focus"
@@ -110,7 +110,7 @@ def test_tray_summary_uses_cached_active_playlist_while_paused(monkeypatch):
 
 
 def test_tray_apply_handler_keeps_calling_manual_apply(monkeypatch):
-    monkeypatch.setattr("utils.i18n._current_lang", "en")
+    monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     tray = TrayIcon(scheduler)
 

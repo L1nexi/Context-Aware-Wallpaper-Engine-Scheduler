@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
 IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
 
 def _format_field_path(path: tuple[str | int, ...]) -> str:
     if not path:
@@ -96,10 +97,7 @@ def validation_issues(source_file: str, exc: ValidationError) -> list[ConfigIssu
     ]
 
 
-ModelT = TypeVar("ModelT", bound=BaseModel)
-
-
-def model_validate_document(
+def model_validate_document[ModelT: BaseModel](
     model: type[ModelT],
     data: dict[str, Any],
     source_file: str,

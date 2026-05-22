@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import threading
-from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -10,10 +8,10 @@ from core.actuator import Actuator
 from core.context import Context, WindowData
 from core.controller import SchedulingController
 from core.diagnostics import (
-    ActivityPolicyDetails,
-    ActivityPolicyEvaluation,
     ActionKind,
     ActionReasonCode,
+    ActivityPolicyDetails,
+    ActivityPolicyEvaluation,
     ActuationOutcome,
     ControllerBlocker,
     ControllerDecision,
@@ -23,15 +21,15 @@ from core.diagnostics import (
 from core.matcher import Matcher
 from core.playlist_state import PlaylistRecoveryReason, resolve_playlist_state
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
-from core.scheduler import SchedulerState, WEScheduler, _RuntimeComponents
+from core.scheduler import WEScheduler, _RuntimeComponents
 from ui.dashboard_analysis import DashboardRuntimeMetadata, map_tick_snapshot
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
     ActivityPolicyConfig,
     PlaylistConfig,
-    TimePolicyConfig,
     SchedulingConfig,
     TagSpec,
+    TimePolicyConfig,
     WeatherPolicyConfig,
 )
 from utils.we_config import FactualPlaylistState, FactualPlaylistStatus
@@ -58,17 +56,13 @@ def test_activity_policy_distinguishes_title_and_process_matchers():
         )
     )
 
-    title_eval = policy.evaluate(
-        Context(window=WindowData(title="YouTube Music", process="chrome.exe"))
-    )
+    title_eval = policy.evaluate(Context(window=WindowData(title="YouTube Music", process="chrome.exe")))
     assert title_eval.active is True
     assert title_eval.details.match_source == "title"
     assert title_eval.details.matched_rule == "YouTube"
     assert title_eval.dominant_tag == "chill"
 
-    process_eval = policy.evaluate(
-        Context(window=WindowData(title="Docs", process="chrome.exe"))
-    )
+    process_eval = policy.evaluate(Context(window=WindowData(title="Docs", process="chrome.exe")))
     assert process_eval.active is True
     assert process_eval.details.match_source == "process"
     assert process_eval.details.matched_rule == "chrome.exe"
@@ -330,11 +324,7 @@ def test_controller_decide_reason_code(
             pause_on_fullscreen=False,
         )
     )
-    controller._evaluate_operation = mock.Mock(
-        side_effect=lambda _context, *, operation: (
-            switch_eval if operation == "switch" else cycle_eval
-        )
-    )
+    controller._evaluate_operation = mock.Mock(side_effect=lambda _context, *, operation: switch_eval if operation == "switch" else cycle_eval)
 
     decision = controller.decide_action(Context(), match, active_playlist)
 
@@ -477,18 +467,12 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
             return None
 
     scheduler = WEScheduler("config", DummyHistory())
-    scheduler.context_manager = mock.Mock(
-        refresh=mock.Mock(return_value=Context(window=WindowData(title="", process=""), idle=0.0))
-    )
-    scheduler.matcher = mock.Mock(
-        evaluate=mock.Mock(return_value=MatchEvaluation(best_playlist=None, playlist_matches=[]))
-    )
+    scheduler.context_manager = mock.Mock(refresh=mock.Mock(return_value=Context(window=WindowData(title="", process=""), idle=0.0)))
+    scheduler.matcher = mock.Mock(evaluate=mock.Mock(return_value=MatchEvaluation(best_playlist=None, playlist_matches=[])))
     scheduler.executor = mock.Mock()
     scheduler.executor.is_we_running = mock.Mock(return_value=False)
     scheduler.executor.request_we_start = mock.Mock(return_value=True)
-    scheduler.we_config_prober = mock.Mock(
-        probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN))
-    )
+    scheduler.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN)))
     scheduler.managed_playlists = {"focus"}
     scheduler.cached_playlist = "focus"
     scheduler.paused = True

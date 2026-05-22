@@ -44,6 +44,13 @@ npm run dev
 
 如需其他端口，保持后端端口与前端 `DASHBOARD_API_PORT=<port>` 一致；默认端口是 `38417`。前端还可运行 `npm run lint`、`npm run type-check`、`npm run build-only`、`npm run format`、`npm run preview`。若组合构建遇到派生进程问题，分开跑 `type-check` 和 `build-only`。
 
+Python 文件修改完毕后，用 Ruff 格式化
+
+```powershell
+python -m ruff check . --fix
+python -m ruff format .
+```
+
 ## 编码风格与命名约定
 
 Python 代码使用完整类型注解。代码应尽量自解释；会抛出异常的函数必须用 docstring 说明异常类型和触发条件。

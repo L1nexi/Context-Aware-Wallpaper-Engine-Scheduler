@@ -27,6 +27,7 @@ Usage:
   python misc/vis_explore.py act-hour --save misc/explore   # 保存 PNG
   python misc/vis_explore.py wx-act                         # 天气 × 活跃度
 """
+
 import argparse
 import math
 import os
@@ -43,12 +44,19 @@ except ImportError as exc:
     sys.exit(1)
 
 from vis_common import (
-    CMAP, BNORM,
-    MONTH_MIDS, MONTH_NAMES, SEASON_PEAKS, TIME_PEAKS,
-    WEATHER_AXIS, WEATHER_AXIS_LABELS, ACT_AXIS,
-    legend_patches, winner_idx, winner_idx_ex, doy_to_label,
+    ACT_AXIS,
+    BNORM,
+    CMAP,
+    MONTH_MIDS,
+    MONTH_NAMES,
+    SEASON_PEAKS,
+    TIME_PEAKS,
+    WEATHER_AXIS,
+    WEATHER_AXIS_LABELS,
+    legend_patches,
+    winner_idx,
+    winner_idx_ex,
 )
-
 
 # ======================================================================
 #  § 1  Default panel configurations
@@ -65,17 +73,17 @@ DEFAULT_PANELS = {
     # Row 3: activity contrasts at key seasons  — 对照活跃度对天气行为的影响
     "wx-hour": [
         # Row 1 — idle × season peaks
-        {"activity": None,     "doy": 80,  "title": "idle · spring-peak (doy 80)"},
-        {"activity": None,     "doy": 172, "title": "idle · summer-peak (doy 172)"},
-        {"activity": None,     "doy": 265, "title": "idle · autumn-peak (doy 265)"},
-        {"activity": None,     "doy": 355, "title": "idle · winter-peak (doy 355)"},
+        {"activity": None, "doy": 80, "title": "idle · spring-peak (doy 80)"},
+        {"activity": None, "doy": 172, "title": "idle · summer-peak (doy 172)"},
+        {"activity": None, "doy": 265, "title": "idle · autumn-peak (doy 265)"},
+        {"activity": None, "doy": 355, "title": "idle · winter-peak (doy 355)"},
         # Row 2 — idle × season transitions (midpoints between consecutive peaks)
-        {"activity": None,     "doy": 35,  "title": "idle · winter→spring (doy 35)"},
-        {"activity": None,     "doy": 126, "title": "idle · spring→summer (doy 126)"},
-        {"activity": None,     "doy": 218, "title": "idle · summer→autumn (doy 218)"},
-        {"activity": None,     "doy": 310, "title": "idle · autumn→winter (doy 310)"},
+        {"activity": None, "doy": 35, "title": "idle · winter→spring (doy 35)"},
+        {"activity": None, "doy": 126, "title": "idle · spring→summer (doy 126)"},
+        {"activity": None, "doy": 218, "title": "idle · summer→autumn (doy 218)"},
+        {"activity": None, "doy": 310, "title": "idle · autumn→winter (doy 310)"},
         # Row 3 — activity contrasts
-        {"activity": "#focus", "doy": 80,  "title": "#focus · spring (doy 80)"},
+        {"activity": "#focus", "doy": 80, "title": "#focus · spring (doy 80)"},
         {"activity": "#focus", "doy": 172, "title": "#focus · summer (doy 172)"},
         {"activity": "#chill", "doy": 172, "title": "#chill · summer (doy 172)"},
         {"activity": "#chill", "doy": 355, "title": "#chill · winter (doy 355)"},
@@ -85,30 +93,30 @@ DEFAULT_PANELS = {
     # 过渡期季节 Policy 强度降低，主要看天气 + 活跃度的竞争如何支配 playlist
     "act-hour": [
         # none (无天气信号) — 峰值 + 过渡
-        {"weather": "none",     "doy": 80,  "title": "none · spring-peak (doy 80)"},
-        {"weather": "none",     "doy": 218, "title": "none · summer→autumn (doy 218)"},
-        {"weather": "none",     "doy": 355, "title": "none · winter-peak (doy 355)"},
+        {"weather": "none", "doy": 80, "title": "none · spring-peak (doy 80)"},
+        {"weather": "none", "doy": 218, "title": "none · summer→autumn (doy 218)"},
+        {"weather": "none", "doy": 355, "title": "none · winter-peak (doy 355)"},
         # clear — 春到夏弧线 + 冬季参考
-        {"weather": "clear",    "doy": 80,  "title": "clear · spring-peak (doy 80)"},
-        {"weather": "clear",    "doy": 126, "title": "clear · spring→summer (doy 126)"},
-        {"weather": "clear",    "doy": 172, "title": "clear · summer-peak (doy 172)"},
-        {"weather": "clear",    "doy": 355, "title": "clear · winter-peak (doy 355)"},
+        {"weather": "clear", "doy": 80, "title": "clear · spring-peak (doy 80)"},
+        {"weather": "clear", "doy": 126, "title": "clear · spring→summer (doy 126)"},
+        {"weather": "clear", "doy": 172, "title": "clear · summer-peak (doy 172)"},
+        {"weather": "clear", "doy": 355, "title": "clear · winter-peak (doy 355)"},
         # mod_rain — 夏秋弧线
         {"weather": "mod_rain", "doy": 172, "title": "mod_rain · summer-peak (doy 172)"},
         {"weather": "mod_rain", "doy": 310, "title": "mod_rain · autumn→winter (doy 310)"},
         # storm — 冬春过渡 + 两极
-        {"weather": "storm",    "doy": 35,  "title": "storm · winter→spring (doy 35)"},
-        {"weather": "storm",    "doy": 80,  "title": "storm · spring-peak (doy 80)"},
-        {"weather": "storm",    "doy": 355, "title": "storm · winter-peak (doy 355)"},
+        {"weather": "storm", "doy": 35, "title": "storm · winter→spring (doy 35)"},
+        {"weather": "storm", "doy": 80, "title": "storm · spring-peak (doy 80)"},
+        {"weather": "storm", "doy": 355, "title": "storm · winter-peak (doy 355)"},
     ],
     # wx-season: 固定 (activity, hour), 变动 weather × doy  — 9 panels (3×3)
     # 覆盖全天各时段 + 活跃度基线，观察天气对季节维度的影响强度
     "wx-season": [
-        {"activity": None,     "hour": 6.0,  "title": "idle · 06:00"},
-        {"activity": None,     "hour": 10.0, "title": "idle · 10:00"},
-        {"activity": None,     "hour": 14.0, "title": "idle · 14:00"},
-        {"activity": None,     "hour": 18.0, "title": "idle · 18:00"},
-        {"activity": None,     "hour": 22.0, "title": "idle · 22:00"},
+        {"activity": None, "hour": 6.0, "title": "idle · 06:00"},
+        {"activity": None, "hour": 10.0, "title": "idle · 10:00"},
+        {"activity": None, "hour": 14.0, "title": "idle · 14:00"},
+        {"activity": None, "hour": 18.0, "title": "idle · 18:00"},
+        {"activity": None, "hour": 22.0, "title": "idle · 22:00"},
         {"activity": "#focus", "hour": 10.0, "title": "#focus · 10:00"},
         {"activity": "#focus", "hour": 22.0, "title": "#focus · 22:00"},
         {"activity": "#chill", "hour": 14.0, "title": "#chill · 14:00"},
@@ -117,23 +125,23 @@ DEFAULT_PANELS = {
     # act-season: 固定 (weather, hour), 变动 activity × doy  — 9 panels (3×3)
     # 4 种天气 × 代表性时段，观察活跃度在全年维度上与季节 Policy 的竞争
     "act-season": [
-        {"weather": "none",     "hour": 10.0, "title": "none · 10:00"},
-        {"weather": "none",     "hour": 22.0, "title": "none · 22:00"},
-        {"weather": "clear",    "hour": 10.0, "title": "clear · 10:00"},
-        {"weather": "clear",    "hour": 14.0, "title": "clear · 14:00"},
-        {"weather": "clear",    "hour": 22.0, "title": "clear · 22:00"},
+        {"weather": "none", "hour": 10.0, "title": "none · 10:00"},
+        {"weather": "none", "hour": 22.0, "title": "none · 22:00"},
+        {"weather": "clear", "hour": 10.0, "title": "clear · 10:00"},
+        {"weather": "clear", "hour": 14.0, "title": "clear · 14:00"},
+        {"weather": "clear", "hour": 22.0, "title": "clear · 22:00"},
         {"weather": "mod_rain", "hour": 10.0, "title": "mod_rain · 10:00"},
         {"weather": "mod_rain", "hour": 22.0, "title": "mod_rain · 22:00"},
-        {"weather": "storm",    "hour": 14.0, "title": "storm · 14:00"},
-        {"weather": "storm",    "hour": 22.0, "title": "storm · 22:00"},
+        {"weather": "storm", "hour": 14.0, "title": "storm · 14:00"},
+        {"weather": "storm", "hour": 22.0, "title": "storm · 22:00"},
     ],
     # wx-act: 固定 (hour, doy), 变动 weather × activity  — 12 panels (3×4)
     # 4 season peaks × 2 代表时段 = 8  +  4 season transitions × 14:00 = 4
     # 过渡期面板验证：季节 Policy 减弱后，天气 × 活跃度轴的边界是否更清晰
     "wx-act": [
         # Season peaks — 每季取早/晚两个时段
-        {"hour":  8.0, "doy": 80,  "title": "08:00 · spring (doy 80)"},
-        {"hour": 20.0, "doy": 80,  "title": "20:00 · spring (doy 80)"},
+        {"hour": 8.0, "doy": 80, "title": "08:00 · spring (doy 80)"},
+        {"hour": 20.0, "doy": 80, "title": "20:00 · spring (doy 80)"},
         {"hour": 14.0, "doy": 172, "title": "14:00 · summer (doy 172)"},
         {"hour": 23.0, "doy": 172, "title": "23:00 · summer (doy 172)"},
         {"hour": 14.0, "doy": 265, "title": "14:00 · autumn (doy 265)"},
@@ -141,7 +149,7 @@ DEFAULT_PANELS = {
         {"hour": 20.0, "doy": 355, "title": "20:00 · winter (doy 355)"},
         {"hour": 23.0, "doy": 355, "title": "23:00 · winter (doy 355)"},
         # Season transitions — 固定午后 14:00 观察两季 Policy 均弱时的交叉效果
-        {"hour": 14.0, "doy": 35,  "title": "14:00 · winter→spring (doy 35)"},
+        {"hour": 14.0, "doy": 35, "title": "14:00 · winter→spring (doy 35)"},
         {"hour": 14.0, "doy": 126, "title": "14:00 · spring→summer (doy 126)"},
         {"hour": 14.0, "doy": 218, "title": "14:00 · summer→autumn (doy 218)"},
         {"hour": 14.0, "doy": 310, "title": "14:00 · autumn→winter (doy 310)"},
@@ -151,29 +159,29 @@ DEFAULT_PANELS = {
     # Row 2 — idle × 极端天气  +  纯活动基线（晴天对照）
     # Row 3 — activity × weather 交叉组合
     "hr-doy": [
-        {"activity": None,     "weather": "none",       "title": "idle · none"},
-        {"activity": None,     "weather": "clear",      "title": "idle · clear"},
-        {"activity": None,     "weather": "drizzle",    "title": "idle · drizzle"},
-        {"activity": None,     "weather": "mod_rain",   "title": "idle · mod_rain"},
-        {"activity": None,     "weather": "storm",      "title": "idle · storm"},
-        {"activity": None,     "weather": "heavy_snow", "title": "idle · heavy_snow"},
-        {"activity": "#focus", "weather": "clear",      "title": "#focus · clear"},
-        {"activity": "#chill", "weather": "clear",      "title": "#chill · clear"},
-        {"activity": "#focus", "weather": "overcast",   "title": "#focus · overcast"},
-        {"activity": "#focus", "weather": "mod_rain",   "title": "#focus · mod_rain"},
-        {"activity": "#chill", "weather": "mod_rain",   "title": "#chill · mod_rain"},
-        {"activity": "#chill", "weather": "storm",      "title": "#chill · storm"},
+        {"activity": None, "weather": "none", "title": "idle · none"},
+        {"activity": None, "weather": "clear", "title": "idle · clear"},
+        {"activity": None, "weather": "drizzle", "title": "idle · drizzle"},
+        {"activity": None, "weather": "mod_rain", "title": "idle · mod_rain"},
+        {"activity": None, "weather": "storm", "title": "idle · storm"},
+        {"activity": None, "weather": "heavy_snow", "title": "idle · heavy_snow"},
+        {"activity": "#focus", "weather": "clear", "title": "#focus · clear"},
+        {"activity": "#chill", "weather": "clear", "title": "#chill · clear"},
+        {"activity": "#focus", "weather": "overcast", "title": "#focus · overcast"},
+        {"activity": "#focus", "weather": "mod_rain", "title": "#focus · mod_rain"},
+        {"activity": "#chill", "weather": "mod_rain", "title": "#chill · mod_rain"},
+        {"activity": "#chill", "weather": "storm", "title": "#chill · storm"},
     ],
 }
 
 # 每种模式的大标题
 MODE_TITLES = {
-    "hr-doy":     "Hour of Day × Month  (12 scenarios, fixed: activity, weather)",
-    "wx-hour":    "Weather × Hour  (fixed: activity, season)",
-    "act-hour":   "Activity × Hour  (fixed: weather, season)",
-    "wx-season":  "Weather × Season  (fixed: activity, hour)",
+    "hr-doy": "Hour of Day × Month  (12 scenarios, fixed: activity, weather)",
+    "wx-hour": "Weather × Hour  (fixed: activity, season)",
+    "act-hour": "Activity × Hour  (fixed: weather, season)",
+    "wx-season": "Weather × Season  (fixed: activity, hour)",
     "act-season": "Activity × Season  (fixed: weather, hour)",
-    "wx-act":     "Weather × Activity  (fixed: hour, season)",
+    "wx-act": "Weather × Activity  (fixed: hour, season)",
 }
 
 
@@ -186,63 +194,46 @@ MODE_TITLES = {
 #  pcolormesh 需要的 edge 数组在 § 3 的 draw 函数中计算。
 # ======================================================================
 
+
 def build_hr_doy(activity, weather: str, hour_step: float = 0.5, doy_step: int = 2):
     """策略 1: hour (cols) × doy (rows)。"""
     hours = np.arange(0, 24, hour_step)
-    doys  = np.arange(1, 366, doy_step)
-    grid  = np.array([
-        [winner_idx(float(h), int(d), activity, weather) for h in hours]
-        for d in doys
-    ])
+    doys = np.arange(1, 366, doy_step)
+    grid = np.array([[winner_idx(float(h), int(d), activity, weather) for h in hours] for d in doys])
     return hours, doys, grid
 
 
 def build_wx_hour(activity, doy: int, h_step: float = 0.25):
     """策略 2: weather (rows) × hour (cols)。"""
     hours = np.arange(0, 24, h_step)
-    grid = np.array([
-        [winner_idx(float(h), doy, activity, wx) for h in hours]
-        for wx in WEATHER_AXIS
-    ])
+    grid = np.array([[winner_idx(float(h), doy, activity, wx) for h in hours] for wx in WEATHER_AXIS])
     return hours, grid
 
 
 def build_act_hour(weather: str, doy: int, h_step: float = 0.25):
     """策略 3: activity (rows) × hour (cols)。"""
     hours = np.arange(0, 24, h_step)
-    grid = np.array([
-        [winner_idx_ex(float(h), doy, float(s), weather) for h in hours]
-        for s in ACT_AXIS
-    ])
+    grid = np.array([[winner_idx_ex(float(h), doy, float(s), weather) for h in hours] for s in ACT_AXIS])
     return hours, grid
 
 
 def build_wx_season(activity, hour: float, d_step: int = 2):
     """策略 4: weather (rows) × doy (cols)。"""
     doys = np.arange(1, 366, d_step)
-    grid = np.array([
-        [winner_idx(hour, int(d), activity, wx) for d in doys]
-        for wx in WEATHER_AXIS
-    ])
+    grid = np.array([[winner_idx(hour, int(d), activity, wx) for d in doys] for wx in WEATHER_AXIS])
     return doys, grid
 
 
 def build_act_season(weather: str, hour: float, d_step: int = 2):
     """策略 5: activity (rows) × doy (cols)。"""
     doys = np.arange(1, 366, d_step)
-    grid = np.array([
-        [winner_idx_ex(hour, int(d), float(s), weather) for d in doys]
-        for s in ACT_AXIS
-    ])
+    grid = np.array([[winner_idx_ex(hour, int(d), float(s), weather) for d in doys] for s in ACT_AXIS])
     return doys, grid
 
 
 def build_wx_act(hour: float, doy: int):
     """策略 6: weather (rows) × activity (cols)。"""
-    grid = np.array([
-        [winner_idx_ex(hour, doy, float(s), wx) for s in ACT_AXIS]
-        for wx in WEATHER_AXIS
-    ])
+    grid = np.array([[winner_idx_ex(hour, doy, float(s), wx) for s in ACT_AXIS] for wx in WEATHER_AXIS])
     return grid
 
 
@@ -262,6 +253,7 @@ def build_wx_act(hour: float, doy: int):
 # ======================================================================
 
 # --- shared axis helpers ---
+
 
 def _hour_xaxis(ax):
     """配置横轴为 hour (0-24)。"""
@@ -285,7 +277,7 @@ def _wx_yaxis(ax):
     ax.set_yticks(np.arange(n) + 0.5)
     ax.set_yticklabels(WEATHER_AXIS_LABELS, fontsize=8)
     ax.set_ylim(0, n)
-    ax.invert_yaxis()     # "none" (最弱) 在顶部
+    ax.invert_yaxis()  # "none" (最弱) 在顶部
     for y in range(1, n):
         ax.axhline(y, color="white", linewidth=0.3, alpha=0.6)
     ax.set_ylabel("Weather", fontsize=9)
@@ -297,8 +289,7 @@ def _act_yaxis(ax):
     ax.set_ylim(ACT_AXIS[0] - s_step / 2, ACT_AXIS[-1] + s_step / 2)
     ax.axhline(0, color="white", linewidth=0.9, linestyle="--", alpha=0.6)
     ax.set_yticks([-1, -0.5, 0, 0.5, 1])
-    ax.set_yticklabels(["chill 1.0", "chill 0.5", "idle", "focus 0.5", "focus 1.0"],
-                       fontsize=8)
+    ax.set_yticklabels(["chill 1.0", "chill 0.5", "idle", "focus 0.5", "focus 1.0"], fontsize=8)
     ax.set_ylabel("Activity  ← chill    idle    focus →", fontsize=9)
 
 
@@ -326,18 +317,18 @@ def _season_vlines(ax):
 
 # --- per-mode draw functions ---
 
+
 def draw_hr_doy(ax, *, activity, weather, title):
     """策略 1: hour × doy 二维热力图面板。"""
     hours, doys, grid = build_hr_doy(activity, weather)
     h_step = hours[1] - hours[0]
-    d_step = doys[1]  - doys[0]
+    d_step = doys[1] - doys[0]
     h_edges = np.append(hours - h_step / 2, hours[-1] + h_step / 2)
-    d_edges = np.append(doys  - d_step / 2, doys[-1]  + d_step / 2)
-    ax.pcolormesh(h_edges, d_edges, grid, cmap=CMAP, norm=BNORM,
-                  shading="flat", rasterized=True)
+    d_edges = np.append(doys - d_step / 2, doys[-1] + d_step / 2)
+    ax.pcolormesh(h_edges, d_edges, grid, cmap=CMAP, norm=BNORM, shading="flat", rasterized=True)
     ax.set_xlim(0, 24)
     ax.set_ylim(1, 365)
-    ax.invert_yaxis()   # Jan 显示在顶部
+    ax.invert_yaxis()  # Jan 显示在顶部
     ax.set_xticks(range(0, 25, 4))
     ax.set_xticklabels([f"{h:02d}:00" for h in range(0, 25, 4)], fontsize=8)
     ax.set_yticks(MONTH_MIDS)
@@ -357,8 +348,7 @@ def draw_wx_hour(ax, *, activity, doy, title):
     h_step = hours[1] - hours[0]
     h_edges = np.append(hours - h_step / 2, hours[-1] + h_step / 2)
     w_edges = np.arange(len(WEATHER_AXIS) + 1)
-    ax.pcolormesh(h_edges, w_edges, grid, cmap=CMAP, norm=BNORM,
-                  shading="flat", rasterized=True)
+    ax.pcolormesh(h_edges, w_edges, grid, cmap=CMAP, norm=BNORM, shading="flat", rasterized=True)
     _hour_xaxis(ax)
     _wx_yaxis(ax)
     _time_vlines(ax)
@@ -372,8 +362,7 @@ def draw_act_hour(ax, *, weather, doy, title):
     s_step = ACT_AXIS[1] - ACT_AXIS[0]
     h_edges = np.append(hours - h_step / 2, hours[-1] + h_step / 2)
     s_edges = np.append(ACT_AXIS - s_step / 2, ACT_AXIS[-1] + s_step / 2)
-    ax.pcolormesh(h_edges, s_edges, grid, cmap=CMAP, norm=BNORM,
-                  shading="flat", rasterized=True)
+    ax.pcolormesh(h_edges, s_edges, grid, cmap=CMAP, norm=BNORM, shading="flat", rasterized=True)
     _hour_xaxis(ax)
     _act_yaxis(ax)
     _time_vlines(ax)
@@ -386,8 +375,7 @@ def draw_wx_season(ax, *, activity, hour, title):
     d_step = doys[1] - doys[0]
     d_edges = np.append(doys - d_step / 2, doys[-1] + d_step / 2)
     w_edges = np.arange(len(WEATHER_AXIS) + 1)
-    ax.pcolormesh(d_edges, w_edges, grid, cmap=CMAP, norm=BNORM,
-                  shading="flat", rasterized=True)
+    ax.pcolormesh(d_edges, w_edges, grid, cmap=CMAP, norm=BNORM, shading="flat", rasterized=True)
     _doy_xaxis(ax)
     _wx_yaxis(ax)
     _season_vlines(ax)
@@ -401,8 +389,7 @@ def draw_act_season(ax, *, weather, hour, title):
     s_step = ACT_AXIS[1] - ACT_AXIS[0]
     d_edges = np.append(doys - d_step / 2, doys[-1] + d_step / 2)
     s_edges = np.append(ACT_AXIS - s_step / 2, ACT_AXIS[-1] + s_step / 2)
-    ax.pcolormesh(d_edges, s_edges, grid, cmap=CMAP, norm=BNORM,
-                  shading="flat", rasterized=True)
+    ax.pcolormesh(d_edges, s_edges, grid, cmap=CMAP, norm=BNORM, shading="flat", rasterized=True)
     _doy_xaxis(ax)
     _act_yaxis(ax)
     _season_vlines(ax)
@@ -415,8 +402,7 @@ def draw_wx_act(ax, *, hour, doy, title):
     s_step = ACT_AXIS[1] - ACT_AXIS[0]
     s_edges = np.append(ACT_AXIS - s_step / 2, ACT_AXIS[-1] + s_step / 2)
     w_edges = np.arange(len(WEATHER_AXIS) + 1)
-    ax.pcolormesh(s_edges, w_edges, grid, cmap=CMAP, norm=BNORM,
-                  shading="flat", rasterized=True)
+    ax.pcolormesh(s_edges, w_edges, grid, cmap=CMAP, norm=BNORM, shading="flat", rasterized=True)
     _act_xaxis(ax)
     _wx_yaxis(ax)
     ax.set_title(title, fontsize=10, pad=4)
@@ -424,18 +410,19 @@ def draw_wx_act(ax, *, hour, doy, title):
 
 # — dispatch table —
 _DRAW_FN = {
-    "hr-doy":     draw_hr_doy,
-    "wx-hour":    draw_wx_hour,
-    "act-hour":   draw_act_hour,
-    "wx-season":  draw_wx_season,
+    "hr-doy": draw_hr_doy,
+    "wx-hour": draw_wx_hour,
+    "act-hour": draw_act_hour,
+    "wx-season": draw_wx_season,
     "act-season": draw_act_season,
-    "wx-act":     draw_wx_act,
+    "wx-act": draw_wx_act,
 }
 
 
 # ======================================================================
 #  § 4  Figure assembler
 # ======================================================================
+
 
 def make_figure(mode: str) -> plt.Figure:
     """根据 mode 生成热力图，布局从面板数量自动推断。
@@ -453,8 +440,7 @@ def make_figure(mode: str) -> plt.Figure:
     fig_w = cols * 5.5
     fig_h = rows * 4.5
 
-    fig, axes = plt.subplots(rows, cols, figsize=(fig_w, fig_h),
-                             gridspec_kw={"hspace": 0.50, "wspace": 0.35})
+    fig, axes = plt.subplots(rows, cols, figsize=(fig_w, fig_h), gridspec_kw={"hspace": 0.50, "wspace": 0.35})
 
     axes_flat = list(np.array(axes).flat) if rows * cols > 1 else [axes]
 
@@ -486,6 +472,7 @@ def make_figure(mode: str) -> plt.Figure:
 #  § 5  CLI
 # ======================================================================
 
+
 def main() -> None:
     modes = list(DEFAULT_PANELS.keys())
     parser = argparse.ArgumentParser(
@@ -505,10 +492,10 @@ Examples:
   python misc/vis_explore.py wx-hour
   python misc/vis_explore.py act-hour --save misc/explore
   python misc/vis_explore.py wx-act
-""")
+""",
+    )
     parser.add_argument("mode", choices=modes, help="可视化模式")
-    parser.add_argument("--save", metavar="BASENAME",
-                        help="保存为 BASENAME_{mode}.png, 不弹窗")
+    parser.add_argument("--save", metavar="BASENAME", help="保存为 BASENAME_{mode}.png, 不弹窗")
     args = parser.parse_args()
 
     print(f"Building {args.mode} grids...", end=" ", flush=True)

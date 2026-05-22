@@ -3,19 +3,18 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from pydantic_core import PydanticCustomError
 
 from core.policies import get_policy_fixed_output_tags
-from utils.we_path import resolve_wallpaper_engine_path
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
-    ActivityMatcherConfig,
-    ActivityPolicyConfig,
     HEX_COLOR_RE,
     PLAYLIST_AUTO_COLOR_PALETTE,
+    ActivityMatcherConfig,
+    ActivityPolicyConfig,
     PlaylistConfig,
     PoliciesConfig,
     SchedulerConfig,
@@ -25,6 +24,7 @@ from utils.runtime_config import (
     TimePolicyConfig,
     WeatherPolicyConfig,
 )
+from utils.we_path import resolve_wallpaper_engine_path
 
 logger = logging.getLogger("WEScheduler.ConfigDocuments")
 
@@ -45,6 +45,7 @@ PLAYLIST_NAMED_COLORS = {
     "slate": "#475569",
     "gray": "#4B5563",
 }
+
 
 def _normalize_playlist_color(value: str) -> str | None:
     stripped = value.strip()
@@ -95,16 +96,16 @@ class PlaylistFileEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     display: str = ""
     color: str | None = None
-    tags: Dict[str, float] = Field(default_factory=dict)
+    tags: dict[str, float] = Field(default_factory=dict)
 
 
 class PlaylistsFileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    playlists: Dict[str, PlaylistFileEntry] = Field(default_factory=dict)
+    playlists: dict[str, PlaylistFileEntry] = Field(default_factory=dict)
 
     @field_validator("playlists")
     @classmethod
-    def validate_playlist_keys(cls, value: Dict[str, PlaylistFileEntry]) -> Dict[str, PlaylistFileEntry]:
+    def validate_playlist_keys(cls, value: dict[str, PlaylistFileEntry]) -> dict[str, PlaylistFileEntry]:
         for playlist_name in value:
             if not playlist_name.strip():
                 raise ValueError("playlist name must not be empty")
@@ -147,18 +148,15 @@ class PlaylistsFileConfig(BaseModel):
 
 class TagFileEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    fallback: Dict[str, float] = Field(default_factory=dict)
+    fallback: dict[str, float] = Field(default_factory=dict)
 
 
 class TagsFileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    tags: Dict[str, TagFileEntry] = Field(default_factory=dict)
+    tags: dict[str, TagFileEntry] = Field(default_factory=dict)
 
     def to_runtime_config(self) -> dict[str, TagSpec]:
-        return {
-            tag_name: TagSpec(fallback=dict(tag_spec.fallback))
-            for tag_name, tag_spec in self.tags.items()
-        }
+        return {tag_name: TagSpec(fallback=dict(tag_spec.fallback)) for tag_name, tag_spec in self.tags.items()}
 
 
 class _BasePolicyFileConfig(BaseModel):
@@ -187,8 +185,8 @@ class ActivityMatcherFileConfig(BaseModel):
 
 class ActivityPolicyFileConfig(_BasePolicyFileConfig):
     smoothing_window: float = Field(60.0, ge=1)
-    process: Dict[str, str] = Field(default_factory=dict)
-    title: Dict[str, str] = Field(default_factory=dict)
+    process: dict[str, str] = Field(default_factory=dict)
+    title: dict[str, str] = Field(default_factory=dict)
     matchers: list[ActivityMatcherFileConfig] = Field(default_factory=list)
 
     def to_runtime_config(self) -> ActivityPolicyConfig:
@@ -394,18 +392,17 @@ class ConfigFiles:
                     field_path=("runtime", "wallpaper_engine_path"),
                     message="wallpaper_engine_path must point to an existing executable file",
                     code="invalid_wallpaper_engine_path",
-                )]
+                )
+            ]
         else:
             return [
                 ConfigIssue(
                     source_file="scheduler.yaml",
                     field_path=("runtime", "wallpaper_engine_path"),
-                    message=(
-                        "Wallpaper Engine executable could not be auto-detected on this machine; "
-                        "set runtime.wallpaper_engine_path explicitly"
-                    ),
+                    message=("Wallpaper Engine executable could not be auto-detected on this machine; set runtime.wallpaper_engine_path explicitly"),
                     code="wallpaper_engine_path_unresolved",
-                )]
+                )
+            ]
 
     def _collect_tag_reference_issues(self) -> list[ConfigIssue]:
         issues: list[ConfigIssue] = []

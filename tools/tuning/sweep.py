@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from itertools import product
-from typing import Iterable, Sequence
 
 from tools.tuning.models import (
     MatchProfile,
@@ -91,10 +91,7 @@ def evaluate_parameter_sweep(
     gamma_playlist_values = tuple(gamma_playlist)
     gamma_context_values = tuple(gamma_context)
     baseline_profile = MatchProfile("current")
-    baseline_results = [
-        evaluate_scenario(config, scenario, baseline_profile)
-        for scenario in scenario_list
-    ]
+    baseline_results = [evaluate_scenario(config, scenario, baseline_profile) for scenario in scenario_list]
     baseline_summary = _summarize_results(
         scenario_list,
         baseline_results,
@@ -125,10 +122,7 @@ def evaluate_parameter_sweep(
             gamma_playlist=gamma_playlist_value,
             gamma_context=gamma_context_value,
         )
-        results = [
-            evaluate_scenario(config, scenario, profile)
-            for scenario in scenario_list
-        ]
+        results = [evaluate_scenario(config, scenario, profile) for scenario in scenario_list]
         summary = _summarize_results(
             scenario_list,
             results,
@@ -139,19 +133,11 @@ def evaluate_parameter_sweep(
             for scenario, baseline_result, result in zip(scenario_list, baseline_results, results)
             if scenario.expected is not None and baseline_result.winner != result.winner
         )
-        churn_count_all = sum(
-            1
-            for baseline_result, result in zip(baseline_results, results)
-            if baseline_result.winner != result.winner
-        )
+        churn_count_all = sum(1 for baseline_result, result in zip(baseline_results, results) if baseline_result.winner != result.winner)
         core_regression_count_expected = sum(
             1
             for scenario, baseline_result, result in zip(scenario_list, baseline_results, results)
-            if (
-                scenario.category == "core"
-                and baseline_result.expected_status == "pass"
-                and result.expected_status != "pass"
-            )
+            if (scenario.category == "core" and baseline_result.expected_status == "pass" and result.expected_status != "pass")
         )
         rows.append(
             SweepRow(
@@ -207,11 +193,7 @@ def _summarize_results(
 ) -> _ProfileSummary:
     expected_total = _expected_total(scenarios)
     pass_count, fail_count = _expected_counts(scenarios, results)
-    expected_results = [
-        result
-        for scenario, result in zip(scenarios, results)
-        if scenario.expected is not None
-    ]
+    expected_results = [result for scenario, result in zip(scenarios, results) if scenario.expected is not None]
     return _ProfileSummary(
         expected_total=expected_total,
         pass_count=pass_count,
@@ -220,9 +202,7 @@ def _summarize_results(
         avg_gap_expected=_average(result.gap for result in expected_results),
         avg_gap_all=_average(result.gap for result in results),
         confident_fail_count_expected=sum(
-            1
-            for result in expected_results
-            if result.expected_status == "fail" and result.gap >= confident_failure_gap
+            1 for result in expected_results if result.expected_status == "fail" and result.gap >= confident_failure_gap
         ),
     )
 

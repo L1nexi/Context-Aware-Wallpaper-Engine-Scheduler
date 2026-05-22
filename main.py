@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from core.diagnostics import SchedulerTickTrace
 
-import sys
-import os
 import argparse
-import subprocess
-import time
 import logging
+import os
+import subprocess
+import sys
+import time
 
 # ── DPI Awareness ───────────────────────────────────────────────
 # Must be called before any window or UI object is created.
@@ -17,20 +18,21 @@ import logging
 # high-DPI displays.  Falls back silently on older Windows versions.
 try:
     import ctypes
+
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 except Exception:
     pass
 
 # Ensure we can import from core and utils in source mode.
 # When frozen, everything is bundled by PyInstaller.
-if not getattr(sys, 'frozen', False):
+if not getattr(sys, "frozen", False):
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from utils.app_context import get_app_root
 from utils.logger import setup_logger
 
-
 # ── CLI ─────────────────────────────────────────────────────────
+
 
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments.
@@ -46,15 +48,15 @@ def _parse_args() -> argparse.Namespace:
         --locale      UI language for the dashboard client
 
     """
-    parser = argparse.ArgumentParser(
-        description="Context Aware Wallpaper Engine Scheduler"
-    )
+    parser = argparse.ArgumentParser(description="Context Aware Wallpaper Engine Scheduler")
     parser.add_argument(
-        "--config", default="config",
+        "--config",
+        default="config",
         help="Path to the configuration directory",
     )
     parser.add_argument(
-        "--no-tray", action="store_true",
+        "--no-tray",
+        action="store_true",
         help="Run without system tray icon (console mode)",
     )
     parser.add_argument(
@@ -69,11 +71,11 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-
 def _resolve_config_path(config_arg: str) -> str:
     if os.path.isabs(config_arg):
         return config_arg
     return os.path.join(get_app_root(), config_arg)
+
 
 def _ensure_console_for_config_mode() -> None:
     if sys.platform != "win32":
@@ -85,25 +87,26 @@ def _ensure_console_for_config_mode() -> None:
     if not ctypes.windll.kernel32.AttachConsole(ATTACH_PARENT_PROCESS):
         ctypes.windll.kernel32.AllocConsole()
 
-    sys.stdin = open("CONIN$", "r", encoding="utf-8", errors="replace")
+    sys.stdin = open("CONIN$", encoding="utf-8", errors="replace")
     sys.stdout = open("CONOUT$", "w", encoding="utf-8", errors="replace")
     sys.stderr = open("CONOUT$", "w", encoding="utf-8", errors="replace")
 
 
 # ── Mode runners ────────────────────────────────────────────────
 
+
 def _spawn_dashboard_subprocess(port: int) -> None:
     """Spawn a detached dashboard subprocess loading the local host URL."""
-    from utils.i18n import _current_lang
+    from utils.i18n import current_lang
 
     if getattr(sys, "frozen", False):
         exe = sys.executable
-        cmd = [exe, "--dashboard", f"--port={port}", f"--locale={_current_lang}"]
+        cmd = [exe, "--dashboard", f"--port={port}", f"--locale={current_lang}"]
         subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
     else:
         exe = sys.executable
         script = os.path.join(get_app_root(), "main.py")
-        cmd = [exe, script, "--dashboard", f"--port={port}", f"--locale={_current_lang}"]
+        cmd = [exe, script, "--dashboard", f"--port={port}", f"--locale={current_lang}"]
         subprocess.Popen(cmd, creationflags=0)
 
 
@@ -121,8 +124,8 @@ def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
     thread with the main thread sleeping until KeyboardInterrupt.
     """
     from core.scheduler import WEScheduler
-    from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir
+    from utils.history_logger import HistoryLogger
 
     scheduler = WEScheduler(config_dir, HistoryLogger(get_data_dir()))
     try:
@@ -151,8 +154,8 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     from ui.dashboard import DashboardHTTPServer
     from ui.dashboard_analysis import AnalysisStore, extract_runtime_metadata
     from ui.tray import TrayIcon
-    from utils.history_logger import HistoryLogger
     from utils.app_context import get_data_dir
+    from utils.history_logger import HistoryLogger
 
     scheduler = WEScheduler(config_dir, HistoryLogger(get_data_dir()))
     try:
@@ -192,6 +195,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
 
 # ── Entry point ─────────────────────────────────────────────────
 
+
 def main() -> None:
     config_mode = len(sys.argv) > 1 and sys.argv[1] == "config"
     if config_mode:
@@ -203,9 +207,7 @@ def main() -> None:
     if config_mode:
         from ui.config_cli import run_config_tools_tui
 
-        config_parser = argparse.ArgumentParser(
-            description="WEScheduler Config Tools"
-        )
+        config_parser = argparse.ArgumentParser(description="WEScheduler Config Tools")
         config_parser.add_argument(
             "--config",
             default="config",

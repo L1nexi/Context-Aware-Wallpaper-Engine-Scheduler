@@ -190,10 +190,7 @@ def matrix(
 def _activity_name(activity: ActivitySignal | None) -> str:
     if activity is None:
         return "idle"
-    tags = "-".join(
-        f"{tag}{activity.direction[tag]:g}"
-        for tag in sorted(activity.direction)
-    )
+    tags = "-".join(f"{tag}{activity.direction[tag]:g}" for tag in sorted(activity.direction))
     return f"{tags}-i{activity.intensity:g}"
 
 
@@ -265,11 +262,7 @@ def evaluate_scenario(
     match = Matcher(config.playlists, policies, config.tags).evaluate(context)
     playlist_matches = rank_for_profile(config, match.resolved_context_vector, profile)
     match.playlist_matches = playlist_matches
-    match.best_playlist = (
-        playlist_matches[0][0]
-        if playlist_matches and playlist_matches[0][1] > 0.001
-        else None
-    )
+    match.best_playlist = playlist_matches[0][0] if playlist_matches and playlist_matches[0][1] > 0.001 else None
     rankings = [
         RankingRow(
             scenario=scenario.name,
@@ -332,7 +325,7 @@ def _normalize_pow(vector: dict[str, float], gamma: float) -> dict[str, float]:
     for tag, value in vector.items():
         if value <= 0:
             continue
-        powered[tag] = value ** gamma
+        powered[tag] = value**gamma
     norm = math.sqrt(sum(value * value for value in powered.values()))
     if norm < _EPSILON:
         return {}

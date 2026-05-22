@@ -1,10 +1,3 @@
-"""
-Dashboard window process entry point.
-
-Launched as a subprocess by the tray host. Thin wrapper around pywebview
-that creates a single window, blocks until the user closes it, then exits.
-"""
-
 from __future__ import annotations
 
 import ctypes
@@ -68,8 +61,6 @@ class _DashboardAPI:
 
 
 class DashboardWindow:
-    """Creates a pywebview window loading the dashboard host URL."""
-
     def __init__(self, api_port: int, locale: str):
         self._url = f"http://127.0.0.1:{api_port}?locale={locale}"
 

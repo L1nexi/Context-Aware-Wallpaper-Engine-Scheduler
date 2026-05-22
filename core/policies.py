@@ -6,7 +6,7 @@ import re
 import time as _time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, Optional, Type
+from typing import Any, ClassVar
 
 from core.context import Context
 from core.diagnostics import (
@@ -21,12 +21,12 @@ from core.diagnostics import (
     WeatherPolicyEvaluation,
 )
 from utils.runtime_config import (
-    _BasePolicyConfig,
     ActivityPolicyConfig,
     PoliciesConfig,
     SeasonPolicyConfig,
     TimePolicyConfig,
     WeatherPolicyConfig,
+    _BasePolicyConfig,
 )
 
 logger = logging.getLogger("WEScheduler.Policy")
@@ -70,7 +70,6 @@ class CompiledActivityMatcher:
 
 
 def _circular_distance(a: float, b: float, period: float) -> float:
-    """Shortest distance between two points on a circle of given *period*."""
     d = abs(a - b) % period
     return min(d, period - d)
 
@@ -101,12 +100,8 @@ class Policy(ABC):
                 "Update runtime_config.py or the policy class."
             )
         if "fixed_output_tags" in cls.__dict__ and cls.fixed_output_tags is not None:
-            if not isinstance(cls.fixed_output_tags, tuple) or any(
-                not isinstance(tag, str) or not tag for tag in cls.fixed_output_tags
-            ):
-                raise TypeError(
-                    f"{cls.__name__}.fixed_output_tags must be a tuple[str, ...] when provided."
-                )
+            if not isinstance(cls.fixed_output_tags, tuple) or any(not isinstance(tag, str) or not tag for tag in cls.fixed_output_tags):
+                raise TypeError(f"{cls.__name__}.fixed_output_tags must be a tuple[str, ...] when provided.")
 
     def __init__(self, config: _BasePolicyConfig):
         self.config = config
@@ -117,14 +112,14 @@ class Policy(ABC):
         self,
         *,
         details: object,
-        raw_direction: Optional[Dict[str, float]],
+        raw_direction: dict[str, float] | None,
         salience: float,
         intensity: float,
     ) -> BasePolicyEvaluation:
         raw_direction = raw_direction or {}
         active = False
-        direction: Dict[str, float] = {}
-        raw_contribution: Dict[str, float] = {}
+        direction: dict[str, float] = {}
+        raw_contribution: dict[str, float] = {}
         effective_magnitude = 0.0
         dominant_tag = max(raw_direction, key=raw_direction.get) if raw_direction else None
 
@@ -132,15 +127,9 @@ class Policy(ABC):
             norm = math.sqrt(sum(weight * weight for weight in raw_direction.values()))
             if norm >= 1e-6:
                 active = True
-                direction = {
-                    tag: weight / norm
-                    for tag, weight in raw_direction.items()
-                }
+                direction = {tag: weight / norm for tag, weight in raw_direction.items()}
                 effective_magnitude = salience * intensity * self.weight
-                raw_contribution = {
-                    tag: weight * effective_magnitude
-                    for tag, weight in direction.items()
-                }
+                raw_contribution = {tag: weight * effective_magnitude for tag, weight in direction.items()}
 
         return self.evaluation_cls(
             policy_id=self.config_key,
@@ -157,13 +146,12 @@ class Policy(ABC):
         )
 
     @abstractmethod
-    def evaluate(self, context: Context) -> BasePolicyEvaluation:
-        ...
+    def evaluate(self, context: Context) -> BasePolicyEvaluation: ...
 
-    def export_state(self) -> Dict[str, Any]:
+    def export_state(self) -> dict[str, Any]:
         return {}
 
-    def import_state(self, state: Dict[str, Any]) -> None:
+    def import_state(self, state: dict[str, Any]) -> None:
         pass
 
 
@@ -197,7 +185,7 @@ class ActivityPolicy(Policy):
         else:
             self.alpha = 2.0 / (smoothing_window + 1.0)
 
-        self._dir_ema: Dict[str, float] = {}
+        self._dir_ema: dict[str, float] = {}
         self._mag_ema: float = 0.0
 
     def evaluate(self, context: Context) -> ActivityPolicyEvaluation:
@@ -215,7 +203,7 @@ class ActivityPolicy(Policy):
         instant_dir, details = self._get_instant_signal(context)
 
         all_tags = set(self._dir_ema.keys()) | set(instant_dir.keys())
-        new_dir_ema: Dict[str, float] = {}
+        new_dir_ema: dict[str, float] = {}
         for tag in all_tags:
             cur = instant_dir.get(tag, 0.0)
             prev = self._dir_ema.get(tag, 0.0)
@@ -240,7 +228,7 @@ class ActivityPolicy(Policy):
     def _get_instant_signal(
         self,
         context: Context,
-    ) -> tuple[Dict[str, float], ActivityPolicyDetails]:
+    ) -> tuple[dict[str, float], ActivityPolicyDetails]:
         details = ActivityPolicyDetails(
             window_title=context.window.title,
             process=context.window.process,
@@ -307,29 +295,22 @@ class ActivityPolicy(Policy):
     def _strip_optional_exe_suffix(value: str, case_sensitive: bool) -> str:
         suffix = ".exe"
         if case_sensitive:
-            return value[:-len(suffix)] if value.endswith(suffix) else value
-        return value[:-len(suffix)] if value.lower().endswith(suffix) else value
+            return value[: -len(suffix)] if value.endswith(suffix) else value
+        return value[: -len(suffix)] if value.lower().endswith(suffix) else value
 
-    def export_state(self) -> Dict[str, Any]:
+    def export_state(self) -> dict[str, Any]:
         return {
             "dir_ema": self._dir_ema.copy(),
             "mag_ema": self._mag_ema,
         }
 
-    def import_state(self, state: Dict[str, Any]) -> None:
+    def import_state(self, state: dict[str, Any]) -> None:
         allowed_tags = {matcher.tag for matcher in self.matchers}
-        self._dir_ema = {
-            tag: float(value)
-            for tag, value in state.get("dir_ema", {}).items()
-            if tag in allowed_tags
-        }
+        self._dir_ema = {tag: float(value) for tag, value in state.get("dir_ema", {}).items() if tag in allowed_tags}
         self._mag_ema = float(state.get("mag_ema", 0.0))
 
 
-
 class TimePolicy(Policy):
-    """Maps time-of-day to dawn/day/sunset/night via Hann windows."""
-
     config_key = "time"
     evaluation_cls = TimePolicyEvaluation
     fixed_output_tags = ("dawn", "day", "sunset", "night")
@@ -340,12 +321,12 @@ class TimePolicy(Policy):
         self._night_start: float = config.night_start_hour
         self.auto: bool = config.auto
 
-        self._peaks: Dict[str, float] = {}
+        self._peaks: dict[str, float] = {}
         self._H: float = 6.0
         self._recompute_peaks(self._day_start, self._night_start)
 
     @staticmethod
-    def _compute_peaks(ds: float, ns: float) -> Dict[str, float]:
+    def _compute_peaks(ds: float, ns: float) -> dict[str, float]:
         day_span = (ns - ds) % 24
         night_span = 24 - day_span
         return {
@@ -359,7 +340,7 @@ class TimePolicy(Policy):
     _VIRTUAL_PEAKS = [0.0, 6.0, 12.0, 18.0]
 
     @staticmethod
-    def _warp_time(hour: float, peaks: Dict[str, float]) -> float:
+    def _warp_time(hour: float, peaks: dict[str, float]) -> float:
         real = [peaks[tag] for tag in TimePolicy._TAG_ORDER]
         n = len(real)
         for i in range(n):
@@ -412,7 +393,7 @@ class TimePolicy(Policy):
             )
 
         best_weight = 0.0
-        raw: Dict[str, float] = {}
+        raw: dict[str, float] = {}
         for tag, v_peak in zip(self._TAG_ORDER, self._VIRTUAL_PEAKS):
             distance = _circular_distance(t_virtual, v_peak, 24)
             weight = _hann(distance, self._H)
@@ -428,8 +409,6 @@ class TimePolicy(Policy):
 
 
 class SeasonPolicy(Policy):
-    """Maps day-of-year to spring/summer/autumn/winter via Hann windows."""
-
     config_key = "season"
     evaluation_cls = SeasonPolicyEvaluation
     fixed_output_tags = ("spring", "summer", "autumn", "winter")
@@ -458,7 +437,7 @@ class SeasonPolicy(Policy):
                 intensity=0.0,
             )
 
-        raw: Dict[str, float] = {}
+        raw: dict[str, float] = {}
         best_weight = 0.0
         for tag, peak in self._peaks.items():
             distance = _circular_distance(day_of_year, peak, 365)
@@ -479,7 +458,7 @@ class WeatherPolicy(Policy):
 
     fixed_output_tags = ("clear", "cloudy", "rain", "storm", "snow", "fog")
 
-    _ID_TAGS: Dict[int, Dict[str, float]] = {
+    _ID_TAGS: dict[int, dict[str, float]] = {
         210: {"storm": 0.50, "rain": 0.25},
         211: {"storm": 0.75, "rain": 0.50},
         212: {"storm": 1.00, "rain": 0.60},
@@ -537,7 +516,7 @@ class WeatherPolicy(Policy):
         804: {"cloudy": 0.50},
     }
 
-    _MAIN_FALLBACK: Dict[str, Dict[str, float]] = {
+    _MAIN_FALLBACK: dict[str, dict[str, float]] = {
         "thunderstorm": {"storm": 0.67, "rain": 0.34},
         "drizzle": {"rain": 0.40},
         "rain": {"rain": 0.65},
@@ -603,7 +582,7 @@ class WeatherPolicy(Policy):
         )
 
     @classmethod
-    def _resolve_tags(cls, weather_id: int, weather_main: str) -> Optional[Dict[str, float]]:
+    def _resolve_tags(cls, weather_id: int, weather_main: str) -> dict[str, float] | None:
         entry = cls._ID_TAGS.get(weather_id)
         if entry is not None:
             return dict(entry)
@@ -611,7 +590,7 @@ class WeatherPolicy(Policy):
         return dict(fallback) if fallback is not None else None
 
 
-POLICY_REGISTRY: list[Type[Policy]] = [
+POLICY_REGISTRY: list[type[Policy]] = [
     ActivityPolicy,
     TimePolicy,
     SeasonPolicy,
@@ -620,14 +599,13 @@ POLICY_REGISTRY: list[Type[Policy]] = [
 
 
 def get_policy_fixed_output_tags() -> dict[str, tuple[str, ...]]:
-    return {
-        policy_cls.config_key: policy_cls.fixed_output_tags
-        for policy_cls in POLICY_REGISTRY
-        if policy_cls.fixed_output_tags is not None
+    return {policy_cls.config_key: policy_cls.fixed_output_tags for policy_cls in POLICY_REGISTRY if policy_cls.fixed_output_tags is not None}
+
+
+KNOWN_TAGS: list[str] = sorted(
+    {
+        "focus",
+        "chill",
+        *(tag for tags in get_policy_fixed_output_tags().values() for tag in tags),
     }
-
-
-KNOWN_TAGS: list[str] = sorted({
-    "focus", "chill",
-    *(tag for tags in get_policy_fixed_output_tags().values() for tag in tags),
-})
+)

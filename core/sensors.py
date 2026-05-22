@@ -1,24 +1,26 @@
 from __future__ import annotations
+
+import ctypes
+import logging
+import threading
+import time
+from abc import ABC, abstractmethod
+from collections import deque
+from typing import Any, ClassVar
+
+import psutil
+import requests
+import win32api
 import win32gui
 import win32process
-import win32api
-import ctypes
-import time
-import threading
-import requests
-import psutil
-import logging
-from collections import deque
-from typing import ClassVar, Any, Optional, Type
-from abc import ABC, abstractmethod
-from core.context import WindowData, WeatherData
+
+from core.context import WeatherData, WindowData
 from utils.runtime_config import SchedulerConfig, WeatherPolicyConfig
 
 logger = logging.getLogger("WEScheduler.Sensor")
 
+
 class Sensor(ABC):
-    # Context key under which this sensor's output is stored.
-    # Each concrete subclass must define this as a class-level string.
     key: ClassVar[str]
 
     @abstractmethod
@@ -28,15 +30,16 @@ class Sensor(ABC):
 
     @classmethod
     @abstractmethod
-    def create(cls, config: SchedulerConfig) -> Optional["Sensor"]:
+    def create(cls, config: SchedulerConfig) -> Sensor | None:
         """Factory method: return a ready instance, or None to skip registration."""
         pass
+
 
 class WindowSensor(Sensor):
     key = "window"
 
     @classmethod
-    def create(cls, config: SchedulerConfig) -> Optional[WindowSensor]:
+    def create(cls, config: SchedulerConfig) -> WindowSensor | None:
         return cls()
 
     def collect(self) -> WindowData:
@@ -64,11 +67,12 @@ class WindowSensor(Sensor):
             logger.warning(f"WindowSensor error: {e}")
             return WindowData()
 
+
 class IdleSensor(Sensor):
     key = "idle"
 
     @classmethod
-    def create(cls, config: SchedulerConfig) -> Optional[IdleSensor]:
+    def create(cls, config: SchedulerConfig) -> IdleSensor | None:
         return cls()
 
     def collect(self) -> float:
@@ -91,18 +95,6 @@ class IdleSensor(Sensor):
 
 
 class CpuSensor(Sensor):
-    """Returns a rolling-average CPU utilisation (0.0–100.0) over a sliding window.
-
-    Uses psutil.cpu_percent(interval=None) — non-blocking, measures since the
-    previous call.  The first call after import always returns 0.0 (psutil
-    limitation); we prime it in __init__ so the actual first collect() value
-    is meaningful.
-
-    Window size guideline: at 1 s/tick a window of 10 gives a 10-second
-    smoothed view — short spikes (page-faults, disk flush) don't trip the
-    gate; sustained loads (gaming, compilation, training) do.
-    """
-
     def __init__(self, window: int = 10) -> None:
         self._samples: deque[float] = deque(maxlen=window)
         # Prime psutil's internal baseline so the first collect() measurement
@@ -112,7 +104,7 @@ class CpuSensor(Sensor):
     key = "cpu"
 
     @classmethod
-    def create(cls, config: SchedulerConfig) -> Optional[CpuSensor]:
+    def create(cls, config: SchedulerConfig) -> CpuSensor | None:
         return cls(window=config.scheduling.cpu_sample_window)
 
     def collect(self) -> float:
@@ -122,26 +114,18 @@ class CpuSensor(Sensor):
 
 
 class FullscreenSensor(Sensor):
-    """Detects fullscreen or presentation-mode applications via Win32 API.
-
-    Uses SHQueryUserNotificationState (shell32.dll) which reliably detects:
-    - D3D exclusive fullscreen (games)
-    - Presentation mode (PowerPoint, etc.)
-    - Generic full-screen applications
-    """
-
-    _FULLSCREEN_STATES = frozenset({
-        2,  # QUNS_BUSY — full-screen app running or Presentation Settings applied
-        3,  # QUNS_RUNNING_D3D_FULL_SCREEN — D3D exclusive fullscreen
-        4,  # QUNS_PRESENTATION_MODE — presentation mode active
-    })
+    _FULLSCREEN_STATES = frozenset(
+        {
+            2,  # QUNS_BUSY — full-screen app running or Presentation Settings applied
+            3,  # QUNS_RUNNING_D3D_FULL_SCREEN — D3D exclusive fullscreen
+            4,  # QUNS_PRESENTATION_MODE — presentation mode active
+        }
+    )
 
     def collect(self) -> bool:
         try:
             state = ctypes.c_int(0)
-            ctypes.windll.shell32.SHQueryUserNotificationState(
-                ctypes.byref(state)
-            )
+            ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state))
             return state.value in self._FULLSCREEN_STATES
         except Exception:
             return False
@@ -149,7 +133,7 @@ class FullscreenSensor(Sensor):
     key = "fullscreen"
 
     @classmethod
-    def create(cls, config: SchedulerConfig) -> Optional[FullscreenSensor]:
+    def create(cls, config: SchedulerConfig) -> FullscreenSensor | None:
         """Return a new instance only when fullscreen-defer is enabled."""
         if not config.scheduling.pause_on_fullscreen:
             return None
@@ -157,16 +141,6 @@ class FullscreenSensor(Sensor):
 
 
 class WeatherSensor(Sensor):
-    """Periodically fetches weather data from OpenWeatherMap 2.5 /weather.
-
-    Returns a dict with weather code, main category, and sunrise/sunset
-    timestamps.  Cached for ``interval`` seconds between API calls.
-
-    The HTTP request is executed in a background daemon thread so that
-    ``collect()`` always returns immediately with the cached value, never
-    blocking the 1-second scheduler tick.
-    """
-
     key = "weather"
 
     def __init__(self, config: WeatherPolicyConfig) -> None:
@@ -177,7 +151,7 @@ class WeatherSensor(Sensor):
         self.timeout: float = config.request_timeout
 
         self._last_fetch: float = 0.0
-        self._cached: Optional[WeatherData] = None
+        self._cached: WeatherData | None = None
         self._fetching: bool = False  # guard: only one background thread at a time
         self._ready_event = threading.Event()  # set after first fetch attempt completes
 
@@ -188,12 +162,10 @@ class WeatherSensor(Sensor):
         threading.Thread(target=self._fetch_async, daemon=True).start()
         self._ready_event.wait(timeout=warmup_timeout)
 
-    def collect(self) -> Optional[WeatherData]:
+    def collect(self) -> WeatherData | None:
         now = time.time()
         cached = self._snapshot_with_freshness(now)
-        # Rate-limit: once _last_fetch is set, wait at least interval before retry.
-        # _last_fetch is set *before* the thread starts so rapid collect() calls
-        # during a fetch don't spawn multiple concurrent threads.
+
         if self._last_fetch > 0 and (now - self._last_fetch) < self.interval:
             return cached
 
@@ -204,7 +176,7 @@ class WeatherSensor(Sensor):
 
         return cached
 
-    def _snapshot_with_freshness(self, now: float) -> Optional[WeatherData]:
+    def _snapshot_with_freshness(self, now: float) -> WeatherData | None:
         cached = self._cached
         if cached is None:
             return None
@@ -250,8 +222,7 @@ class WeatherSensor(Sensor):
                     stale=False,
                 )
                 logger.info(
-                    f"Weather updated: id={self._cached.id} main={self._cached.main} "
-                    f"sunrise={self._cached.sunrise} sunset={self._cached.sunset}"
+                    f"Weather updated: id={self._cached.id} main={self._cached.main} sunrise={self._cached.sunrise} sunset={self._cached.sunset}"
                 )
             else:
                 logger.warning(f"Weather API error: {resp.status_code}")
@@ -262,23 +233,19 @@ class WeatherSensor(Sensor):
             self._ready_event.set()
 
     @classmethod
-    def create(cls, config: SchedulerConfig) -> Optional["WeatherSensor"]:
+    def create(cls, config: SchedulerConfig) -> WeatherSensor | None:
         """Return a new instance only when the sensor is enabled and an API key is present."""
         weather_cfg = config.policies.weather
-        if (
-            not weather_cfg.enabled
-            or not weather_cfg.api_key
-            or weather_cfg.lat is None
-            or weather_cfg.lon is None
-        ):
+        if not weather_cfg.enabled or not weather_cfg.api_key or weather_cfg.lat is None or weather_cfg.lon is None:
             return None
         return cls(weather_cfg)
+
 
 class TimeSensor(Sensor):
     key = "time"
 
     @classmethod
-    def create(cls, config: SchedulerConfig) -> Optional["TimeSensor"]:
+    def create(cls, config: SchedulerConfig) -> TimeSensor | None:
         return cls()
 
     def collect(self) -> time.struct_time:
@@ -289,7 +256,7 @@ class TimeSensor(Sensor):
 # Registry of Sensor classes.
 # Each sensor carries its own context key (Sensor.key) and activation
 # logic (Sensor.create(config)).
-SENSOR_REGISTRY: list[Type[Sensor]] = [
+SENSOR_REGISTRY: list[type[Sensor]] = [
     WindowSensor,
     IdleSensor,
     CpuSensor,

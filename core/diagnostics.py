@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import TYPE_CHECKING, Literal, Optional, TypeAlias
+from enum import StrEnum
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from core.context import Context
 
 
-class ActionKind(str, Enum):
+class ActionKind(StrEnum):
     NONE = "none"
     SWITCH = "switch"
     CYCLE = "cycle"
@@ -16,7 +16,7 @@ class ActionKind(str, Enum):
     PAUSE = "pause"
 
 
-class ActionReasonCode(str, Enum):
+class ActionReasonCode(StrEnum):
     """Primary decision summary for one tick.
 
     Exactly one reason is chosen for a decision. When multiple blockers are
@@ -42,7 +42,7 @@ class ActionReasonCode(str, Enum):
     RECOVERY_NO_MATCH = "recovery_no_match"
 
 
-class ControllerBlocker(str, Enum):
+class ControllerBlocker(StrEnum):
     COOLDOWN = "cooldown"
     FULLSCREEN = "fullscreen"
     CPU = "cpu"
@@ -52,8 +52,8 @@ class ControllerBlocker(str, Enum):
 @dataclass
 class ActivityPolicyDetails:
     match_source: Literal["title", "process", "none"] = "none"
-    matched_rule: Optional[str] = None
-    matched_tag: Optional[str] = None
+    matched_rule: str | None = None
+    matched_tag: str | None = None
     window_title: str = ""
     process: str = ""
     ema_active: bool = False
@@ -77,8 +77,8 @@ class SeasonPolicyDetails:
 
 @dataclass
 class WeatherPolicyDetails:
-    weather_id: Optional[int] = None
-    weather_main: Optional[str] = None
+    weather_id: int | None = None
+    weather_main: str | None = None
     available: bool = False
     mapped: bool = False
 
@@ -95,7 +95,7 @@ class BasePolicyEvaluation:
     direction: dict[str, float] = field(default_factory=dict)
     raw_contribution: dict[str, float] = field(default_factory=dict)
     resolved_contribution: dict[str, float] = field(default_factory=dict)
-    dominant_tag: Optional[str] = None
+    dominant_tag: str | None = None
 
 
 @dataclass
@@ -118,17 +118,12 @@ class WeatherPolicyEvaluation(BasePolicyEvaluation):
     details: WeatherPolicyDetails = field(default_factory=WeatherPolicyDetails)
 
 
-PolicyEvaluation: TypeAlias = (
-    ActivityPolicyEvaluation
-    | TimePolicyEvaluation
-    | SeasonPolicyEvaluation
-    | WeatherPolicyEvaluation
-)
+type PolicyEvaluation = ActivityPolicyEvaluation | TimePolicyEvaluation | SeasonPolicyEvaluation | WeatherPolicyEvaluation
 
 
 @dataclass
 class MatchEvaluation:
-    best_playlist: Optional[str]
+    best_playlist: str | None
     playlist_matches: list[tuple[str, float]] = field(default_factory=list)
     raw_context_vector: dict[str, float] = field(default_factory=dict)
     resolved_context_vector: dict[str, float] = field(default_factory=dict)
@@ -149,17 +144,11 @@ class MatchEvaluation:
         return self.playlist_matches[0][1] - self.playlist_matches[1][1]
 
 
-ControllerOperation: TypeAlias = Literal["switch", "cycle"]
+type ControllerOperation = Literal["switch", "cycle"]
 
 
 @dataclass
 class ControllerEvaluation:
-    """Full controller evaluation for the chosen operation.
-
-    `blocked_by` keeps the complete set of active blockers on this path, not
-    just the primary reason surfaced in `ControllerDecision.reason_code`.
-    """
-
     operation: ControllerOperation
     allowed: bool
     blocked_by: list[ControllerBlocker] = field(default_factory=list)
@@ -167,9 +156,9 @@ class ControllerEvaluation:
     idle_seconds: float = 0.0
     idle_threshold: float = 0.0
     cpu_percent: float = 0.0
-    cpu_threshold: Optional[float] = None
+    cpu_threshold: float | None = None
     fullscreen: bool = False
-    force_after_remaining: Optional[float] = None
+    force_after_remaining: float | None = None
 
 
 @dataclass
@@ -182,8 +171,8 @@ class ControllerDecision:
 
     kind: ActionKind
     reason_code: ActionReasonCode
-    matched_playlist: Optional[str]
-    evaluation: Optional[ControllerEvaluation] = None
+    matched_playlist: str | None
+    evaluation: ControllerEvaluation | None = None
 
 
 @dataclass
@@ -202,11 +191,11 @@ class ActuationOutcome:
         return self.decision.reason_code
 
     @property
-    def matched_playlist(self) -> Optional[str]:
+    def matched_playlist(self) -> str | None:
         return self.decision.matched_playlist
 
     @property
-    def evaluation(self) -> Optional[ControllerEvaluation]:
+    def evaluation(self) -> ControllerEvaluation | None:
         return self.decision.evaluation
 
 

@@ -44,6 +44,7 @@ def _print_menu() -> None:
     print(f"3. {t('config_tools_scan_playlists')}")
     print(f"q. {t('config_tools_exit')}")
 
+
 def _run_validate(config_dir: str) -> None:
     result = validate_config(config_dir)
     print()
@@ -53,13 +54,10 @@ def _run_validate(config_dir: str) -> None:
     else:
         _print_validation_failure(result)
 
+
 def _print_validation_success(summary: ConfigSummary) -> None:
     we_path_str = summary.resolved_we_path or t("config_tools_unresolved")
-    policies_str = (
-        ", ".join(summary.enabled_policies)
-        if summary.enabled_policies
-        else t("config_tools_none")
-    )
+    policies_str = ", ".join(summary.enabled_policies) if summary.enabled_policies else t("config_tools_none")
 
     print(t("config_tools_ok"))
     print()
@@ -75,6 +73,7 @@ def _print_validation_success(summary: ConfigSummary) -> None:
     print(t("config_tools_enabled_policies"))
     print(f"  {policies_str}")
 
+
 def _print_validation_failure(result: ConfigValidationResult) -> None:
     print(t("config_tools_failed"))
     if not result.issues:
@@ -85,6 +84,7 @@ def _print_validation_failure(result: ConfigValidationResult) -> None:
         print(issue.render())
         print(f"  {t('config_tools_code')}: {issue.code}")
         print()
+
 
 def _run_detect(config_dir: str) -> None:
     result = detect_wallpaper_engine(config_dir)
@@ -113,6 +113,7 @@ def _run_detect(config_dir: str) -> None:
     print(t("config_tools_we_config_json"))
     print(f"  {config_json_display}")
 
+
 def _run_scan(config_dir: str) -> None:
     result = scan_wallpaper_engine_playlists(config_dir)
     print()
@@ -134,6 +135,7 @@ def _run_scan(config_dir: str) -> None:
     print(t("config_tools_copy_ready_snippet"))
     print()
     print(snippet)
+
 
 def _print_scan_error(result: PlaylistScanResult) -> None:
     error = result.error or "unknown error"

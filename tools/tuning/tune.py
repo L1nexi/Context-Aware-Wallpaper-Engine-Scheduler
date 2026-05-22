@@ -4,23 +4,23 @@ import argparse
 import re
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tools.tuning.heatmaps import (  # noqa: E402
+    HeatmapSampling,
+    generate_default_heatmaps,
+)
 from tools.tuning.models import (  # noqa: E402
     MatchProfile,
     Scenario,
     ScenarioProfileResult,
     evaluate_scenario,
-)
-from tools.tuning.heatmaps import (  # noqa: E402
-    HeatmapSampling,
-    generate_default_heatmaps,
 )
 from tools.tuning.sweep import (  # noqa: E402
     SweepReport,
@@ -173,11 +173,7 @@ def _append_coverage_summary(
     scenarios: list[Scenario],
     results: list[ScenarioProfileResult],
 ) -> None:
-    expected_results = [
-        result
-        for scenario, result in zip(scenarios, results)
-        if scenario.expected is not None
-    ]
+    expected_results = [result for scenario, result in zip(scenarios, results) if scenario.expected is not None]
     pass_count = sum(1 for result in expected_results if result.expected_status == "pass")
     lines.extend(["", "## Coverage Summary", ""])
     lines.append(f"Overall expected pass: {pass_count}/{len(expected_results)}")
@@ -189,18 +185,12 @@ def _append_coverage_summary(
         grouped[scenario.category][result.expected_status] += 1
     for category in sorted(grouped):
         counts = grouped[category]
-        lines.append(
-            f"| {category} | {counts['pass']} | {counts['fail']} | {counts['observed']} |"
-        )
+        lines.append(f"| {category} | {counts['pass']} | {counts['fail']} | {counts['observed']} |")
     ambiguous = [
-        (scenario, result)
-        for scenario, result in zip(scenarios, results)
-        if result.expected_status == "fail" and result.gap < AMBIGUOUS_FAILURE_GAP
+        (scenario, result) for scenario, result in zip(scenarios, results) if result.expected_status == "fail" and result.gap < AMBIGUOUS_FAILURE_GAP
     ]
     confident = [
-        (scenario, result)
-        for scenario, result in zip(scenarios, results)
-        if result.expected_status == "fail" and result.gap >= CONFIDENT_FAILURE_GAP
+        (scenario, result) for scenario, result in zip(scenarios, results) if result.expected_status == "fail" and result.gap >= CONFIDENT_FAILURE_GAP
     ]
     lines.extend(["", "Ambiguous failures:"])
     _append_failure_list(lines, ambiguous)
@@ -216,10 +206,7 @@ def _append_failure_list(
         lines.append("- none")
         return
     for scenario, result in failures:
-        lines.append(
-            f"- {scenario.name}: expected {scenario.expected}, got {result.winner or 'none'}, "
-            f"gap={_fmt_float(result.gap)}"
-        )
+        lines.append(f"- {scenario.name}: expected {scenario.expected}, got {result.winner or 'none'}, gap={_fmt_float(result.gap)}")
 
 
 def _append_parameter_sweep_summary(lines: list[str], sweep_report: SweepReport) -> None:
@@ -244,19 +231,10 @@ def _append_parameter_sweep_summary(lines: list[str], sweep_report: SweepReport)
 
 def _best_low_churn_candidate(rows: Iterable[SweepRow], best_pass_rate: float) -> SweepRow:
     eligible = [
-        row
-        for row in rows
-        if (
-            row.core_regression_count_expected == 0
-            and row.pass_rate_expected >= best_pass_rate - LOW_CHURN_PASS_RATE_TOLERANCE
-        )
+        row for row in rows if (row.core_regression_count_expected == 0 and row.pass_rate_expected >= best_pass_rate - LOW_CHURN_PASS_RATE_TOLERANCE)
     ]
     if not eligible:
-        eligible = [
-            row
-            for row in rows
-            if row.pass_rate_expected >= best_pass_rate - LOW_CHURN_PASS_RATE_TOLERANCE
-        ]
+        eligible = [row for row in rows if row.pass_rate_expected >= best_pass_rate - LOW_CHURN_PASS_RATE_TOLERANCE]
     return sorted(
         eligible,
         key=lambda row: (
@@ -287,10 +265,7 @@ def _fmt_float(value: float) -> str:
 def _format_top_rankings(result: ScenarioProfileResult, limit: int = 3) -> str:
     if not result.rankings:
         return "none"
-    return ", ".join(
-        f"{row.playlist} {_fmt_float(row.score)}"
-        for row in result.rankings[:limit]
-    )
+    return ", ".join(f"{row.playlist} {_fmt_float(row.score)}" for row in result.rankings[:limit])
 
 
 def _format_resolved_tags_top(result: ScenarioProfileResult, limit: int = 5) -> str:

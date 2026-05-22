@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
-import yaml
 from dataclasses import dataclass, field
+
+import yaml
 
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.config_loader import ConfigLoader
@@ -60,10 +61,7 @@ def validate_config(config_dir: str) -> ConfigValidationResult:
             ],
         )
 
-    enabled_policies = [
-        name for name in type(config.policies).model_fields
-        if getattr(config.policies, name).enabled
-    ]
+    enabled_policies = [name for name in type(config.policies).model_fields if getattr(config.policies, name).enabled]
 
     return ConfigValidationResult(
         ok=True,
@@ -97,8 +95,10 @@ def _detect_wallpaper_engine(config_dir: str) -> WEDetectionResult:
         we_config_json=config_json,
     )
 
+
 def detect_wallpaper_engine(config_dir: str) -> WEDetectionResult:
     return _detect_wallpaper_engine(config_dir)
+
 
 def scan_wallpaper_engine_playlists(config_dir: str) -> PlaylistScanResult:
     detection = _detect_wallpaper_engine(config_dir)
@@ -145,12 +145,7 @@ def render_playlists_yaml_snippet(names: list[str]) -> str:
     if not names:
         return ""
 
-    data = {
-        "playlists": {
-            name: {"tags": {}}
-            for name in names
-        }
-    }
+    data = {"playlists": {name: {"tags": {}} for name in names}}
     return yaml.safe_dump(
         data,
         allow_unicode=True,

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Sequence, Tuple
+from typing import Literal
 
 from tools.tuning.models import (
     ActivitySignal,
@@ -109,7 +110,7 @@ class HeatmapCase:
     fixed: dict[str, object]
 
 
-_MODE_TO_AXES: dict[HeatmapMode, Tuple[AxisName, AxisName]] = {
+_MODE_TO_AXES: dict[HeatmapMode, tuple[AxisName, AxisName]] = {
     "wx-hour": ("hour", "weather"),
     "act-hour": ("hour", "activity"),
     "wx-act": ("activity", "weather"),
@@ -294,6 +295,7 @@ def render_heatmap(
     import matplotlib.patches as patches
     import matplotlib.pyplot as plt
     import numpy as np
+
     fig, ax = plt.subplots(figsize=_figure_size(grid))
     try:
         if heatmap_type != "winner":
@@ -357,10 +359,7 @@ def _scenario_for_point(
     hour = float(values["hour"])
     day_of_year = int(values["day_of_year"])
     return Scenario(
-        name=(
-            f"heatmap {spec.mode} "
-            f"{x_name}={_value_label(x_value)} {y_name}={_value_label(y_value)}"
-        ),
+        name=(f"heatmap {spec.mode} {x_name}={_value_label(x_value)} {y_name}={_value_label(y_value)}"),
         hour=hour,
         day_of_year=day_of_year,
         weather=weather(weather_name),
@@ -374,10 +373,7 @@ def _draw_winner_map(ax, grid: HeatmapGrid, config: SchedulerConfig, np, mpl_col
     index_by_playlist = {playlist: index + 1 for index, playlist in enumerate(playlists)}
     colors = ["#111827", *(config.playlists[name].color for name in playlists)]
     data = np.array(
-        [
-            [index_by_playlist.get(cell.winner, 0) for cell in row]
-            for row in grid.cells
-        ],
+        [[index_by_playlist.get(cell.winner, 0) for cell in row] for row in grid.cells],
         dtype=float,
     )
     cmap = mpl_colors.ListedColormap(colors)
@@ -449,7 +445,20 @@ def _style_single_axis(ax, orientation: Literal["x", "y"], axis: HeatmapAxis) ->
         return
     if axis.name == "day_of_year":
         ticks = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349]
-        labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        labels = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+        ]
         if orientation == "x":
             ax.set_xlim(1, 365)
             ax.set_xticks(ticks)
@@ -484,10 +493,7 @@ def _midpoint_edges(values: list[float], np, lower: float, upper: float):
 
 
 def _add_winner_legend(fig, config: SchedulerConfig, patches) -> None:
-    handles = [
-        patches.Patch(facecolor=playlist.color, label=name)
-        for name, playlist in config.playlists.items()
-    ]
+    handles = [patches.Patch(facecolor=playlist.color, label=name) for name, playlist in config.playlists.items()]
     handles.insert(0, patches.Patch(facecolor="#111827", label="no winner"))
     fig.legend(
         handles=handles,
@@ -500,10 +506,7 @@ def _add_winner_legend(fig, config: SchedulerConfig, patches) -> None:
 
 
 def _title(grid: HeatmapGrid, heatmap_type: HeatmapType) -> str:
-    fixed = ", ".join(
-        f"{name}={_value_label(value)}"
-        for name, value in sorted(grid.fixed.items())
-    )
+    fixed = ", ".join(f"{name}={_value_label(value)}" for name, value in sorted(grid.fixed.items()))
     return f"Winner map | profile={grid.profile.name} | case={grid.case_name} | mode={grid.mode} | fixed: {fixed}"
 
 

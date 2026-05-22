@@ -74,12 +74,7 @@ def _base_documents() -> dict[str, dict]:
                 },
             }
         },
-        "tags.yaml": {
-            "tags": {
-                tag_name: {"fallback": {}}
-                for tag_name in tag_names
-            }
-        },
+        "tags.yaml": {"tags": {tag_name: {"fallback": {}} for tag_name in tag_names}},
         "activity.yaml": {
             "activity": {
                 "enabled": True,
@@ -197,16 +192,7 @@ def test_config_loader_requires_version_2(scheduler_document: dict):
 def test_config_loader_allows_yaml_merge_alias_and_anchor_features():
     config_dir = _write_config_dir()
     (config_dir / "playlists.yaml").write_text(
-        (
-            "playlists:\n"
-            "  BASE: &base\n"
-            "    display: Base\n"
-            "    tags:\n"
-            "      focus: 1.0\n"
-            "  COPY:\n"
-            "    <<: *base\n"
-            "    color: amber\n"
-        ),
+        ("playlists:\n  BASE: &base\n    display: Base\n    tags:\n      focus: 1.0\n  COPY:\n    <<: *base\n    color: amber\n"),
         encoding="utf-8",
     )
 

@@ -1,11 +1,3 @@
-"""
-Dashboard HTTP server — Bottle-based, serves static SPA + /api/* endpoints.
-
-AnalysisStore is created by the host (main.py) and passed at construction
-time. Routes are Bottle-decorated; the server runs on a threaded wsgiref
-backend so the tray main thread is never blocked.
-"""
-
 from __future__ import annotations
 
 import json
@@ -31,6 +23,7 @@ logger = logging.getLogger("WEScheduler.Dashboard")
 DASHBOARD_STATIC_APP_DIR = "dashboard"
 DASHBOARD_STATIC_DIST_DIR = "dist"
 
+
 class _ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
     daemon_threads = True
 
@@ -47,10 +40,13 @@ def _parse_positive_count(raw_value: str) -> int:
         raise ValueError("count must be positive")
     return count
 
+
 MetadataProvider = Callable[[], DashboardRuntimeMetadata]
+
 
 def _empty_metadata() -> DashboardRuntimeMetadata:
     return DashboardRuntimeMetadata(display_of={}, color_of={})
+
 
 def _build_app(
     analysis_store: AnalysisStore,
@@ -131,9 +127,7 @@ class DashboardHTTPServer:
             )
         except OSError as exc:
             if self._requested_port > 0:
-                raise OSError(
-                    f"Failed to bind dashboard API server to 127.0.0.1:{self._requested_port}"
-                ) from exc
+                raise OSError(f"Failed to bind dashboard API server to 127.0.0.1:{self._requested_port}") from exc
             raise
 
         self.port = self._httpd.server_address[1]

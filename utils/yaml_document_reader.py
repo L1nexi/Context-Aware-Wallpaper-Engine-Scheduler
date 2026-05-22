@@ -74,7 +74,7 @@ class YamlDocumentReader:
         source_file = os.path.basename(path)
 
         try:
-            with open(path, "r", encoding="utf-8") as file:
+            with open(path, encoding="utf-8") as file:
                 text = file.read()
         except FileNotFoundError:
             raise_config_error(

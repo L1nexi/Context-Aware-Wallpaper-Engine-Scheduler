@@ -7,8 +7,8 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -41,8 +41,6 @@ _STATE_FILE = os.path.join(get_data_dir(), "state.json")
 
 
 class SchedulerState(BaseModel):
-    """Persisted scheduler state (state.json)."""
-
     paused: bool = False
     pause_until: float = 0.0
     cached_playlist: str = ""
@@ -52,7 +50,7 @@ class SchedulerState(BaseModel):
     @staticmethod
     def load_state(path: str = _STATE_FILE) -> SchedulerState:
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return SchedulerState.model_validate(json.load(f))
         except Exception:
             return SchedulerState()
@@ -72,8 +70,8 @@ class _RuntimeComponents:
     context_manager: ContextManager
     matcher: Matcher
     actuator: Actuator
-    display_of: Dict[str, str]
-    color_of: Dict[str, str]
+    display_of: dict[str, str]
+    color_of: dict[str, str]
     we_config_prober: WEConfigProber
     managed_playlists: set[str]
 
@@ -86,26 +84,26 @@ class WEScheduler:
         self.running = False
         self.paused = False
         self.pause_until: float = 0
-        self.thread: Optional[threading.Thread] = None
+        self.thread: threading.Thread | None = None
         self.stop_event = threading.Event()
         self._runtime_lock = threading.RLock()
 
-        self.on_auto_resume: Optional[Callable[[], None]] = None
-        self.on_tick: Optional[Callable[[SchedulerTickTrace], None]] = None
-        self.on_reload_error: Optional[Callable[[ConfigLoadError], None]] = None
+        self.on_auto_resume: Callable[[], None] | None = None
+        self.on_tick: Callable[[SchedulerTickTrace], None] | None = None
+        self.on_reload_error: Callable[[ConfigLoadError], None] | None = None
 
-        self.config_loader: Optional[ConfigLoader] = None
-        self.executor: Optional[WEExecutor] = None
-        self.context_manager: Optional[ContextManager] = None
-        self.matcher: Optional[Matcher] = None
-        self.actuator: Optional[Actuator] = None
-        self.we_config_prober: Optional[WEConfigProber] = None
+        self.config_loader: ConfigLoader | None = None
+        self.executor: WEExecutor | None = None
+        self.context_manager: ContextManager | None = None
+        self.matcher: Matcher | None = None
+        self.actuator: Actuator | None = None
+        self.we_config_prober: WEConfigProber | None = None
         self.managed_playlists: set[str] = set()
 
         self.cached_playlist: str = ""
         self.last_status_line: str = ""
-        self.last_tick_trace: Optional[SchedulerTickTrace] = None
-        self.last_reload_error: Optional[ConfigLoadError] = None
+        self.last_tick_trace: SchedulerTickTrace | None = None
+        self.last_reload_error: ConfigLoadError | None = None
         self.tick_id: int = 0
         self._config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
 
@@ -149,7 +147,7 @@ class WEScheduler:
         self.history_logger.write(EventType.STOP, {})
         logger.info("Scheduler stopped.")
 
-    def pause(self, seconds: Optional[int] = None):
+    def pause(self, seconds: int | None = None):
         with self._runtime_lock:
             self.paused = True
             if seconds is not None:
@@ -173,7 +171,7 @@ class WEScheduler:
             self.history_logger.write(EventType.RESUME, {})
             SchedulerState.save_state(self._build_state())
 
-    def get_pause_remaining(self) -> Optional[float]:
+    def get_pause_remaining(self) -> float | None:
         if not self.paused or self.pause_until == 0:
             return None
         remaining = self.pause_until - time.time()
@@ -209,9 +207,9 @@ class WEScheduler:
 
     def _run_tick(self) -> SchedulerTickTrace:
         # Sense-Think-Act flow
-        live_context = self.context_manager.refresh()       # Sense
+        live_context = self.context_manager.refresh()  # Sense
         context_snapshot = copy.deepcopy(live_context)
-        match = self.matcher.evaluate(context_snapshot)     # Think
+        match = self.matcher.evaluate(context_snapshot)  # Think
         cached_playlist_before = self.cached_playlist
         factual = self.we_config_prober.probe_playlist()
         resolution = resolve_playlist_state(
@@ -247,7 +245,7 @@ class WEScheduler:
             action=action,
         )
 
-    def apply_current_match_now(self) -> Optional[SchedulerTickTrace]:
+    def apply_current_match_now(self) -> SchedulerTickTrace | None:
         with self._runtime_lock:
             logger.info("Manual apply requested.")
             trace = self._run_manual_apply_tick()
@@ -331,10 +329,8 @@ class WEScheduler:
         for sensor_cls in SENSOR_REGISTRY:
             context_manager.register_sensor(sensor_cls.create(config))
 
-        policies: List[Policy] = [
-            cls(getattr(config.policies, cls.config_key))
-            for cls in POLICY_REGISTRY
-            if getattr(config.policies, cls.config_key) is not None
+        policies: list[Policy] = [
+            cls(getattr(config.policies, cls.config_key)) for cls in POLICY_REGISTRY if getattr(config.policies, cls.config_key) is not None
         ]
 
         matcher = Matcher(config.playlists, policies, config.tags)
@@ -343,14 +339,8 @@ class WEScheduler:
             SchedulingController(config.scheduling),
             history_logger=self.history_logger,
         )
-        display_of = {
-            playlist_name: playlist.display or playlist_name
-            for playlist_name, playlist in config.playlists.items()
-        }
-        color_of = {
-            playlist_name: playlist.color
-            for playlist_name, playlist in config.playlists.items()
-        }
+        display_of = {playlist_name: playlist.display or playlist_name for playlist_name, playlist in config.playlists.items()}
+        color_of = {playlist_name: playlist.color for playlist_name, playlist in config.playlists.items()}
 
         return _RuntimeComponents(
             executor=executor,
@@ -376,10 +366,7 @@ class WEScheduler:
     def _hot_reload(self, fingerprint: tuple[tuple[str, bool, int], ...]) -> None:
         previous_config = self.config_loader.config
         try:
-            policy_states: Dict[str, Dict] = {
-                type(policy).__name__: policy.export_state()
-                for policy in self.matcher.policies
-            }
+            policy_states: dict[str, dict] = {type(policy).__name__: policy.export_state() for policy in self.matcher.policies}
             controller_state = self.actuator.controller.export_state()
 
             config = self.config_loader.load_verified_config()
@@ -462,8 +449,6 @@ class WEScheduler:
         tag_str = " | ".join(tag_parts)
         gap_str = f" gap={trace.match.similarity_gap:.2f}" if trace.match.playlist_matches else ""
         prefix = "PAUSED " if trace.paused else ""
-        self.last_status_line = (
-            f"{prefix}[{label or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}{gap_str}"
-        )
+        self.last_status_line = f"{prefix}[{label or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}{gap_str}"
         if not getattr(sys, "frozen", False):
             print(f"\r{self.last_status_line:<110}", end="", flush=True)

@@ -2,20 +2,17 @@ from __future__ import annotations
 
 import os
 import sys
-import tempfile
 from unittest import mock
 
-import pytest
-
 from utils.we_path import (
-    _steam_install_path,
     _parse_library_folders,
-    resolve_wallpaper_engine_path,
+    _steam_install_path,
     find_we_config_json,
+    resolve_wallpaper_engine_path,
 )
 
-
 # ── _steam_install_path ─────────────────────────────────────────────
+
 
 def test_steam_install_path_returns_none_on_non_windows(monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
@@ -27,6 +24,7 @@ def test_steam_install_path_returns_none_when_winreg_unavailable(monkeypatch):
     monkeypatch.delitem(sys.modules, "winreg", raising=False)
 
     import builtins
+
     _orig_import = builtins.__import__
 
     def _block_winreg(name, *args, **kwargs):
@@ -37,6 +35,7 @@ def test_steam_install_path_returns_none_when_winreg_unavailable(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", _block_winreg)
     # Reset the module-level import
     import utils.we_path as wp
+
     assert wp._steam_install_path() is None
 
 
@@ -54,6 +53,7 @@ def test_steam_install_path_hklm_found(monkeypatch):
 
     with mock.patch.dict("sys.modules", {"winreg": mock_winreg}):
         import utils.we_path as wp
+
         monkeypatch.setattr(wp, "_steam_install_path", lambda: None)
         # We test with direct mock
         result = _steam_install_path()
@@ -64,6 +64,7 @@ def test_steam_install_path_hklm_found(monkeypatch):
 
 
 # ── _parse_library_folders ─────────────────────────────────────────
+
 
 def test_parse_library_folders_vdf_not_found(tmp_path):
     steam_path = str(tmp_path)
@@ -78,7 +79,7 @@ def test_parse_library_folders_parses_entries(tmp_path):
     os.makedirs(steamapps)
     vdf_path = os.path.join(steamapps, "libraryfolders.vdf")
 
-    vdf_content = '''"libraryfolders"
+    vdf_content = """"libraryfolders"
 {
     "0"
     {
@@ -88,7 +89,7 @@ def test_parse_library_folders_parses_entries(tmp_path):
     {
         "path"\t\t"E:\\\\SteamLibrary"
     }
-}'''
+}"""
     with open(vdf_path, "w", encoding="utf-8") as f:
         f.write(vdf_content)
 
@@ -110,6 +111,7 @@ def test_parse_library_folders_corrupt_file_is_silent(tmp_path):
 
 
 # ── find_wallpaper_engine ──────────────────────────────────────────
+
 
 def test_find_we_tier1_configured_path_exists(tmp_path):
     fake_exe = os.path.join(str(tmp_path), "wallpaper64.exe")
@@ -168,6 +170,7 @@ def test_find_we_no_steam_no_config(monkeypatch):
 
 
 # ── find_we_config_json ────────────────────────────────────────────
+
 
 def test_find_we_config_json_when_we_found(tmp_path):
     we_dir = str(tmp_path)

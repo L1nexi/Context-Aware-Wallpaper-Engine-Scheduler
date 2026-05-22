@@ -25,13 +25,13 @@ def resolve_playlist_state(
     paused: bool,
 ) -> PlaylistStateResolution:
     """空 effective_playlist 表示本 tick 已知 WE 不处于任何可信的 managed playlist 中。
-    它不是缓存值，而是防止普通调度把过期 cached_playlist 当成当前 playlist。
+    它不是缓存值。这防止普通调度把过期 cached_playlist 当成当前 playlist。
     """
     if factual.status == FactualPlaylistStatus.PLAYLIST:
         playlist = factual.playlist
         if playlist in managed_playlists:
             return PlaylistStateResolution(
-                effective_playlist=playlist,    # Factual managed playlist
+                effective_playlist=playlist,  # Factual managed playlist
             )
         return PlaylistStateResolution(
             effective_playlist="",
@@ -47,5 +47,5 @@ def resolve_playlist_state(
         )
 
     return PlaylistStateResolution(
-        effective_playlist=cached_playlist,     # Unknown/Ambiguous
+        effective_playlist=cached_playlist,  # Unknown/Ambiguous
     )

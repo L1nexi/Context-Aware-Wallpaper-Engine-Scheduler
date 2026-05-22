@@ -25,7 +25,6 @@ from core.diagnostics import (
     WeatherPolicyDetails,
     WeatherPolicyEvaluation,
 )
-from core.event_logger import EventType
 from ui.dashboard import (
     DASHBOARD_STATIC_APP_DIR,
     DASHBOARD_STATIC_DIST_DIR,
@@ -39,7 +38,6 @@ from ui.dashboard_analysis import AnalysisStore, DashboardRuntimeMetadata, build
 @pytest.fixture
 def analysis_store():
     return AnalysisStore(tick_history=300)
-
 
 
 @pytest.fixture
@@ -499,5 +497,3 @@ def test_parse_args_accepts_dashboard_api_port(monkeypatch):
 def test_resolve_static_root_targets_dashboard_dist():
     static_root = _resolve_static_root()
     assert static_root.endswith(os.path.join(DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR))
-
-

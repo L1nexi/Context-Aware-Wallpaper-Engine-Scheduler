@@ -1,10 +1,11 @@
-import subprocess
-import os
 import logging
+import os
+import subprocess
+
 import psutil
-from typing import List
 
 logger = logging.getLogger("WEScheduler.Executor")
+
 
 class WEExecutor:
     def __init__(self, we_path: str):
@@ -15,8 +16,8 @@ class WEExecutor:
 
     def is_we_running(self) -> bool:
         try:
-            for proc in psutil.process_iter(['name']):
-                if proc.info['name'] and proc.info['name'].lower() == self.process_name:
+            for proc in psutil.process_iter(["name"]):
+                if proc.info["name"] and proc.info["name"].lower() == self.process_name:
                     return True
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
@@ -24,31 +25,42 @@ class WEExecutor:
 
     def request_we_start(self) -> bool:
         try:
-            subprocess.Popen([self.we_path],
-                             stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL,
-                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            subprocess.Popen(
+                [self.we_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
             logger.info("Wallpaper Engine start command issued.")
             return True
         except Exception as e:
             logger.error(f"Failed to start Wallpaper Engine: {e}")
             return False
 
-    def _run_command(self, args: List[str]) -> bool:
+    def _run_command(self, args: list[str]) -> bool:
         """Runs a command silently when WE is already ready for control."""
         if not self.is_we_running():
-            logger.warning("Command %s skipped as Wallpaper Engine is not running. Requesting restart command.", args)
+            logger.warning(
+                "Command %s skipped as Wallpaper Engine is not running. Requesting restart command.",
+                args,
+            )
             self.request_we_start()
             return False
 
         cmd = [self.we_path, "-control"] + args
         try:
             startupinfo = None
-            if os.name == 'nt':
+            if os.name == "nt":
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-            subprocess.run(cmd, check=True, startupinfo=startupinfo, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                cmd,
+                check=True,
+                startupinfo=startupinfo,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             logger.debug(f"Executed: {' '.join(cmd)}")
             return True
         except subprocess.CalledProcessError as e:

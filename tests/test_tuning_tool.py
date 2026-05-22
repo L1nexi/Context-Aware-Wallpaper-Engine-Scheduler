@@ -7,6 +7,12 @@ import yaml
 
 from core.matcher import Matcher
 from core.policies import SeasonPolicy, TimePolicy, WeatherPolicy
+from tools.tuning.heatmaps import (
+    HeatmapFigure,
+    HeatmapSampling,
+    activity_from_axis,
+    build_heatmap_grid,
+)
 from tools.tuning.models import (
     ActivitySignal,
     DirectActivityPolicy,
@@ -18,17 +24,10 @@ from tools.tuning.models import (
     matrix,
     weather,
 )
-from tools.tuning.heatmaps import (
-    HeatmapFigure,
-    HeatmapSampling,
-    activity_from_axis,
-    build_heatmap_grid,
-)
 from tools.tuning.sweep import evaluate_parameter_sweep, sorted_sweep_rows
 from tools.tuning.tune import run_tuning
 from utils.config_loader import ConfigLoader
 from utils.runtime_config import ActivityPolicyConfig
-
 
 TAG_NAMES = [
     "focus",
@@ -201,14 +200,14 @@ def test_heatmap_grid_uses_evaluate_scenario_results(tmp_path: Path) -> None:
         MatchProfile("current"),
         "wx-hour",
         sampling=sampling,
-        fixed={"activity": None, "day_of_year": 80}
+        fixed={"activity": None, "day_of_year": 80},
     )
     candidate_grid = build_heatmap_grid(
         config,
         MatchProfile("candidate", gamma_playlist=1.2, gamma_context=1.1),
         "wx-hour",
         sampling=sampling,
-        fixed={"activity": None, "day_of_year": 80}
+        fixed={"activity": None, "day_of_year": 80},
     )
 
     assert current_grid.profile.name == "current"
@@ -243,9 +242,7 @@ def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> Non
 
     result = evaluate_scenario(config, scenario, MatchProfile("current"))
 
-    assert [name for name, _score in result.match.playlist_matches] == [
-        name for name, _score in expected_match.playlist_matches
-    ]
+    assert [name for name, _score in result.match.playlist_matches] == [name for name, _score in expected_match.playlist_matches]
     for actual, expected in zip(result.match.playlist_matches, expected_match.playlist_matches):
         assert actual[1] == pytest.approx(expected[1])
 
@@ -359,7 +356,10 @@ def test_run_tuning_writes_report_artifacts(tmp_path: Path, monkeypatch: pytest.
             activity=ActivitySignal({"focus": 0.7, "chill": 0.3}, intensity=0.4),
         ),
     ]
-    profiles = [MatchProfile("current"), MatchProfile("candidate", gamma_playlist=1.2, gamma_context=1.1)]
+    profiles = [
+        MatchProfile("current"),
+        MatchProfile("candidate", gamma_playlist=1.2, gamma_context=1.1),
+    ]
     figures = [
         HeatmapFigure(
             path="heatmaps/cur-wxhr-idle-sp.png",

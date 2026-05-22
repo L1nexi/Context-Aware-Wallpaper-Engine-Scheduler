@@ -53,11 +53,7 @@ class WEConfigProber:
             )
 
         wallpaper_config = general.get("wallpaperconfig")
-        names = (
-            _extract_current_playlist_names(wallpaper_config.get("selectedwallpapers"))
-            if isinstance(wallpaper_config, dict)
-            else set()
-        )
+        names = _extract_current_playlist_names(wallpaper_config.get("selectedwallpapers")) if isinstance(wallpaper_config, dict) else set()
         if not names:
             return FactualPlaylistState(
                 status=FactualPlaylistStatus.NO_PLAYLIST,
@@ -115,7 +111,7 @@ class WEConfigProber:
             raise WEConfigReadError("wallpaper_engine_config_not_found")
 
         try:
-            with open(config_json, "r", encoding="utf-8") as f:
+            with open(config_json, encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as exc:
             raise WEConfigReadError(

@@ -4,27 +4,26 @@ import dataclasses
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from core.sensors import Sensor
 
 logger = logging.getLogger("WEScheduler.Context")
 
+
 @dataclass
 class WindowData:
-    """Active-window snapshot provided by WindowSensor."""
     title: str = ""
     process: str = ""
 
 
 @dataclass
 class WeatherData:
-    """Weather snapshot provided by WeatherSensor (OWM /weather)."""
     id: int = 0
     main: str = ""
     sunrise: int = 0  # UTC unix timestamp
-    sunset: int = 0   # UTC unix timestamp
+    sunset: int = 0  # UTC unix timestamp
     fetched_at: float = 0.0
     stale: bool = False
 
@@ -37,32 +36,25 @@ class Context:
     key is not listed here will be rejected at registration time; add the
     field here first, then add the sensor.
     """
+
     window: WindowData = field(default_factory=WindowData)
     idle: float = 0.0
     cpu: float = 0.0
     fullscreen: bool = False
-    weather: Optional[WeatherData] = None
+    weather: WeatherData | None = None
     time: time.struct_time = field(default_factory=time.localtime)
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
-# ContextManager
-# ---------------------------------------------------------------------------
-
-# Authoritative set of keys that sensors may populate directly on Context.
-# Derived from the dataclass at import time so it stays in sync automatically.
-_CONTEXT_FIELD_NAMES: frozenset = frozenset(
-    f.name for f in dataclasses.fields(Context) if f.name != "extra"
-)
+_CONTEXT_FIELD_NAMES: frozenset = frozenset(f.name for f in dataclasses.fields(Context) if f.name != "extra")
 
 
 class ContextManager:
     def __init__(self):
-        self._sensors: List[Tuple[str, Sensor]] = []
+        self._sensors: list[tuple[str, Sensor]] = []
         self._context: Context = Context()
 
-    def register_sensor(self, sensor: Optional[Sensor]) -> None:
+    def register_sensor(self, sensor: Sensor | None) -> None:
         """Register a sensor.
 
         The sensor's ``key`` class attribute must match a field on
@@ -75,10 +67,7 @@ class ContextManager:
             return
         key = sensor.key
         if key not in _CONTEXT_FIELD_NAMES:
-            raise ValueError(
-                f"Sensor key {key!r} has no corresponding field on Context. "
-                "Add the field to core/context.py before registering."
-            )
+            raise ValueError(f"Sensor key {key!r} has no corresponding field on Context. Add the field to core/context.py before registering.")
         self._sensors.append((key, sensor))
 
     def refresh(self) -> Context:
@@ -96,4 +85,3 @@ class ContextManager:
 
     def get_context(self) -> Context:
         return self._context
-

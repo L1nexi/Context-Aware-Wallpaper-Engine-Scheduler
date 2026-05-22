@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from core.context import Context
 from core.diagnostics import MatchEvaluation, PolicyEvaluation
@@ -18,16 +18,14 @@ _MIN_EXPAND_WEIGHT = 0.02
 
 
 class Matcher:
-    """Owns the full Think pipeline: per-policy eval -> aggregate -> cosine match."""
-
     def __init__(
         self,
-        playlists: Dict[str, PlaylistConfig],
-        policies: List[Policy],
-        tag_specs: Optional[Dict[str, TagSpec]] = None,
+        playlists: dict[str, PlaylistConfig],
+        policies: list[Policy],
+        tag_specs: dict[str, TagSpec] | None = None,
     ):
         self.policies = policies
-        self._tag_specs: Dict[str, TagSpec] = tag_specs or {}
+        self._tag_specs: dict[str, TagSpec] = tag_specs or {}
 
         all_tags: set[str] = set()
         for playlist in playlists.values():
@@ -40,7 +38,7 @@ class Matcher:
 
         self._warned_tags: set[str] = set()
 
-        self.playlist_vectors: List[Tuple[str, List[float]]] = []
+        self.playlist_vectors: list[tuple[str, list[float]]] = []
         for playlist_name, playlist in playlists.items():
             vector = [0.0] * self.dim
             for tag, weight in playlist.tags.items():
@@ -54,8 +52,8 @@ class Matcher:
                 logger.warning("Playlist '%s' has no valid tags or zero weights.", playlist_name)
 
     def evaluate(self, context: Context) -> MatchEvaluation:
-        raw_context_vector: Dict[str, float] = {}
-        resolved_context_vector: Dict[str, float] = {}
+        raw_context_vector: dict[str, float] = {}
+        resolved_context_vector: dict[str, float] = {}
         fallback_expansions: dict[str, dict[str, float]] = {}
         policy_evaluations: list[PolicyEvaluation] = []
         max_policy_magnitude = 0.0
@@ -78,7 +76,7 @@ class Matcher:
                 for resolved_tag, resolved_weight in resolved_tags.items():
                     bucket[resolved_tag] = bucket.get(resolved_tag, 0.0) + resolved_weight
 
-        best_playlist: Optional[str] = None
+        best_playlist: str | None = None
         playlist_matches: list[tuple[str, float]] = []
 
         if self.playlist_vectors and resolved_context_vector:
@@ -90,7 +88,7 @@ class Matcher:
             norm_env = math.sqrt(sum(value * value for value in env_vector))
             if norm_env >= 1e-6:
                 env_vector = [value / norm_env for value in env_vector]
-                scores: List[Tuple[float, str]] = []
+                scores: list[tuple[float, str]] = []
                 for name, playlist_vector in self.playlist_vectors:
                     sim = sum(a * b for a, b in zip(env_vector, playlist_vector))
                     scores.append((sim, name))
@@ -113,9 +111,9 @@ class Matcher:
 
     def _resolve_raw_tags(
         self,
-        raw_contribution: Dict[str, float],
-    ) -> tuple[Dict[str, float], dict[str, dict[str, float]]]:
-        resolved: Dict[str, float] = {}
+        raw_contribution: dict[str, float],
+    ) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
+        resolved: dict[str, float] = {}
         expansions: dict[str, dict[str, float]] = {}
         for tag, weight in raw_contribution.items():
             if tag in self._known_tags:
@@ -150,7 +148,7 @@ class Matcher:
         tag: str,
         weight: float,
         visited: frozenset[str],
-    ) -> tuple[Dict[str, float], dict[str, float]]:
+    ) -> tuple[dict[str, float], dict[str, float]]:
         if tag in self._known_tags:
             return {tag: weight}, {tag: weight}
         if tag in visited or weight < _MIN_EXPAND_WEIGHT:
@@ -160,7 +158,7 @@ class Matcher:
         if not spec or not spec.fallback:
             return {}, {}
 
-        result: Dict[str, float] = {}
+        result: dict[str, float] = {}
         expansions: dict[str, float] = {}
         new_visited = visited | {tag}
         for fallback_tag, fallback_weight in spec.fallback.items():

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import PydanticCustomError
-
 
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -27,14 +26,14 @@ PLAYLIST_AUTO_COLOR_PALETTE = (
 
 class TagSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    fallback: Dict[str, float] = Field(default_factory=dict)
+    fallback: dict[str, float] = Field(default_factory=dict)
 
 
 class PlaylistConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     display: str = ""
     color: str
-    tags: Dict[str, float] = Field(default_factory=dict)
+    tags: dict[str, float] = Field(default_factory=dict)
 
     @field_validator("color")
     @classmethod
@@ -118,8 +117,8 @@ class SchedulingConfig(BaseModel):
 class SchedulerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     wallpaper_engine_path: str = ""
-    language: Optional[str] = None
-    tags: Dict[str, TagSpec] = Field(default_factory=dict)
-    playlists: Dict[str, PlaylistConfig] = Field(default_factory=dict)
+    language: str | None = None
+    tags: dict[str, TagSpec] = Field(default_factory=dict)
+    playlists: dict[str, PlaylistConfig] = Field(default_factory=dict)
     policies: PoliciesConfig = Field(default_factory=PoliciesConfig)
     scheduling: SchedulingConfig = Field(default_factory=SchedulingConfig)

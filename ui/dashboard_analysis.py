@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import copy
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -151,12 +150,7 @@ class WeatherPolicyDiagnosticDto(BasePolicyDiagnosticDto):
     details: WeatherPolicyDetailsDto
 
 
-PolicyDiagnosticDto = (
-    ActivityPolicyDiagnosticDto
-    | TimePolicyDiagnosticDto
-    | SeasonPolicyDiagnosticDto
-    | WeatherPolicyDiagnosticDto
-)
+PolicyDiagnosticDto = ActivityPolicyDiagnosticDto | TimePolicyDiagnosticDto | SeasonPolicyDiagnosticDto | WeatherPolicyDiagnosticDto
 
 
 class ControllerEvaluationDto(ApiDto):
@@ -178,8 +172,8 @@ class ControllerDiagnosticDto(ApiDto):
 
 class PlaylistRefDto(ApiDto):
     name: str
-    display: str        # fallback from name if no display
-    color: str | None   # canonical config playlists have a color; unknown historical refs may not
+    display: str  # fallback from name if no display
+    color: str | None  # canonical config playlists have a color; unknown historical refs may not
 
 
 class ActionDecisionDto(ApiDto):
@@ -305,17 +299,11 @@ def extract_runtime_metadata(scheduler: WEScheduler) -> DashboardRuntimeMetadata
 
 
 def _tag_weights(values: dict[str, float]) -> list[TagWeightDto]:
-    return [
-        TagWeightDto(tag=tag, weight=_round_float(weight))
-        for tag, weight in _sorted_tag_items(values)
-    ]
+    return [TagWeightDto(tag=tag, weight=_round_float(weight)) for tag, weight in _sorted_tag_items(values)]
 
 
 def _resolved_tag_weights(values: dict[str, float]) -> list[ResolvedTagWeightDto]:
-    return [
-        ResolvedTagWeightDto(resolved_tag=tag, weight=_round_float(weight))
-        for tag, weight in _sorted_tag_items(values)
-    ]
+    return [ResolvedTagWeightDto(resolved_tag=tag, weight=_round_float(weight)) for tag, weight in _sorted_tag_items(values)]
 
 
 def _weather_snapshot(weather: WeatherData | None) -> WeatherSnapshotDto:
@@ -362,7 +350,6 @@ def _policy_base_dto(policy: PolicyEvaluation) -> BasePolicyDiagnosticDto:
     )
 
 
-
 def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
     base_dto = _policy_base_dto(policy)
     base_kwargs = base_dto.model_dump()
@@ -387,10 +374,7 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
                 virtual_hour=_round_float(policy.details.virtual_hour),
                 day_start_hour=_round_float(policy.details.day_start_hour),
                 night_start_hour=_round_float(policy.details.night_start_hour),
-                peaks={
-                    key: _round_float(value)
-                    for key, value in sorted(policy.details.peaks.items())
-                },
+                peaks={key: _round_float(value) for key, value in sorted(policy.details.peaks.items())},
             ),
         )
     if isinstance(policy, SeasonPolicyEvaluation):
@@ -476,8 +460,7 @@ def map_tick_snapshot(
             raw_context_vector=_tag_weights(trace.match.raw_context_vector),
             resolved_context_vector=_tag_weights(trace.match.resolved_context_vector),
             fallback_expansions={
-                source_tag: _resolved_tag_weights(expansions)
-                for source_tag, expansions in sorted(trace.match.fallback_expansions.items())
+                source_tag: _resolved_tag_weights(expansions) for source_tag, expansions in sorted(trace.match.fallback_expansions.items())
             },
             policies=[_policy_diagnostic(policy) for policy in trace.match.policy_evaluations],
         ),
@@ -489,9 +472,7 @@ def map_tick_snapshot(
                 )
                 for playlist, score in trace.match.playlist_matches[:5]
             ],
-            controller=ControllerDiagnosticDto(
-                evaluation=_controller_evaluation(trace.action.evaluation)
-            ),
+            controller=ControllerDiagnosticDto(evaluation=_controller_evaluation(trace.action.evaluation)),
             decision=ActionDecisionDto(
                 kind=trace.action.kind,
                 reason_code=trace.action.reason_code,

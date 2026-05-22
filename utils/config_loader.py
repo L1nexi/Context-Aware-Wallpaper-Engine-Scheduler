@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
-from utils.config_errors import ConfigIssue, ConfigLoadError, model_validate_document
 from utils.config_documents import (
     ActivityFileConfig,
     ConfigFiles,
@@ -14,6 +12,7 @@ from utils.config_documents import (
     SchedulingFileConfig,
     TagsFileConfig,
 )
+from utils.config_errors import ConfigIssue, ConfigLoadError, model_validate_document
 from utils.runtime_config import SchedulerConfig
 from utils.yaml_document_reader import YamlDocumentReader
 
@@ -46,7 +45,7 @@ class ConfigLoader:
     ):
         self.config_dir = config_dir
         self.reader = reader or YamlDocumentReader()
-        self.config: Optional[SchedulerConfig] = None
+        self.config: SchedulerConfig | None = None
 
     def _path_for(self, file_name: str) -> str:
         return os.path.join(self.config_dir, file_name)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
 
 from core.context import Context
 from core.diagnostics import (
@@ -241,13 +241,13 @@ class SchedulingController:
     def notify_wallpaper_cycle(self):
         self.last_wallpaper_switch_time = time.time()
 
-    def export_state(self) -> Dict[str, Any]:
+    def export_state(self) -> dict[str, Any]:
         return {
             "last_playlist_switch_time": self.last_playlist_switch_time,
             "last_wallpaper_switch_time": self.last_wallpaper_switch_time,
         }
 
-    def import_state(self, state: Dict[str, Any]) -> None:
+    def import_state(self, state: dict[str, Any]) -> None:
         self.last_playlist_switch_time = state.get(
             "last_playlist_switch_time",
             self.last_playlist_switch_time,

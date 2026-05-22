@@ -1,14 +1,8 @@
-"""Wallpaper Engine path detection helpers.
-
-Startup / reload code should resolve the executable path before constructing
-runtime components. This module intentionally does not deal with process
-readiness or command execution.
-"""
-
 from __future__ import annotations
+
+import logging
 import os
 import sys
-import logging
 
 logger = logging.getLogger("WEScheduler.WEPath")
 
@@ -41,7 +35,7 @@ def _parse_library_folders(steam_path: str) -> list[str]:
 
     libraries = [steam_path]
     try:
-        with open(vdf_path, "r", encoding="utf-8") as f:
+        with open(vdf_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line.startswith('"path"'):
@@ -70,14 +64,13 @@ def resolve_wallpaper_engine_path(configured_path: str) -> str | None:
     steam = _steam_install_path()
     if steam:
         for lib in _parse_library_folders(steam):
-            candidate = os.path.join(
-                lib, "steamapps", "common", "wallpaper_engine", "wallpaper64.exe"
-            )
+            candidate = os.path.join(lib, "steamapps", "common", "wallpaper_engine", "wallpaper64.exe")
             if os.path.isfile(candidate):
                 logger.info("Found WE at: %s", candidate)
                 return candidate
 
     return None
+
 
 def find_we_config_json(we_exe_path: str | None) -> str | None:
     """Find WE's config.json from an already resolved executable path.

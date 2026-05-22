@@ -14,22 +14,26 @@ vis_common.py — 可视化脚本的共享工具集
 
 关于 pcolormesh 分类着色的详细教学注释, 请参阅 vis_transitions.py § 5。
 """
+
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import numpy as np
 import matplotlib.patches as mpatches
-from matplotlib.colors import ListedColormap, BoundaryNorm
-
+import numpy as np
+from matplotlib.colors import BoundaryNorm, ListedColormap
 from sim_match import (
-    env_vector, rank_playlists, CUSTOM_PLAYLISTS,
-    SimPolicyOutput, _contribute,
-    time_output, season_output, activity_output, weather_output,
-    POLICY_WEIGHTS, WEATHER_PRESETS,
+    CUSTOM_PLAYLISTS,
+    POLICY_WEIGHTS,
+    _contribute,
+    activity_output,
+    env_vector,
+    rank_playlists,
+    season_output,
+    time_output,
+    weather_output,
 )
-
 
 # ======================================================================
 #  Palette & categorical colormap
@@ -44,44 +48,55 @@ from sim_match import (
 PLAYLIST_NAMES = [name for name, _ in CUSTOM_PLAYLISTS]
 
 _PALETTE = {
-    "BRIGHT_FLOW":   "#F5C518",   # 金黄  — 晨光 / 专注
-    "CASUAL_ANIME":  "#5BB8D4",   # 天蓝  — 日常休闲
-    "SUNSET_GLOW":   "#FF8C00",   # 橙    — 日落
-    "NIGHT_CHILL":   "#7B68EE",   # 中灰紫 — 夜晚放松
-    "NIGHT_FOCUS":   "#2E5F8A",   # 深海蓝 — 夜晚专注
-    "RAINY_MOOD":    "#4A90D9",   # 矢车菊蓝 — 雨天
-    "WINTER_VIBES":  "#ADC8E0",   # 淡钢蓝 — 冬季
-    "SPRING_BLOOM":  "#5CBE5C",   # 嫩绿  — 春季
-    "SUMMER_GLOW":   "#D83820",   # 番茄红 — 夏季
-    "AUTUMN_DRIFT":  "#C07830",   # 琥珀  — 秋季
+    "BRIGHT_FLOW": "#F5C518",  # 金黄  — 晨光 / 专注
+    "CASUAL_ANIME": "#5BB8D4",  # 天蓝  — 日常休闲
+    "SUNSET_GLOW": "#FF8C00",  # 橙    — 日落
+    "NIGHT_CHILL": "#7B68EE",  # 中灰紫 — 夜晚放松
+    "NIGHT_FOCUS": "#2E5F8A",  # 深海蓝 — 夜晚专注
+    "RAINY_MOOD": "#4A90D9",  # 矢车菊蓝 — 雨天
+    "WINTER_VIBES": "#ADC8E0",  # 淡钢蓝 — 冬季
+    "SPRING_BLOOM": "#5CBE5C",  # 嫩绿  — 春季
+    "SUMMER_GLOW": "#D83820",  # 番茄红 — 夏季
+    "AUTUMN_DRIFT": "#C07830",  # 琥珀  — 秋季
 }
 
 COLORS = [_PALETTE.get(n, "#999999") for n in PLAYLIST_NAMES]
-CMAP   = ListedColormap(COLORS)
-BNORM  = BoundaryNorm(np.arange(-0.5, len(PLAYLIST_NAMES), 1), len(PLAYLIST_NAMES))
+CMAP = ListedColormap(COLORS)
+BNORM = BoundaryNorm(np.arange(-0.5, len(PLAYLIST_NAMES), 1), len(PLAYLIST_NAMES))
 
 
 # ======================================================================
 #  Calendar / time constants
 # ======================================================================
 
-MONTH_STARTS  = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
-MONTH_LENGTHS = [31, 28, 31, 30,  31,  30,  31,  31,  30,  31,  30,  31]
-MONTH_MIDS    = [s + l // 2 for s, l in zip(MONTH_STARTS, MONTH_LENGTHS)]
-MONTH_NAMES   = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+MONTH_LENGTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+MONTH_MIDS = [start + length // 2 for start, length in zip(MONTH_STARTS, MONTH_LENGTHS)]
+MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 SEASON_PEAKS = [(80, "Spr"), (172, "Sum"), (265, "Aut"), (355, "Win")]
-TIME_PEAKS   = [(8, "dawn"), (14, "day"), (20, "sunset"), (23, "night")]
+TIME_PEAKS = [(8, "dawn"), (14, "day"), (20, "sunset"), (23, "night")]
 
-DOY_TO_MD = [(1, 1), (32, 2), (60, 3), (91, 4), (121, 5), (152, 6),
-             (182, 7), (213, 8), (244, 9), (274, 10), (305, 11), (335, 12)]
+DOY_TO_MD = [
+    (1, 1),
+    (32, 2),
+    (60, 3),
+    (91, 4),
+    (121, 5),
+    (152, 6),
+    (182, 7),
+    (213, 8),
+    (244, 9),
+    (274, 10),
+    (305, 11),
+    (335, 12),
+]
 
 
 def doy_to_label(doy: int) -> str:
     """将 day-of-year 转换为近似日历日期字符串 'MM-DD'。"""
     month = max(m for d, m in DOY_TO_MD if d <= doy)
-    mday  = doy - [d for d, m in DOY_TO_MD if m == month][0] + 1
+    mday = doy - [d for d, m in DOY_TO_MD if m == month][0] + 1
     return f"{month:02d}-{mday:02d}"
 
 
@@ -89,18 +104,16 @@ def doy_to_label(doy: int) -> str:
 #  Legend
 # ======================================================================
 
+
 def legend_patches() -> list:
     """生成图例色块列表, 每个 playlist 一个 Patch。"""
-    return [
-        mpatches.Patch(facecolor=COLORS[i], label=PLAYLIST_NAMES[i],
-                       edgecolor="#aaaaaa", linewidth=0.4)
-        for i in range(len(PLAYLIST_NAMES))
-    ]
+    return [mpatches.Patch(facecolor=COLORS[i], label=PLAYLIST_NAMES[i], edgecolor="#aaaaaa", linewidth=0.4) for i in range(len(PLAYLIST_NAMES))]
 
 
 # ======================================================================
 #  Winner-index functions
 # ======================================================================
+
 
 def winner_idx(hour: float, doy: int, activity, weather: str) -> int:
     """离散 activity 版本。activity = "#focus" | "#chill" | None。"""
@@ -114,7 +127,8 @@ def _merge(dst: dict, src: dict) -> None:
 
 
 def winner_idx_ex(
-    hour: float, doy: int,
+    hour: float,
+    doy: int,
     act_strength: float,
     weather: str,
 ) -> int:
@@ -147,10 +161,18 @@ def winner_idx_ex(
 
 # 有序天气预设, 从平静 → 极端, 用作分类轴的 Y 行
 WEATHER_AXIS = [
-    "none", "clear", "overcast", "drizzle", "mod_rain",
-    "heavy_rain", "light_snow", "heavy_snow", "storm", "heavy_storm",
+    "none",
+    "clear",
+    "overcast",
+    "drizzle",
+    "mod_rain",
+    "heavy_rain",
+    "light_snow",
+    "heavy_snow",
+    "storm",
+    "heavy_storm",
 ]
 WEATHER_AXIS_LABELS = [p.replace("_", " ") for p in WEATHER_AXIS]
 
 # 连续 activity 轴: -1 = 完全 chill, 0 = idle, +1 = 完全 focus
-ACT_AXIS = np.linspace(-1.0, 1.0, 41)   # 步长 0.05
+ACT_AXIS = np.linspace(-1.0, 1.0, 41)  # 步长 0.05
