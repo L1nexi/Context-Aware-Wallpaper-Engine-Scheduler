@@ -6,6 +6,8 @@ import psutil
 
 logger = logging.getLogger("WEScheduler.Executor")
 
+WE_CONTROL_TIMEOUT_SECONDS = 3.0
+
 
 class WEExecutor:
     def __init__(self, we_path: str):
@@ -57,12 +59,19 @@ class WEExecutor:
             subprocess.run(
                 cmd,
                 check=True,
+                timeout=WE_CONTROL_TIMEOUT_SECONDS,
                 startupinfo=startupinfo,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             logger.debug(f"Executed: {' '.join(cmd)}")
             return True
+        except subprocess.TimeoutExpired:
+            logger.error(
+                "WE control command timed out after %.1fs: %s",
+                WE_CONTROL_TIMEOUT_SECONDS,
+                args,
+            )
         except subprocess.CalledProcessError as e:
             if e.returncode == 5:
                 logger.warning(f"WE Error 5 (Likely Encoding Issue). Try renaming playlist '{args[-1]}' to English. Command: {args}")

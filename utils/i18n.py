@@ -185,7 +185,7 @@ _TRANSLATIONS: dict[Lang, dict[str, str]] = {
 
 def _detect_lang() -> str:
     try:
-        loc, _ = locale.getlocale()
+        loc, _ = locale.getdefaultlocale()
     except Exception:
         return "en"
 
