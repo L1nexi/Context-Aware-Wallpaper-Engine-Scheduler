@@ -270,6 +270,87 @@ def test_controller_warmup_blocks_all_operations(monkeypatch):
     assert ControllerBlocker.FULLSCREEN in switch_eval.blocked_by
 
 
+def test_controller_warmup_switch_reason_code(monkeypatch):
+    """During warmup, a switch decision should report SWITCH_BLOCKED_COOLDOWN."""
+    monkeypatch.setattr("core.controller.time.time", lambda: 100.0)
+    controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=30,
+            force_after=100,
+            cycle_cooldown=15,
+            idle_threshold=60,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        )
+    )
+    monkeypatch.setattr("core.controller.time.time", lambda: 105.0)
+
+    decision = controller.decide_action(
+        Context(idle=120.0, cpu=1.0),
+        MatchEvaluation(best_playlist="rain", playlist_matches=[("rain", 0.8)]),
+        "focus",
+    )
+
+    assert decision.reason_code == ActionReasonCode.SWITCH_BLOCKED_COOLDOWN
+    assert decision.evaluation.cooldown_remaining == pytest.approx(25.0)
+
+
+def test_controller_warmup_expires_normal_behavior(monkeypatch):
+    """After warmup expires, switches proceed with normal idle/force_after logic."""
+    monkeypatch.setattr("core.controller.time.time", lambda: 100.0)
+    controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=10,
+            force_after=100,
+            cycle_cooldown=15,
+            idle_threshold=60,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        )
+    )
+    # t=120: well past 10s warmup, user idle for 80s
+    monkeypatch.setattr("core.controller.time.time", lambda: 120.0)
+
+    decision = controller.decide_action(
+        Context(idle=80.0, cpu=1.0),
+        MatchEvaluation(best_playlist="rain", playlist_matches=[("rain", 0.8)]),
+        "focus",
+    )
+
+    assert decision.kind == ActionKind.SWITCH
+    assert decision.reason_code == ActionReasonCode.SWITCH_ALLOWED
+    assert ControllerBlocker.COOLDOWN not in decision.evaluation.blocked_by
+    assert decision.evaluation.cooldown_remaining == pytest.approx(0.0)
+
+
+def test_controller_switch_has_no_cooldown_gate(monkeypatch):
+    """Two consecutive switches are not blocked by a cooldown gate."""
+    monkeypatch.setattr("core.controller.time.time", lambda: 100.0)
+    controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=0,
+            force_after=3600,
+            cycle_cooldown=900,
+            idle_threshold=10,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        )
+    )
+    # First switch at t=100
+    controller.last_playlist_switch_time = 100.0
+
+    # Second switch at t=101 — should NOT be blocked by cooldown
+    monkeypatch.setattr("core.controller.time.time", lambda: 101.0)
+    evaluation = controller._evaluate_operation(
+        Context(idle=20.0, cpu=1.0),
+        operation="switch",
+    )
+
+    assert ControllerBlocker.COOLDOWN not in evaluation.blocked_by
+    assert evaluation.cooldown_remaining == pytest.approx(0.0)
+    assert evaluation.allowed is True
+
+
 def test_controller_switch_force_after_overrides_idle(monkeypatch):
     monkeypatch.setattr("core.controller.time.time", lambda: 500.0)
     controller = SchedulingController(
