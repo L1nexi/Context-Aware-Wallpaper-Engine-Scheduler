@@ -24,6 +24,7 @@ from utils.runtime_config import (
     TimePolicyConfig,
     WeatherPolicyConfig,
 )
+from utils.we_config import WEConfigProber, WEConfigReadError
 from utils.we_path import resolve_wallpaper_engine_path
 
 logger = logging.getLogger("WEScheduler.ConfigDocuments")
@@ -125,7 +126,7 @@ class PlaylistsFileConfig(BaseModel):
                 )
         return issues
 
-    def to_runtime_config(self) -> dict[str, PlaylistConfig]:
+    def to_runtime_config(self, we_exe_path: str) -> dict[str, PlaylistConfig]:
         runtime_playlists: dict[str, PlaylistConfig] = {}
         fallback_index = 0
         palette_size = len(PLAYLIST_AUTO_COLOR_PALETTE)
@@ -142,6 +143,10 @@ class PlaylistsFileConfig(BaseModel):
                 color=color,
                 tags=dict(playlist.tags),
             )
+
+        for name, count in WEConfigProber(we_exe_path).probe_item_counts().items():
+            if name in runtime_playlists:
+                runtime_playlists[name].item_count = count
 
         return runtime_playlists
 
@@ -381,6 +386,17 @@ class ConfigFiles:
         if resolved_path is not None:
             if configured_path != resolved_path:
                 logger.info("Auto-detected Wallpaper Engine at: %s", resolved_path)
+            try:
+                WEConfigProber(resolved_path).probe_item_counts()
+            except WEConfigReadError as exc:
+                return [
+                    ConfigIssue(
+                        source_file="scheduler.yaml",
+                        field_path=("runtime", "wallpaper_engine_path"),
+                        message=f"Cannot read WE config for playlist item counts: {exc.code}",
+                        code="we_config_read_failed",
+                    )
+                ]
             return []
 
         if configured_path:
@@ -474,12 +490,14 @@ class ConfigFiles:
             raise ConfigLoadError(issues)
 
         try:
+            we_path = resolve_wallpaper_engine_path(self.scheduler.runtime.wallpaper_engine_path)
+
             return SchedulerConfig.model_validate(
                 {
-                    "wallpaper_engine_path": resolve_wallpaper_engine_path(self.scheduler.runtime.wallpaper_engine_path),
+                    "wallpaper_engine_path": we_path,
                     "language": self.scheduler.runtime.language,
                     "tags": self.tags.to_runtime_config(),
-                    "playlists": self.playlists.to_runtime_config(),
+                    "playlists": self.playlists.to_runtime_config(we_path),
                     "policies": PoliciesConfig.model_validate(
                         {
                             "activity": self.activity.activity.to_runtime_config(),

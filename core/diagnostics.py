@@ -123,25 +123,15 @@ type PolicyEvaluation = ActivityPolicyEvaluation | TimePolicyEvaluation | Season
 
 @dataclass
 class MatchEvaluation:
-    best_playlist: str | None
+    best_playlists: list[str]
     playlist_matches: list[tuple[str, float]] = field(default_factory=list)
     raw_context_vector: dict[str, float] = field(default_factory=dict)
     resolved_context_vector: dict[str, float] = field(default_factory=dict)
     fallback_expansions: dict[str, dict[str, float]] = field(default_factory=dict)
     policy_evaluations: list[PolicyEvaluation] = field(default_factory=list)
     max_policy_magnitude: float = 0.0
-
-    @property
-    def similarity(self) -> float:
-        return self.playlist_matches[0][1] if self.playlist_matches else 0.0
-
-    @property
-    def similarity_gap(self) -> float:
-        if not self.playlist_matches:
-            return 0.0
-        if len(self.playlist_matches) == 1:
-            return self.playlist_matches[0][1]
-        return self.playlist_matches[0][1] - self.playlist_matches[1][1]
+    similarity: float = 0.0
+    similarity_gap: float = 0.0
 
 
 type ControllerOperation = Literal["switch", "cycle"]
@@ -171,15 +161,16 @@ class ControllerDecision:
 
     kind: ActionKind
     reason_code: ActionReasonCode
-    matched_playlist: str | None
+    matched_playlists: list[str]
     evaluation: ControllerEvaluation | None = None
 
 
 @dataclass
 class ActuationOutcome:
     decision: ControllerDecision
-    effective_playlist_before: str
-    effective_playlist_after: str
+    effective_playlists_before: list[str]
+    effective_playlists_after: list[str]
+    target_playlist: str | None = None
     executed: bool = False
 
     @property
@@ -189,10 +180,6 @@ class ActuationOutcome:
     @property
     def reason_code(self) -> ActionReasonCode:
         return self.decision.reason_code
-
-    @property
-    def matched_playlist(self) -> str | None:
-        return self.decision.matched_playlist
 
     @property
     def evaluation(self) -> ControllerEvaluation | None:

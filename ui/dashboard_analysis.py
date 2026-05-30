@@ -180,9 +180,9 @@ class ActionDecisionDto(ApiDto):
     kind: ActionKind
     reason_code: ActionReasonCode
     executed: bool
-    active_playlist_before: PlaylistRefDto | None
-    active_playlist_after: PlaylistRefDto | None
-    matched_playlist: PlaylistRefDto | None
+    active_playlists_before: list[PlaylistRefDto]
+    active_playlists_after: list[PlaylistRefDto]
+    matched_playlists: list[PlaylistRefDto]
 
 
 class TopMatchDto(ApiDto):
@@ -217,8 +217,8 @@ class TickSummaryDto(ApiDto):
     ts: float
     similarity: float
     similarity_gap: float
-    active_playlist: PlaylistRefDto | None
-    matched_playlist: PlaylistRefDto | None
+    active_playlists: list[PlaylistRefDto]
+    matched_playlists: list[PlaylistRefDto]
     action_kind: ActionKind
     reason_code: ActionReasonCode
     paused: bool
@@ -259,6 +259,13 @@ def _playlist_ref_from_name(
         display=metadata.display_of.get(playlist, playlist),
         color=metadata.color_of.get(playlist),
     )
+
+
+def _playlist_refs(
+    playlists: list[str],
+    metadata: DashboardRuntimeMetadata,
+) -> list[PlaylistRefDto]:
+    return [_playlist_ref_from_name(name, metadata) for name in playlists if name]
 
 
 def _playlist_ref(
@@ -421,14 +428,10 @@ def map_tick_snapshot(
     trace: SchedulerTickTrace,
     metadata: DashboardRuntimeMetadata,
 ) -> TickSnapshotDto:
-    matched_playlist = _playlist_or_none(trace.match.best_playlist)
-    action_matched_playlist = _playlist_or_none(trace.action.matched_playlist)
-    active_playlist_after = _playlist_or_none(trace.action.effective_playlist_after)
-    active_playlist_before = _playlist_or_none(trace.action.effective_playlist_before)
-    matched_playlist_ref = _playlist_ref(matched_playlist, metadata)
-    action_matched_playlist_ref = _playlist_ref(action_matched_playlist, metadata)
-    active_playlist_after_ref = _playlist_ref(active_playlist_after, metadata)
-    active_playlist_before_ref = _playlist_ref(active_playlist_before, metadata)
+    matched_playlist_refs = _playlist_refs(trace.match.best_playlists, metadata)
+    action_matched_playlist_refs = _playlist_refs(trace.action.decision.matched_playlists, metadata)
+    active_playlists_after_refs = _playlist_refs(trace.action.effective_playlists_after, metadata)
+    active_playlists_before_refs = _playlist_refs(trace.action.effective_playlists_before, metadata)
     has_event = trace.action.kind in {ActionKind.SWITCH, ActionKind.CYCLE}
 
     return TickSnapshotDto(
@@ -437,8 +440,8 @@ def map_tick_snapshot(
             ts=trace.ts,
             similarity=_round_float(trace.match.similarity),
             similarity_gap=_round_float(trace.match.similarity_gap),
-            active_playlist=active_playlist_after_ref,
-            matched_playlist=matched_playlist_ref,
+            active_playlists=active_playlists_after_refs,
+            matched_playlists=matched_playlist_refs,
             action_kind=trace.action.kind,
             reason_code=trace.action.reason_code,
             paused=trace.paused,
@@ -477,9 +480,9 @@ def map_tick_snapshot(
                 kind=trace.action.kind,
                 reason_code=trace.action.reason_code,
                 executed=trace.action.executed,
-                active_playlist_before=active_playlist_before_ref,
-                active_playlist_after=active_playlist_after_ref,
-                matched_playlist=action_matched_playlist_ref,
+                active_playlists_before=active_playlists_before_refs,
+                active_playlists_after=active_playlists_after_refs,
+                matched_playlists=action_matched_playlist_refs,
             ),
         ),
     )

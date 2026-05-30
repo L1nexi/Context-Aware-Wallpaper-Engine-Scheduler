@@ -9,7 +9,7 @@ from ui.tray import TrayIcon
 class FakeScheduler:
     def __init__(self) -> None:
         self.paused = False
-        self.cached_playlist = ""
+        self.cached_playlists: list[str] = []
         self.display_of = {}
         self.last_tick_trace = None
         self.on_auto_resume = None
@@ -21,23 +21,23 @@ class FakeScheduler:
 
 def _trace(
     *,
-    effective_playlist_after: str = "",
-    best_playlist: str | None = None,
+    effective_playlists_after: list[str] | None = None,
+    best_playlists: list[str] | None = None,
 ):
     return SimpleNamespace(
-        action=SimpleNamespace(effective_playlist_after=effective_playlist_after),
-        match=SimpleNamespace(best_playlist=best_playlist),
+        action=SimpleNamespace(effective_playlists_after=effective_playlists_after or []),
+        match=SimpleNamespace(best_playlists=best_playlists or []),
     )
 
 
 def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
-    scheduler.cached_playlist = "focus"
+    scheduler.cached_playlists = ["focus"]
     scheduler.display_of = {"focus": "Focus Flow", "rain": "Rain Mood"}
     scheduler.last_tick_trace = _trace(
-        effective_playlist_after="focus",
-        best_playlist="rain",
+        effective_playlists_after=["focus"],
+        best_playlists=["rain"],
     )
 
     tray = TrayIcon(scheduler)
@@ -51,11 +51,11 @@ def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
 def test_tray_summary_disables_apply_when_no_match(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
-    scheduler.cached_playlist = "focus"
+    scheduler.cached_playlists = ["focus"]
     scheduler.display_of = {"focus": "Focus Flow"}
     scheduler.last_tick_trace = _trace(
-        effective_playlist_after="focus",
-        best_playlist=None,
+        effective_playlists_after=["focus"],
+        best_playlists=[],
     )
 
     tray = TrayIcon(scheduler)
@@ -69,8 +69,8 @@ def test_tray_summary_reports_outside_configured_playlists(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.last_tick_trace = _trace(
-        effective_playlist_after="",
-        best_playlist="rain",
+        effective_playlists_after=[],
+        best_playlists=["rain"],
     )
 
     tray = TrayIcon(scheduler)
@@ -81,11 +81,11 @@ def test_tray_summary_reports_outside_configured_playlists(monkeypatch):
 def test_tray_summary_falls_back_to_cached_active_playlist(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
-    scheduler.cached_playlist = "focus"
+    scheduler.cached_playlists = ["focus"]
     scheduler.display_of = {"focus": "Focus Flow"}
     scheduler.last_tick_trace = _trace(
-        effective_playlist_after="",
-        best_playlist="rain",
+        effective_playlists_after=[],
+        best_playlists=["rain"],
     )
 
     tray = TrayIcon(scheduler)
@@ -97,11 +97,11 @@ def test_tray_summary_uses_cached_active_playlist_while_paused(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.paused = True
-    scheduler.cached_playlist = "focus"
+    scheduler.cached_playlists = ["focus"]
     scheduler.display_of = {"focus": "Focus Flow"}
     scheduler.last_tick_trace = _trace(
-        effective_playlist_after="",
-        best_playlist="rain",
+        effective_playlists_after=[],
+        best_playlists=["rain"],
     )
 
     tray = TrayIcon(scheduler)

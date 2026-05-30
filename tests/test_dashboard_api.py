@@ -122,6 +122,8 @@ def _make_trace(
     policy_evaluations: list | None = None,
 ) -> SchedulerTickTrace:
     current_time = time.localtime(1714800000)
+    playlist_matches = [("focus", 0.91), ("rainy", 0.66)]
+    best_playlists = [matched_playlist] if matched_playlist else []
     return SchedulerTickTrace(
         tick_id=tick_id,
         ts=1714800000.0 + tick_id,
@@ -136,8 +138,8 @@ def _make_trace(
             time=current_time,
         ),
         match=MatchEvaluation(
-            best_playlist=matched_playlist,
-            playlist_matches=[("focus", 0.91), ("rainy", 0.66)],
+            best_playlists=best_playlists,
+            playlist_matches=playlist_matches,
             raw_context_vector={"focus": 0.8, "rain": 0.4},
             resolved_context_vector={"focus": 0.8, "rain": 0.4},
             fallback_expansions={"storm": {"rain": 0.25}},
@@ -148,11 +150,11 @@ def _make_trace(
             decision=ControllerDecision(
                 kind=action_kind,
                 reason_code=reason_code,
-                matched_playlist=matched_playlist,
+                matched_playlists=best_playlists,
                 evaluation=evaluation,
             ),
-            effective_playlist_before=active_playlist_before,
-            effective_playlist_after=active_playlist_after,
+            effective_playlists_before=[active_playlist_before] if active_playlist_before else [],
+            effective_playlists_after=[active_playlist_after] if active_playlist_after else [],
             executed=executed,
         ),
     )
@@ -262,16 +264,12 @@ def test_build_tick_snapshot_maps_analysis_fields():
     snapshot = build_tick_snapshot(scheduler, trace)
 
     assert snapshot["summary"]["tickId"] == 7
-    assert snapshot["summary"]["activePlaylist"] == {
-        "name": "idle",
-        "display": "idle",
-        "color": "#2E5F8A",
-    }
-    assert snapshot["summary"]["matchedPlaylist"] == {
-        "name": "focus",
-        "display": "Focus Flow",
-        "color": "#F5C518",
-    }
+    assert snapshot["summary"]["activePlaylists"] == [
+        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
+    ]
+    assert snapshot["summary"]["matchedPlaylists"] == [
+        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
+    ]
     assert "activePlaylistDisplay" not in snapshot["summary"]
     assert "activePlaylistColor" not in snapshot["summary"]
     assert "matchedPlaylistDisplay" not in snapshot["summary"]
@@ -282,6 +280,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
     assert snapshot["think"]["fallbackExpansions"]["storm"][0]["resolvedTag"] == "rain"
     assert snapshot["think"]["policies"][0]["policyId"] == "activity"
     assert snapshot["think"]["policies"][1]["details"]["mapped"] is True
+    assert snapshot["think"]["policies"] is not None
     assert snapshot["act"]["topMatches"][0]["playlist"] == {
         "name": "focus",
         "display": "Focus Flow",
@@ -295,21 +294,15 @@ def test_build_tick_snapshot_maps_analysis_fields():
     }
     assert snapshot["act"]["controller"]["evaluation"]["operation"] == "switch"
     assert snapshot["act"]["decision"]["reasonCode"] == "switch_blocked_not_idle"
-    assert snapshot["act"]["decision"]["activePlaylistBefore"] == {
-        "name": "idle",
-        "display": "idle",
-        "color": "#2E5F8A",
-    }
-    assert snapshot["act"]["decision"]["activePlaylistAfter"] == {
-        "name": "idle",
-        "display": "idle",
-        "color": "#2E5F8A",
-    }
-    assert snapshot["act"]["decision"]["matchedPlaylist"] == {
-        "name": "focus",
-        "display": "Focus Flow",
-        "color": "#F5C518",
-    }
+    assert snapshot["act"]["decision"]["activePlaylistsBefore"] == [
+        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
+    ]
+    assert snapshot["act"]["decision"]["activePlaylistsAfter"] == [
+        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
+    ]
+    assert snapshot["act"]["decision"]["matchedPlaylists"] == [
+        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
+    ]
 
 
 def test_build_tick_snapshot_maps_paused_tick():
@@ -335,28 +328,20 @@ def test_build_tick_snapshot_maps_paused_tick():
     assert snapshot["summary"]["actionKind"] == "pause"
     assert snapshot["summary"]["paused"] is True
     assert snapshot["summary"]["hasEvent"] is False
-    assert snapshot["summary"]["activePlaylist"] == {
-        "name": "focus",
-        "display": "focus",
-        "color": "#F5C518",
-    }
-    assert snapshot["summary"]["matchedPlaylist"] == {
-        "name": "rainy",
-        "display": "rainy",
-        "color": "#4A90D9",
-    }
+    assert snapshot["summary"]["activePlaylists"] == [
+        {"name": "focus", "display": "focus", "color": "#F5C518"},
+    ]
+    assert snapshot["summary"]["matchedPlaylists"] == [
+        {"name": "rainy", "display": "rainy", "color": "#4A90D9"},
+    ]
     assert snapshot["sense"]["weather"]["available"] is False
     assert snapshot["act"]["controller"]["evaluation"] is None
-    assert snapshot["act"]["decision"]["activePlaylistAfter"] == {
-        "name": "focus",
-        "display": "focus",
-        "color": "#F5C518",
-    }
-    assert snapshot["act"]["decision"]["matchedPlaylist"] == {
-        "name": "rainy",
-        "display": "rainy",
-        "color": "#4A90D9",
-    }
+    assert snapshot["act"]["decision"]["activePlaylistsAfter"] == [
+        {"name": "focus", "display": "focus", "color": "#F5C518"},
+    ]
+    assert snapshot["act"]["decision"]["matchedPlaylists"] == [
+        {"name": "rainy", "display": "rainy", "color": "#4A90D9"},
+    ]
 
 
 def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
@@ -375,17 +360,13 @@ def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
 
     snapshot = build_tick_snapshot(scheduler, trace)
 
-    assert snapshot["summary"]["activePlaylist"] == {
-        "name": "unknown_active",
-        "display": "unknown_active",
-        "color": None,
-    }
-    assert snapshot["summary"]["matchedPlaylist"] == {
-        "name": "unknown_match",
-        "display": "unknown_match",
-        "color": None,
-    }
-    assert snapshot["act"]["decision"]["activePlaylistBefore"] is None
+    assert snapshot["summary"]["activePlaylists"] == [
+        {"name": "unknown_active", "display": "unknown_active", "color": None},
+    ]
+    assert snapshot["summary"]["matchedPlaylists"] == [
+        {"name": "unknown_match", "display": "unknown_match", "color": None},
+    ]
+    assert snapshot["act"]["decision"]["activePlaylistsBefore"] == []
 
 
 def test_api_analysis_window_empty(app):
@@ -432,16 +413,12 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
 
     assert "200" in status
     tick = body["ticks"][0]
-    assert tick["summary"]["activePlaylist"] == {
-        "name": "test_pl",
-        "display": "Test Playlist",
-        "color": "#5BB8D4",
-    }
-    assert tick["summary"]["matchedPlaylist"] == {
-        "name": "missing_playlist",
-        "display": "missing_playlist",
-        "color": None,
-    }
+    assert tick["summary"]["activePlaylists"] == [
+        {"name": "test_pl", "display": "Test Playlist", "color": "#5BB8D4"},
+    ]
+    assert tick["summary"]["matchedPlaylists"] == [
+        {"name": "missing_playlist", "display": "missing_playlist", "color": None},
+    ]
     assert tick["act"]["topMatches"][0]["playlist"] == {
         "name": "focus",
         "display": "focus",

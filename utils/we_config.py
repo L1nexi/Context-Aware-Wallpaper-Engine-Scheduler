@@ -99,6 +99,38 @@ class WEConfigProber:
                 names.append(normalized)
         return names
 
+    def probe_item_counts(self) -> dict[str, int]:
+        """Return wallpaper count per playlist from WE config.
+
+        Raises:
+            WEConfigReadError: When config.json is missing, unreadable, or not a
+                JSON object.
+        """
+        _config_json, data = self._load_config()
+
+        general = _user_general(data)
+        if general is None:
+            return {}
+
+        playlists = general.get("playlists", [])
+        if not isinstance(playlists, list):
+            return {}
+
+        result: dict[str, int] = {}
+        for playlist in playlists:
+            if not isinstance(playlist, dict):
+                continue
+            name = playlist.get("name")
+            if not isinstance(name, str):
+                continue
+            normalized = name.strip()
+            if not normalized:
+                continue
+            items = playlist.get("items")
+            if isinstance(items, list):
+                result[normalized] = len(items)
+        return result
+
     def _load_config(self) -> tuple[str, dict[str, Any]]:
         """Load WE config.json as a dictionary.
 

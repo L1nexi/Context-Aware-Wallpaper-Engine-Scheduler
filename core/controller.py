@@ -87,8 +87,7 @@ class SchedulingController:
         startup_delay = max(config.startup_delay, 0)
         now = time.time()
         self.startup_end = now + startup_delay
-        self.last_playlist_switch_time = now
-        self.last_wallpaper_switch_time = now
+        self.last_action_time = now
         self._gates: list[CpuGate | FullscreenGate] = []
         if self.cpu_threshold > 0:
             self._gates.append(CpuGate(self.cpu_threshold))
@@ -109,14 +108,13 @@ class SchedulingController:
             blocked_by.append(ControllerBlocker.COOLDOWN)
         blocked_by.extend(self._evaluate_gates(context))
 
+        time_since_last = current_time - self.last_action_time
+        force_after_remaining = max(0.0, self.force_after - time_since_last)
+
         if operation == "switch":
-            time_since_last = current_time - self.last_playlist_switch_time
             cooldown_remaining = 0.0
-            force_after_remaining = max(0.0, self.force_after - time_since_last)
         else:
-            time_since_last = current_time - self.last_wallpaper_switch_time
             cooldown_remaining = max(0.0, self.cycle_cooldown - time_since_last)
-            force_after_remaining = None
 
         if cooldown_remaining > 0 and ControllerBlocker.COOLDOWN not in blocked_by:
             blocked_by.append(ControllerBlocker.COOLDOWN)
@@ -147,30 +145,30 @@ class SchedulingController:
         self,
         context: Context,
         match: MatchEvaluation,
-        active_playlist: str,
+        active_playlists: list[str],
     ) -> ControllerDecision:
-        matched_playlist = match.best_playlist
+        matched = match.best_playlists
 
-        if matched_playlist is None:
+        if not matched:
             return ControllerDecision(
-                kind=ActionKind.HOLD if active_playlist else ActionKind.NONE,
+                kind=ActionKind.HOLD if active_playlists else ActionKind.NONE,
                 reason_code=ActionReasonCode.NO_MATCH,
-                matched_playlist=None,
+                matched_playlists=[],
             )
 
-        if matched_playlist != active_playlist:
+        if matched != active_playlists:
             evaluation = self._evaluate_operation(context, operation="switch")
             if evaluation.allowed:
                 return ControllerDecision(
                     kind=ActionKind.SWITCH,
                     reason_code=ActionReasonCode.SWITCH_ALLOWED,
-                    matched_playlist=matched_playlist,
+                    matched_playlists=matched,
                     evaluation=evaluation,
                 )
             return ControllerDecision(
                 kind=ActionKind.HOLD,
                 reason_code=_blocked_reason(evaluation.blocked_by, operation="switch"),
-                matched_playlist=matched_playlist,
+                matched_playlists=matched,
                 evaluation=evaluation,
             )
 
@@ -179,55 +177,55 @@ class SchedulingController:
             return ControllerDecision(
                 kind=ActionKind.CYCLE,
                 reason_code=ActionReasonCode.CYCLE_ALLOWED,
-                matched_playlist=matched_playlist,
+                matched_playlists=matched,
                 evaluation=evaluation,
             )
         if evaluation.blocked_by:
             return ControllerDecision(
                 kind=ActionKind.HOLD,
                 reason_code=_blocked_reason(evaluation.blocked_by, operation="cycle"),
-                matched_playlist=matched_playlist,
+                matched_playlists=matched,
                 evaluation=evaluation,
             )
         return ControllerDecision(
             kind=ActionKind.HOLD,
             reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
-            matched_playlist=matched_playlist,
+            matched_playlists=matched,
             evaluation=evaluation,
         )
 
     def decide_manual_action(
         self,
         match: MatchEvaluation,
-        active_playlist: str,
+        active_playlists: list[str],
     ) -> ControllerDecision:
-        matched_playlist = match.best_playlist
+        matched = match.best_playlists
 
-        if matched_playlist is None:
+        if not matched:
             return ControllerDecision(
-                kind=ActionKind.HOLD if active_playlist else ActionKind.NONE,
+                kind=ActionKind.HOLD if active_playlists else ActionKind.NONE,
                 reason_code=ActionReasonCode.NO_MATCH,
-                matched_playlist=None,
+                matched_playlists=[],
             )
 
-        if matched_playlist != active_playlist:
+        if matched != active_playlists:
             return ControllerDecision(
                 kind=ActionKind.SWITCH,
                 reason_code=ActionReasonCode.MANUAL_APPLY_REQUESTED,
-                matched_playlist=matched_playlist,
+                matched_playlists=matched,
             )
 
-        if active_playlist:
+        if active_playlists:
             return ControllerDecision(
                 kind=ActionKind.CYCLE,
                 reason_code=ActionReasonCode.MANUAL_APPLY_REQUESTED,
-                matched_playlist=matched_playlist,
+                matched_playlists=matched,
             )
 
         return ControllerDecision(
             kind=ActionKind.HOLD,
             reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
-            matched_playlist=matched_playlist,
+            matched_playlists=matched,
         )
 
     def _evaluate_gates(self, context: Context) -> list[ControllerBlocker]:
@@ -238,26 +236,13 @@ class SchedulingController:
                 blocked_by.append(blocker)
         return blocked_by
 
-    def notify_playlist_switch(self):
-        now = time.time()
-        self.last_playlist_switch_time = now
-        self.last_wallpaper_switch_time = now
-
-    def notify_wallpaper_cycle(self):
-        self.last_wallpaper_switch_time = time.time()
+    def notify_action(self):
+        self.last_action_time = time.time()
 
     def export_state(self) -> dict[str, Any]:
         return {
-            "last_playlist_switch_time": self.last_playlist_switch_time,
-            "last_wallpaper_switch_time": self.last_wallpaper_switch_time,
+            "last_action_time": self.last_action_time,
         }
 
     def import_state(self, state: dict[str, Any]) -> None:
-        self.last_playlist_switch_time = state.get(
-            "last_playlist_switch_time",
-            self.last_playlist_switch_time,
-        )
-        self.last_wallpaper_switch_time = state.get(
-            "last_wallpaper_switch_time",
-            self.last_wallpaper_switch_time,
-        )
+        self.last_action_time = state.get("last_action_time", self.last_action_time)

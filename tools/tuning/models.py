@@ -93,7 +93,7 @@ class ScenarioProfileResult:
 
     @property
     def winner(self) -> str | None:
-        return self.match.best_playlist
+        return self.match.best_playlists[0] if self.match.best_playlists else None
 
     @property
     def score(self) -> float:
@@ -262,7 +262,10 @@ def evaluate_scenario(
     match = Matcher(config.playlists, policies, config.tags).evaluate(context)
     playlist_matches = rank_for_profile(config, match.resolved_context_vector, profile)
     match.playlist_matches = playlist_matches
-    match.best_playlist = playlist_matches[0][0] if playlist_matches and playlist_matches[0][1] > 0.001 else None
+    best_name = playlist_matches[0][0] if playlist_matches and playlist_matches[0][1] > 0.001 else None
+    match.best_playlists = [best_name] if best_name else []
+    match.similarity = playlist_matches[0][1] if best_name else 0.0
+    match.similarity_gap = (playlist_matches[0][1] - playlist_matches[1][1]) if len(playlist_matches) >= 2 else match.similarity
     rankings = [
         RankingRow(
             scenario=scenario.name,

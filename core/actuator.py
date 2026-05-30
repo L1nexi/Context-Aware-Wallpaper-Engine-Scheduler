@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import random
 
 from core.context import Context
 from core.controller import SchedulingController
@@ -14,6 +15,7 @@ from core.diagnostics import (
 from core.event_logger import EventLogger, EventType
 from core.executor import WEExecutor
 from core.playlist_state import PlaylistRecoveryReason
+from utils.runtime_config import PlaylistConfig
 
 logger = logging.getLogger("WEScheduler.Actuator")
 
@@ -37,49 +39,53 @@ class Actuator:
         executor: WEExecutor,
         controller: SchedulingController,
         history_logger: EventLogger,
+        playlists: dict[str, PlaylistConfig],
     ):
         self.executor = executor
         self.controller = controller
         self._history: EventLogger = history_logger
+        self.playlists = playlists
+
+    def _select_target(self, best_playlists: list[str]) -> str:
+        weights = []
+        for name in best_playlists:
+            cfg = self.playlists.get(name)
+            # FIXME 需要更好地处理这里可能的降级行为。
+            w = cfg.item_count if cfg and cfg.item_count > 0 else 1
+            weights.append(w)
+        return random.choices(best_playlists, weights=weights, k=1)[0]
 
     def act(
         self,
         context: Context,
         match: MatchEvaluation,
-        effective_playlist: str,
+        effective_playlists: list[str],
     ) -> ActuationOutcome:
-        decision = self.controller.decide_action(
-            context,
-            match,
-            effective_playlist,
-        )
-        return self._act_from_decision(match, effective_playlist, decision)
+        decision = self.controller.decide_action(context, match, effective_playlists)
+        return self._act_from_decision(match, effective_playlists, decision)
 
     def act_manual(
         self,
         match: MatchEvaluation,
-        effecitve_playlist: str,
+        effective_playlists: list[str],
     ) -> ActuationOutcome:
-        decision = self.controller.decide_manual_action(
-            match,
-            effecitve_playlist,
-        )
-        return self._act_from_decision(match, effecitve_playlist, decision)
+        decision = self.controller.decide_manual_action(match, effective_playlists)
+        return self._act_from_decision(match, effective_playlists, decision)
 
     def act_recovery(
         self,
         match: MatchEvaluation,
-        effecitve_playlist: str,
+        effective_playlists: list[str],
         recovery_reason: PlaylistRecoveryReason,
     ) -> ActuationOutcome:
-        matched_playlist = match.best_playlist
-        if matched_playlist is None:
+        matched = match.best_playlists
+        if not matched:
             decision = ControllerDecision(
-                kind=ActionKind.NONE if not effecitve_playlist else ActionKind.HOLD,
+                kind=ActionKind.NONE if not effective_playlists else ActionKind.HOLD,
                 reason_code=ActionReasonCode.RECOVERY_NO_MATCH,
-                matched_playlist=None,
+                matched_playlists=[],
             )
-            return self._act_from_decision(match, effecitve_playlist, decision)
+            return self._act_from_decision(match, effective_playlists, decision)
 
         reason_code = (
             ActionReasonCode.RECOVERY_NO_PLAYLIST
@@ -89,50 +95,67 @@ class Actuator:
         decision = ControllerDecision(
             kind=ActionKind.SWITCH,
             reason_code=reason_code,
-            matched_playlist=matched_playlist,
+            matched_playlists=matched,
         )
-        return self._act_from_decision(match, effecitve_playlist, decision)
+        return self._act_from_decision(match, effective_playlists, decision)
 
     def _act_from_decision(
         self,
         match: MatchEvaluation,
-        effecitve_playlist: str,
+        effective_playlists: list[str],
         decision: ControllerDecision,
     ) -> ActuationOutcome:
-        matched_playlist = decision.matched_playlist
-        active_playlist_after = effecitve_playlist
+        matched = decision.matched_playlists
+        if not matched:
+            return ActuationOutcome(
+                decision=decision,
+                effective_playlists_before=effective_playlists,
+                effective_playlists_after=effective_playlists,
+                target_playlist=None,
+                executed=False,
+            )
+
+        target = self._select_target(matched)
+        effective_playlists_after = effective_playlists
         executed = False
 
-        if decision.kind == ActionKind.SWITCH and matched_playlist is not None:
-            logger.info(
-                "[Action] Switching Playlist from '%s' to '%s'",
-                effecitve_playlist,
-                matched_playlist,
-            )
+        if decision.kind == ActionKind.SWITCH:
+            logger.info("[Action] Switching Playlist from '%s' to '%s'", effective_playlists, target)
             _log_tags(match.raw_context_vector)
-            if self.executor.open_playlist(matched_playlist):
-                self.controller.notify_playlist_switch()
-                active_playlist_after = matched_playlist
+            if self.executor.open_playlist(target):
+                self.controller.notify_action()
+                effective_playlists_after = [target]
                 executed = True
-        elif decision.kind == ActionKind.CYCLE and effecitve_playlist:
-            logger.info("[Action] Cycling Wallpaper in '%s'", effecitve_playlist)
-            if self.executor.next_wallpaper():
-                self.controller.notify_wallpaper_cycle()
-                executed = True
+
+        elif decision.kind == ActionKind.CYCLE:
+            if [target] == effective_playlists:
+                # Target is current playlist -> nextWallpaper
+                logger.info("[Action] Cycling Wallpaper in '%s'", target)
+                if self.executor.next_wallpaper():
+                    self.controller.notify_action()
+                    executed = True
+            else:
+                # Target differs from current -> openPlaylist (cycle semantic expansion)
+                logger.info("[Action] Cycling to different playlist '%s' from '%s'", target, effective_playlists)
+                if self.executor.open_playlist(target):
+                    self.controller.notify_action()
+                    effective_playlists_after = [target]
+                    executed = True
 
         outcome = ActuationOutcome(
             decision=decision,
-            effective_playlist_before=effecitve_playlist,
-            effective_playlist_after=active_playlist_after,
+            effective_playlists_before=effective_playlists,
+            effective_playlists_after=effective_playlists_after,
+            target_playlist=target,
             executed=executed,
         )
 
-        if outcome.kind == ActionKind.SWITCH and matched_playlist is not None and outcome.executed:
+        if outcome.kind == ActionKind.SWITCH and executed:
             self._history.write(
                 EventType.PLAYLIST_SWITCH,
                 {
-                    "playlist_from": effecitve_playlist,
-                    "playlist_to": matched_playlist,
+                    "playlist_from": effective_playlists,
+                    "playlist_to": target,
                     "tags": _tag_dict(match.raw_context_vector),
                     "similarity": round(match.similarity, 4),
                     "similarity_gap": round(match.similarity_gap, 4),
@@ -140,23 +163,23 @@ class Actuator:
                     "reason_code": outcome.reason_code.value,
                 },
             )
-        elif outcome.kind == ActionKind.CYCLE and outcome.executed:
+        elif outcome.kind == ActionKind.CYCLE and executed:
             self._history.write(
                 EventType.WALLPAPER_CYCLE,
                 {
-                    "playlist": effecitve_playlist,
+                    "playlist": target,
                     "tags": _tag_dict(match.raw_context_vector),
                     "reason_code": outcome.reason_code.value,
                 },
             )
-        elif outcome.kind in {ActionKind.SWITCH, ActionKind.CYCLE} and not outcome.executed:
+        elif outcome.kind in {ActionKind.SWITCH, ActionKind.CYCLE} and not executed:
             self._history.write(
                 EventType.ACTUATION_FAILED,
                 {
                     "operation": outcome.kind.value,
                     "reason_code": outcome.reason_code.value,
-                    "matched_playlist": matched_playlist,
-                    "active_playlist_before": effecitve_playlist,
+                    "matched_playlists": matched,
+                    "effective_playlists_before": effective_playlists,
                 },
             )
 

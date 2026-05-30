@@ -8,6 +8,7 @@ import { getCssColor } from './cssColors'
 import ControllerSummary from './ControllerSummary.vue'
 import { formatWeight } from './formatting'
 import {
+  formatPlaylistRefs,
   getActionReasonLabel,
   getDecisionSummary,
   getTickPlaylistLabel,
@@ -23,17 +24,11 @@ const { t, lang } = useI18n()
 const topMatches = computed(() => props.tick.act.topMatches.slice(0, 5))
 const decisionSummary = computed(() => getDecisionSummary(props.tick.act.decision, props.tick, t))
 const matchedPlaylistLabel = computed(() => getTickPlaylistLabel(props.tick, 'matched', t))
-const activePlaylistBeforeLabel = computed(
-  () =>
-    props.tick.act.decision.activePlaylistBefore?.display ??
-    props.tick.act.decision.activePlaylistBefore?.name ??
-    t('dashboard_none'),
+const activePlaylistBeforeLabel = computed(() =>
+  formatPlaylistRefs(props.tick.act.decision.activePlaylistsBefore, t),
 )
-const activePlaylistAfterLabel = computed(
-  () =>
-    props.tick.act.decision.activePlaylistAfter?.display ??
-    props.tick.act.decision.activePlaylistAfter?.name ??
-    t('dashboard_none'),
+const activePlaylistAfterLabel = computed(() =>
+  formatPlaylistRefs(props.tick.act.decision.activePlaylistsAfter, t),
 )
 const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
 </script>

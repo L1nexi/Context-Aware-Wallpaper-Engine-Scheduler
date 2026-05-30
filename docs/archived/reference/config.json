@@ -1,0 +1,1595 @@
+{
+	"?installdirectory" : "E:/SteamLibrary/steamapps/common/wallpaper_engine",
+	"L1nex" : 
+	{
+		"general" : 
+		{
+			"browser" : 
+			{
+				"advertiseexplore" : false,
+				"advertisesendtomobile" : true,
+				"advertiseworkshop" : false,
+				"advertiseworkshoppopup" : false,
+				"authorblocklistnames" : [],
+				"defaultfilterconfig" : 
+				{
+					"Anime" : true,
+					"recommendedresolution" : false,
+					"showotherresolution" : true
+				},
+				"explore" : 
+				{
+					"custom" : [],
+					"disliked" : [],
+					"favorites" : 
+					[
+						"genreLandscapetop_rated",
+						"top_yeartop_rated",
+						"collection1884258271"
+					],
+					"liked" : []
+				},
+				"filterinfo" : 
+				{
+					"installed" : 
+					{
+						"categorytags" : 
+						{
+							"Preset" : true,
+							"Wallpaper" : true
+						},
+						"descending" : false,
+						"ratingtags" : 
+						{
+							"Everyone" : true,
+							"Mature" : true,
+							"Questionable" : true
+						},
+						"resolutiontags" : 
+						{
+							"1280 x 720" : true,
+							"1366 x 768" : true,
+							"1920 x 1080" : true,
+							"2560 x 1440" : true,
+							"3840 x 2160" : true,
+							"Dual 3840 x 1080" : true,
+							"Dual 5120 x 1440" : true,
+							"Dual 7680 x 2160" : true,
+							"Dual Standard Definition" : true,
+							"Dynamic resolution" : true,
+							"Other resolution" : true,
+							"Portrait 1080 x 1920" : true,
+							"Portrait 1440 x 2560" : true,
+							"Portrait 2160 x 3840" : true,
+							"Portrait 720 x 1280" : true,
+							"Portrait Standard Definition" : true,
+							"Standard Definition" : true,
+							"Triple 11520 x 2160" : true,
+							"Triple 4096 x 768" : true,
+							"Triple 5760 x 1080" : true,
+							"Triple 7680 x 1440" : true,
+							"Triple Standard Definition" : true,
+							"Ultrawide 2560 x 1080" : true,
+							"Ultrawide 3440 x 1440" : true,
+							"Ultrawide Standard Definition" : true
+						},
+						"sort" : "subscriptiondate",
+						"sourcetags" : 
+						{
+							"Local" : true,
+							"Official" : true,
+							"Workshop" : true
+						},
+						"tags" : 
+						{
+							"Abstract" : true,
+							"Animal" : true,
+							"Anime" : true,
+							"CGI" : true,
+							"Cartoon" : true,
+							"Cyberpunk" : true,
+							"Fantasy" : true,
+							"Game" : true,
+							"Girls" : true,
+							"Guys" : true,
+							"Landscape" : true,
+							"MMD" : true,
+							"Medieval" : true,
+							"Memes" : true,
+							"Music" : true,
+							"Nature" : true,
+							"Pixel art" : true,
+							"Relaxing" : true,
+							"Retro" : true,
+							"Sci-Fi" : true,
+							"Sports" : true,
+							"Technology" : true,
+							"Television" : true,
+							"Unspecified" : true,
+							"Vehicle" : true
+						},
+						"type" : "",
+						"typetags" : 
+						{
+							"Application" : true,
+							"Scene" : true,
+							"Video" : true,
+							"Web" : true
+						},
+						"utilitytags" : {}
+					},
+					"workshop" : 
+					{
+						"categorytags" : 
+						{
+							"Preset" : true,
+							"Wallpaper" : true
+						},
+						"descending" : false,
+						"filterTitle" : true,
+						"ratingtags" : 
+						{
+							"Everyone" : true,
+							"Mature" : false,
+							"Questionable" : false
+						},
+						"resolutiontags" : 
+						{
+							"1280 x 720" : true,
+							"1366 x 768" : true,
+							"1920 x 1080" : true,
+							"2560 x 1440" : true,
+							"3840 x 2160" : true,
+							"Dual 3840 x 1080" : true,
+							"Dual 5120 x 1440" : true,
+							"Dual 7680 x 2160" : true,
+							"Dual Standard Definition" : true,
+							"Dynamic resolution" : true,
+							"Other resolution" : true,
+							"Portrait 1080 x 1920" : true,
+							"Portrait 1440 x 2560" : true,
+							"Portrait 2160 x 3840" : true,
+							"Portrait 720 x 1280" : true,
+							"Portrait Standard Definition" : true,
+							"Standard Definition" : true,
+							"Triple 11520 x 2160" : true,
+							"Triple 4096 x 768" : true,
+							"Triple 5760 x 1080" : true,
+							"Triple 7680 x 1440" : true,
+							"Triple Standard Definition" : true,
+							"Ultrawide 2560 x 1080" : true,
+							"Ultrawide 3440 x 1440" : true,
+							"Ultrawide Standard Definition" : true
+						},
+						"sort" : "top_rated",
+						"sourcetags" : 
+						{
+							"Local" : true,
+							"Official" : true,
+							"Workshop" : true
+						},
+						"tags" : 
+						{
+							"Abstract" : true,
+							"Animal" : true,
+							"Anime" : true,
+							"CGI" : true,
+							"Cartoon" : true,
+							"Cyberpunk" : true,
+							"Fantasy" : true,
+							"Game" : true,
+							"Girls" : true,
+							"Guys" : true,
+							"Landscape" : true,
+							"MMD" : true,
+							"Medieval" : true,
+							"Memes" : true,
+							"Music" : true,
+							"Nature" : true,
+							"Pixel art" : true,
+							"Relaxing" : true,
+							"Retro" : true,
+							"Sci-Fi" : true,
+							"Sports" : true,
+							"Technology" : true,
+							"Television" : true,
+							"Unspecified" : true,
+							"Vehicle" : true
+						},
+						"type" : "",
+						"typetags" : 
+						{
+							"Application" : false,
+							"Scene" : true,
+							"Video" : true,
+							"Web" : true
+						},
+						"utilitytags" : {}
+					}
+				},
+				"folders" : [],
+				"lastselectedmonitor" : "//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}",
+				"paireddevices" : [],
+				"pairingguid" : "D780EEAB-5759-4773-A5C3-2D31A1C1DFA8",
+				"resultsperpage" : 100,
+				"seasonaldialogdisabled" : true,
+				"seasonaldialogtimestamp" : 20260089,
+				"showmonitorselectiononstart" : true,
+				"viewiconsize" : "medium"
+			},
+			"defaultproperties" : 
+			{
+				"alignment" : 0,
+				"alignmentposition" : 50,
+				"volume" : 7
+			},
+			"editor" : 
+			{
+				"assetBrowser" : 
+				{
+					"typetags" : {}
+				},
+				"autosavingenabled" : true,
+				"cameracursorspeed2d" : 10,
+				"cameracursorspeed3d" : 10,
+				"hasshownworkshoprules" : true,
+				"previewratio" : "free",
+				"recentfiles" : 
+				[
+					"E:/SteamLibrary/steamapps/common/wallpaper_engine/projects/myprojects/night_mod/project.json",
+					"E:/SteamLibrary/steamapps/common/wallpaper_engine/projects/myprojects/night_mod./project.json",
+					"E:/SteamLibrary/steamapps/common/wallpaper_engine/projects/myprojects/mountain/project.json",
+					"E:/SteamLibrary/steamapps/common/wallpaper_engine/projects/myprojects/20230103185853_1/project.json"
+				],
+				"savedlayouts" : 
+				{
+					"scene" : 
+					{
+						"background" : 
+						{
+							"first" : 
+							{
+								"panels" : [ "layers", "sceneoptions", "brush" ]
+							},
+							"orientation" : "horizontal",
+							"position" : 250,
+							"second" : 
+							{
+								"align" : "end",
+								"first" : 
+								{
+									"align" : "end",
+									"first" : 
+									{
+										"panels" : [ "preview" ]
+									},
+									"orientation" : "vertical",
+									"position" : 165,
+									"second" : 
+									{
+										"panels" : [ "assets", "log" ]
+									}
+								},
+								"orientation" : "horizontal",
+								"position" : 300,
+								"second" : 
+								{
+									"panels" : [ "properties" ]
+								}
+							}
+						},
+						"floating" : []
+					},
+					"simple" : 
+					{
+						"background" : 
+						{
+							"first" : 
+							{
+								"panels" : [ "files" ]
+							},
+							"orientation" : "horizontal",
+							"position" : 300,
+							"second" : 
+							{
+								"panels" : [ "preview" ]
+							}
+						},
+						"floating" : []
+					}
+				},
+				"scriptconsoleautoscroll" : true,
+				"showgrid" : true,
+				"showonstartup" : true,
+				"showparticlecollision" : true,
+				"showselectionbox" : true,
+				"showstats" : false,
+				"showstatsmode" : "auto",
+				"suggestimportresolution" : true
+			},
+			"playlists" : 
+			[
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2141213975/4k_1.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2704773569/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3041426346/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3311132989/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3360569178/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3600630828/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2630327640/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3490034653/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3493992395/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3549235003/柠檬_1.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3272717573/山晚-三叶-最终.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3219908811/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3409595232/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3479521040/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3354366708/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3470764447/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3263766114/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2718086334/1101220.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2379608433/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1404861377/index.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1195626192/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2214223926/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2405242641/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/860641835/清流の国3.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2470144420/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1082586397/index.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1339064732/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1326866242/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1801473044/sena.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/839266837/SHELTER débit max.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/860698270/Live2D_Hibiki.exe",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1353344455/index.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1422400580/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/996733973/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3094852179/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3021529699/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1117170220/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2606813733/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1672387064/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2518958708/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3262885320/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3299228616/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3275077526/6月23日(4).mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2592852713/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2734266359/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1514981817/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2463704773/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2394043899/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2118331982/EP17_steam.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/821372791/灵梦.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1646702957/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2927608774/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2370927443/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3517818807/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2454726397/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3358071187/scene.pkg"
+					],
+					"name" : "CASUAL_ANIME",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2706933769/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3503882817/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2898127928/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1169486096/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2288349344/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3358384266/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2370927443/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3293156956/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3354366708/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3470764447/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3262885320/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3302436589/ELDEN RING™ 2024-07-20 23-09-54.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3619686402/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3455079699/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3035352006/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3029439711/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1537391845/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2983514176/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2589123703/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2802161091/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3465215190/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1669469462/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2304225413/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2214537091/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2406282996/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2480619905/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2246436987/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2742178624/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2087145135/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/909478942/Miko fox (Ver.1.2).mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/841092530/序列 01.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/821372791/灵梦.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1525871219/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/925684318/Sequence 01_4.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1654944196/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1546626729/Zeraphym - Lifeline.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2133876667/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2798072874/in_the_clouds_by_VISUALDON.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2282120494/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2275426628/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/863123048/星空Vincent.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3174556087/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3472622797/scene.pkg"
+					],
+					"name" : "NIGHT_CHILL",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1654944196/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2695970242/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1444077782/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2488408736/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3465215190/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3358384266/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2133876667/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3503882817/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3615154110/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2370927443/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2385816889/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3619686402/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2190181870/雨夜1.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3568612476/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2758363164/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3174556087/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2241781353/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2471321039/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3050719492/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3489263099/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3475157542/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2838654350/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3388158617/scene.pkg"
+					],
+					"name" : "RAINY_MOOD",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3147346398/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3029439711/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1896225027/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2463704773/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2282120494/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2744538407/MonaWallpaperFHD.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1959824262/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2275426628/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1422400580/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1353344455/index.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3619686402/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2406282996/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2626398377/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2481680388/柯基 (3).mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2706933769/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1404861377/index.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3388158617/scene.pkg"
+					],
+					"name" : "WINTER_VIBES",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1654944196/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1525871219/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/907925288/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1115554966/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2385816889/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3615154110/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1169486096/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2134765860/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3634342477/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3455079699/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3293156956/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2695970242/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2742178624/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2838654350/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3050719492/scene.pkg"
+					],
+					"name" : "NIGHT_FOCUS",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3094852179/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2141213975/4k_1.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3360569178/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3311132989/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3272717573/山晚-三叶-最终.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3262885320/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3299228616/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2149429963/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2718086334/1101220.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1117170220/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2734266359/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2550471608/803989963_5_0.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2463704773/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2379608433/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1514981817/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2118331982/EP17_steam.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1404861377/index.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1962375063/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1355236618/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2834933421/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1195626192/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2537500835/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2720528839/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2606813733/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1789171537/index.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1818082650/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/843532366/gifscene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2518958708/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1339064732/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1646702957/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1353344455/index.html",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1422400580/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3158271900/星野1440p60FpsVer1.0.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2967775993/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2709537043/scene.pkg"
+					],
+					"name" : "BRIGHT_FLOW",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2325188052/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/996733973/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2288349344/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2481680388/柯基 (3).mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2706933769/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3318709652/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2630327640/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3470764447/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3147346398/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3455079699/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3296485924/hoshino.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2550204033/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3029439711/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2983514176/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2802161091/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/837766287/Ori DE.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1896225027/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2230132661/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2744538407/MonaWallpaperFHD.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1364019990/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2385663994/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2260158910/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1959824262/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2202540355/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2306076410/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/843532366/gifscene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2214537091/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2507666716/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2470144420/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1457581889/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2488626583/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2138655350/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1672387064/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2087145135/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/909478942/Miko fox (Ver.1.2).mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/841092530/序列 01.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/925684318/Sequence 01_4.mp4"
+					],
+					"name" : "SUNSET_GLOW",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3123321641/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2709537043/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2895448890/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1944660134/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2454726397/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3358071187/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1139418455/Comp 1_2.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2776440708/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3641860575/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2704773569/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3311132989/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3360569178/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3600630828/scene.pkg"
+					],
+					"name" : "SPRING_BLOOM",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3041426346/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2141213975/4k_1.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3094852179/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3490034653/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3549235003/柠檬_1.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3275077526/6月23日(4).mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1355236618/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2470144420/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3517818807/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3600630828/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3330774573/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3272717573/山晚-三叶-最终.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2214537091/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2655882090/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3472622797/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1457581889/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2518958708/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3360569178/scene.pkg"
+					],
+					"name" : "SUMMER_GLOW",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				},
+				{
+					"items" : 
+					[
+						"E:/SteamLibrary/steamapps/workshop/content/431960/996733973/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2288349344/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/3021529699/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2550204033/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1117170220/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/837766287/Ori DE.mp4",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/1604225602/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2260158910/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2306076410/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2202540355/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2606813733/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/843532366/gifscene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2488626583/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2507666716/scene.pkg",
+						"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg"
+					],
+					"name" : "AUTUMN_DRIFT",
+					"settings" : 
+					{
+						"delay" : 120,
+						"mode" : "never",
+						"order" : "random",
+						"transition" : "-2",
+						"transitiontime" : 1500,
+						"updateonpause" : false,
+						"videosequence" : false
+					}
+				}
+			],
+			"shared" : 
+			{
+				"hotkeys" : 
+				[
+					{
+						"action" : "pause",
+						"keys" : []
+					},
+					{
+						"action" : "stop",
+						"keys" : []
+					},
+					{
+						"action" : "mute",
+						"keys" : []
+					},
+					{
+						"action" : "nextwallpaper",
+						"keys" : []
+					},
+					{
+						"action" : "togglerecord",
+						"keys" : []
+					},
+					{
+						"action" : "toggleicons",
+						"keys" : []
+					},
+					{
+						"action" : "screenshot",
+						"keys" : []
+					},
+					{
+						"action" : "screensaver",
+						"keys" : []
+					},
+					{
+						"action" : "windowbrowser",
+						"keys" : []
+					},
+					{
+						"action" : "windowsettings",
+						"keys" : []
+					},
+					{
+						"action" : "windoweditor",
+						"keys" : []
+					}
+				],
+				"slideshowwarningenabled" : true
+			},
+			"user" : 
+			{
+				"adjustdwmcolor" : false,
+				"adjustdwmcolormode" : "everything",
+				"adjustdwmcolorwarning" : true,
+				"anticrash" : null,
+				"apprules" : [],
+				"audioinputdevice" : "default",
+				"audioinputthreshold" : 0,
+				"audioinputvolume" : 50,
+				"autostart" : true,
+				"autostartscheduler" : true,
+				"autostartx64" : true,
+				"browsetransition" : 
+				{
+					"transition" : "none",
+					"transitiontime" : 1500
+				},
+				"cefcommandline" : "",
+				"extremesleephack" : true,
+				"fps" : 30,
+				"hasshownhighprioritywarning" : true,
+				"hasshownwelcomedialog" : true,
+				"highprecisiontimer" : true,
+				"iconopacity" : 80,
+				"language" : "zh-chs",
+				"loglevel" : "error",
+				"mediablocklist" : [],
+				"mediaintegration" : true,
+				"monitordetection" : "devicepath",
+				"msaa" : "x2",
+				"overridelockscreen" : false,
+				"overridewallpaper" : false,
+				"pausevram" : false,
+				"playbackaudio" : "mute",
+				"playbackfocus" : "run",
+				"playbackfullscreen" : "pause",
+				"playbackmaximized" : "pause",
+				"playbackonbattery" : "pause",
+				"playbacksleep" : "pause",
+				"plugindelay" : 0,
+				"plugins" : 
+				{
+					"ledextensions" : 
+					{
+						"brightnessfactor" : 100,
+						"chromalinkmulticolor" : false,
+						"enablechroma" : true,
+						"enablecue" : true,
+						"enabled" : true,
+						"enablescene" : true,
+						"enablevideo" : true,
+						"enableweb" : true,
+						"ledbrightness" : true,
+						"reducefps" : false,
+						"sourcemonitor" : "auto"
+					}
+				},
+				"postprocessing" : "enabled",
+				"preset" : "high",
+				"processpriority" : "normal",
+				"reflection" : true,
+				"reloadaudio" : true,
+				"resolution" : "full",
+				"safemode" : true,
+				"shadows" : "medium",
+				"slideshowkiller" : true,
+				"steamlanguage" : "english",
+				"uicmd" : "",
+				"uieffects" : null,
+				"uihardwareacceleration" : true,
+				"uiquality" : "medium",
+				"uiskin" : "dark",
+				"uiskinseasonal" : true,
+				"unpauseaero" : true,
+				"usermonitors" : 
+				{
+					"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+					{
+						"videoaudiooutput" : true
+					}
+				},
+				"vdesktopenabled" : false,
+				"videoaudiooutput" : true,
+				"videoframework" : "mfEngine",
+				"videohardwareacceleration" : true,
+				"videoloopmode" : "default",
+				"videomfstutterhack" : false,
+				"videoreadmode" : "fromdisk",
+				"volumetrics" : "medium",
+				"webmframework" : null,
+				"windows7mode" : "compatibility",
+				"windowupdaterate" : 1000
+			},
+			"videoframework" : "mf",
+			"wallpaperconfig" : 
+			{
+				"layout" : null,
+				"profile" : null,
+				"selectedwallpapers" : 
+				{
+					"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+					{
+						"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/996733973/scene.pkg",
+						"playlist" : 
+						{
+							"items" : 
+							[
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2325188052/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/996733973/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2288349344/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2481680388/柯基 (3).mp4",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2706933769/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/3318709652/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2630327640/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/3470764447/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/3147346398/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/3455079699/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/3296485924/hoshino.mp4",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2550204033/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/3029439711/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2983514176/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2802161091/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/837766287/Ori DE.mp4",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/1896225027/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2230132661/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2744538407/MonaWallpaperFHD.mp4",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/1364019990/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2385663994/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2260158910/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/1959824262/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2202540355/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2306076410/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/843532366/gifscene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2214537091/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2507666716/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2470144420/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/1457581889/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2488626583/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2138655350/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/1672387064/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/2087145135/scene.pkg",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/909478942/Miko fox (Ver.1.2).mp4",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/841092530/序列 01.mp4",
+								"E:/SteamLibrary/steamapps/workshop/content/431960/925684318/Sequence 01_4.mp4"
+							],
+							"name" : "SUNSET_GLOW",
+							"settings" : 
+							{
+								"delay" : 120,
+								"mode" : "never",
+								"order" : "random",
+								"transition" : "-2",
+								"transitiontime" : 1500,
+								"updateonpause" : false,
+								"videosequence" : false
+							}
+						}
+					}
+				}
+			},
+			"wallpaperconfigrecent" : 
+			[
+				{
+					"config" : 
+					{
+						"layout" : 0,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/3094852179/scene.pkg"
+							}
+						}
+					},
+					"playlist" : false,
+					"title" : "在山的那边"
+				},
+				{
+					"config" : 
+					{
+						"layout" : 0,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/3568612476/scene.pkg"
+							}
+						}
+					},
+					"playlist" : false,
+					"title" : "Rain in Tokyo Night."
+				},
+				{
+					"config" : 
+					{
+						"layout" : 0,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg"
+							}
+						}
+					},
+					"playlist" : false,
+					"title" : "Summer Feeling"
+				},
+				{
+					"config" : 
+					{
+						"layout" : 0,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/3641860575/scene.pkg"
+							}
+						}
+					},
+					"playlist" : false,
+					"title" : "天使の邮件/Angel Mail"
+				},
+				{
+					"config" : 
+					{
+						"layout" : 0,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/2325188052/scene.pkg",
+								"playlist" : 
+								{
+									"items" : 
+									[
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2325188052/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/996733973/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2288349344/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2481680388/柯基 (3).mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2706933769/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3318709652/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2630327640/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3470764447/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3147346398/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3455079699/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3296485924/hoshino.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2550204033/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3029439711/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2983514176/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2802161091/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/837766287/Ori DE.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1896225027/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2230132661/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2744538407/MonaWallpaperFHD.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1364019990/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2385663994/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2260158910/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1959824262/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2202540355/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2306076410/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/843532366/gifscene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2214537091/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2507666716/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2470144420/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1457581889/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2488626583/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2138655350/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1672387064/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2087145135/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/909478942/Miko fox (Ver.1.2).mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/841092530/序列 01.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/925684318/Sequence 01_4.mp4"
+									],
+									"name" : "SUNSET_GLOW",
+									"settings" : 
+									{
+										"delay" : 120,
+										"mode" : "never",
+										"order" : "random",
+										"transition" : "-2",
+										"transitiontime" : 1500,
+										"updateonpause" : false,
+										"videosequence" : false
+									}
+								}
+							}
+						}
+					},
+					"playlist" : true,
+					"title" : "Torii: Winter by Surendra in 4K (41)"
+				},
+				{
+					"config" : 
+					{
+						"layout" : 0,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+								"playlist" : 
+								{
+									"items" : 
+									[
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3094852179/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2141213975/4k_1.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3360569178/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3311132989/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3272717573/山晚-三叶-最终.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3262885320/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3299228616/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2149429963/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2718086334/1101220.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1117170220/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2734266359/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2550471608/803989963_5_0.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2463704773/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2379608433/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1514981817/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2118331982/EP17_steam.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1404861377/index.html",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1962375063/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1355236618/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2834933421/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1195626192/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2537500835/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2720528839/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2606813733/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1789171537/index.html",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1818082650/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/843532366/gifscene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2518958708/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1339064732/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1646702957/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1353344455/index.html",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1422400580/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3158271900/星野1440p60FpsVer1.0.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2967775993/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2709537043/scene.pkg"
+									],
+									"name" : "BRIGHT_FLOW",
+									"settings" : 
+									{
+										"delay" : 120,
+										"mode" : "never",
+										"order" : "random",
+										"transition" : "-2",
+										"transitiontime" : 1500,
+										"updateonpause" : false,
+										"videosequence" : false
+									}
+								}
+							}
+						}
+					},
+					"playlist" : true,
+					"title" : "Harvest (39)"
+				},
+				{
+					"config" : 
+					{
+						"layout" : null,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/2798072874/in_the_clouds_by_VISUALDON.mp4",
+								"playlist" : 
+								{
+									"items" : 
+									[
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2706933769/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3503882817/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2898127928/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1169486096/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2288349344/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3358384266/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2370927443/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3293156956/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3354366708/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3470764447/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3262885320/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3302436589/ELDEN RING™ 2024-07-20 23-09-54.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3619686402/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3455079699/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3035352006/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3029439711/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1537391845/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2983514176/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2589123703/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2802161091/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3465215190/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1669469462/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2304225413/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2214537091/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2406282996/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2480619905/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2246436987/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2742178624/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2087145135/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/909478942/Miko fox (Ver.1.2).mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/841092530/序列 01.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/821372791/灵梦.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1525871219/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/925684318/Sequence 01_4.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1654944196/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1546626729/Zeraphym - Lifeline.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2133876667/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2798072874/in_the_clouds_by_VISUALDON.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2282120494/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2275426628/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/863123048/星空Vincent.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3174556087/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3472622797/scene.pkg"
+									],
+									"name" : "NIGHT_CHILL",
+									"settings" : 
+									{
+										"delay" : 120,
+										"mode" : "never",
+										"order" : "random",
+										"transition" : "-2",
+										"transitiontime" : 1500,
+										"updateonpause" : false,
+										"videosequence" : false
+									}
+								}
+							}
+						}
+					},
+					"playlist" : true,
+					"title" : "Highway In The Clouds by VISUALDON (44)"
+				},
+				{
+					"config" : 
+					{
+						"layout" : null,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/3549235003/柠檬_1.mp4",
+								"playlist" : 
+								{
+									"items" : 
+									[
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3041426346/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2141213975/4k_1.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3094852179/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3490034653/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3549235003/柠檬_1.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3275077526/6月23日(4).mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1355236618/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2470144420/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3517818807/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3600630828/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3330774573/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3272717573/山晚-三叶-最终.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2214537091/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2655882090/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3472622797/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1457581889/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2518958708/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3360569178/scene.pkg"
+									],
+									"name" : "SUMMER_GLOW",
+									"settings" : 
+									{
+										"delay" : 120,
+										"mode" : "never",
+										"order" : "random",
+										"transition" : "-2",
+										"transitiontime" : 1500,
+										"updateonpause" : false,
+										"videosequence" : false
+									}
+								}
+							}
+						}
+					},
+					"playlist" : true,
+					"title" : "柠檬味少女/Lemon Giri [4k 60FPS] (20)"
+				},
+				{
+					"config" : 
+					{
+						"layout" : null,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/2742178624/scene.pkg",
+								"playlist" : 
+								{
+									"items" : 
+									[
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1654944196/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1525871219/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/907925288/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1115554966/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2385816889/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3615154110/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1169486096/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2134765860/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3634342477/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3455079699/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3293156956/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2695970242/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2742178624/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2838654350/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3050719492/scene.pkg"
+									],
+									"name" : "NIGHT_FOCUS",
+									"settings" : 
+									{
+										"delay" : 120,
+										"mode" : "never",
+										"order" : "random",
+										"transition" : "-2",
+										"transitiontime" : 1500,
+										"updateonpause" : false,
+										"videosequence" : false
+									}
+								}
+							}
+						}
+					},
+					"playlist" : true,
+					"title" : "Into the night (16)"
+				},
+				{
+					"config" : 
+					{
+						"layout" : null,
+						"profile" : null,
+						"selectedwallpapers" : 
+						{
+							"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+							{
+								"file" : "E:/SteamLibrary/steamapps/workshop/content/431960/996733973/scene.pkg",
+								"playlist" : 
+								{
+									"items" : 
+									[
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2325188052/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/996733973/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2288349344/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2481680388/柯基 (3).mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2706933769/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3318709652/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2630327640/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3470764447/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3147346398/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3455079699/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3296485924/hoshino.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2550204033/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2242785975/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/3029439711/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2983514176/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2802161091/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/837766287/Ori DE.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1896225027/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2230132661/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2744538407/MonaWallpaperFHD.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1364019990/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2385663994/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2260158910/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1959824262/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2202540355/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2306076410/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/843532366/gifscene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2214537091/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2507666716/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2477602742/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2470144420/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1457581889/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2488626583/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2138655350/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2070137802/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/1672387064/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/2087145135/scene.pkg",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/909478942/Miko fox (Ver.1.2).mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/841092530/序列 01.mp4",
+										"E:/SteamLibrary/steamapps/workshop/content/431960/925684318/Sequence 01_4.mp4"
+									],
+									"name" : "SUNSET_GLOW",
+									"settings" : 
+									{
+										"delay" : 120,
+										"mode" : "never",
+										"order" : "random",
+										"transition" : "-2",
+										"transitiontime" : 1500,
+										"updateonpause" : false,
+										"videosequence" : false
+									}
+								}
+							}
+						}
+					},
+					"playlist" : true,
+					"title" : "森 - 黄昏 (41)"
+				}
+			],
+			"wallpaperconfigscreensaver" : 
+			{
+				"layout" : 0,
+				"profile" : null,
+				"sameaswallpaper" : true,
+				"selectedwallpapers" : 
+				{
+					"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+					{
+						"file" : null
+					}
+				}
+			}
+		},
+		"version" : 5,
+		"wproperties" : 
+		{
+			"E:/SteamLibrary/steamapps/workshop/content/431960/1082586397/index.html" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"musicCombo" : "2"
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/1546626729/Zeraphym - Lifeline.mp4" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : {}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/2118331982/EP17_steam.mp4" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : {}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/2141194432/合成 1_1.mp4" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : {}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/2592852713/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : {}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3028473503/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"fontcolorff6b6bbigbpromptbox" : false
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3219908811/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"day" : false,
+					"fontcolorff4848bigbpromptbox" : false,
+					"time" : false,
+					"week" : false
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3326873240/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"_2" : "",
+					"fontcolorff4848bigbpromptbox" : false,
+					"newproperty46" : false,
+					"newproperty54" : false,
+					"newproperty55" : "",
+					"newproperty59" : false
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3330774573/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"fontcolorff4848bigbpromptbox" : false
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3354366708/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"_2" : "",
+					"newproperty46" : false,
+					"newproperty54" : false,
+					"newproperty55" : "",
+					"newproperty59" : false
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3463280673/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"newproperty55" : "东风夜放花千树"
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3470764447/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"fontcolorff4848bigbpromptbox" : false,
+					"newproperty46" : false,
+					"newproperty50" : false,
+					"newproperty54" : false,
+					"newproperty59" : false
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3479521040/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"newproperty1" : false
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3490034653/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"alignment" : 0,
+					"alignmentposition" : 50,
+					"newproperty14" : "『せめて、君だけは無事でいて···』",
+					"volume" : 32,
+					"y" : -0.36000001,
+					"y1" : -0.44
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3634342477/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"cpu" : "英特尔第十二代酷睿i5-12450H八核",
+					"disk" : "ZHITAI TiPlus5000 1TB ( 1024GB)",
+					"gpu" : "NVIDIA GeForce RTX 3060 Laptop GPU ( 6GB )",
+					"memory" : "16GB DDR4 3200MHz (8GB + 8GB）",
+					"motherboard" : "MECHREVO GS5AGOO",
+					"nomedosistema" : "Laptop-Of-Xyw",
+					"usurio" : "L1nex"
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/3641860575/scene.pkg" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : 
+				{
+					"newproperty" : false
+				}
+			},
+			"E:/SteamLibrary/steamapps/workshop/content/431960/932995255/桜庭統 - Great Grey Wolf Sif.mp4" : 
+			{
+				"//?/DISPLAY#CSO1507#4&2b071a0f&0&UID8388688#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" : {}
+			}
+		}
+	}
+}

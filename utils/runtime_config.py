@@ -34,6 +34,7 @@ class PlaylistConfig(BaseModel):
     display: str = ""
     color: str
     tags: dict[str, float] = Field(default_factory=dict)
+    item_count: int = 0
 
     @field_validator("color")
     @classmethod

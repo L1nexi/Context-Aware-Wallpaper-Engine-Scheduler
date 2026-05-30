@@ -26,6 +26,20 @@ function formatPlaylistRef(
   return playlist?.display ?? playlist?.name ?? t('dashboard_none')
 }
 
+export function formatPlaylistRefs(
+  playlists: PlaylistRef[] | undefined,
+  t: Translate,
+): string {
+  if (!playlists || playlists.length === 0) return t('dashboard_none')
+  return playlists.map((p) => p.display ?? p.name).join(', ')
+}
+
+export function getFirstPlaylistRef(
+  playlists: PlaylistRef[] | undefined,
+): PlaylistRef | null {
+  return playlists?.[0] ?? null
+}
+
 export function getTopMatchName(match: TopMatch, t: Translate): string {
   return formatPlaylistRef(match.playlist, t)
 }
@@ -35,10 +49,8 @@ export function getTickPlaylistLabel(
   type: 'active' | 'matched',
   t: Translate,
 ): string {
-  return formatPlaylistRef(
-    type === 'active' ? tick.summary.activePlaylist : tick.summary.matchedPlaylist,
-    t,
-  )
+  const playlists = type === 'active' ? tick.summary.activePlaylists : tick.summary.matchedPlaylists
+  return formatPlaylistRefs(playlists, t)
 }
 
 export function getPolicyTitle(policyId: PolicyId, t: Translate): string {
@@ -215,8 +227,8 @@ export function getDecisionSummary(
   tick: TickSnapshot,
   t: Translate,
 ): string {
-  const activeBefore = formatPlaylistRef(decision.activePlaylistBefore, t)
-  const activeAfter = formatPlaylistRef(decision.activePlaylistAfter, t)
+  const activeBefore = formatPlaylistRefs(decision.activePlaylistsBefore, t)
+  const activeAfter = formatPlaylistRefs(decision.activePlaylistsAfter, t)
 
   switch (decision.kind) {
     case 'switch':

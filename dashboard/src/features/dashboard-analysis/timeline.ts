@@ -71,7 +71,9 @@ function buildTrackSegments(
 
   ticks.forEach((tick, index) => {
     const playlist =
-      type === 'active' ? tick.summary.activePlaylist : tick.summary.matchedPlaylist
+      type === 'active'
+        ? tick.summary.activePlaylists[0] ?? null
+        : tick.summary.matchedPlaylists[0] ?? null
     const paused = tick.summary.paused
     const key = paused ? '__paused__' : playlist?.name ?? '__none__'
     const color = paused ? mutedColor : playlist?.color ?? mutedColor

@@ -43,9 +43,8 @@ _STATE_FILE = os.path.join(get_data_dir(), "state.json")
 class SchedulerState(BaseModel):
     paused: bool = False
     pause_until: float = 0.0
-    cached_playlist: str = ""
-    last_playlist_switch_time: float = 0.0
-    last_wallpaper_switch_time: float = 0.0
+    cached_playlists: list[str] = []
+    last_action_time: float = 0.0
 
     @staticmethod
     def load_state(path: str = _STATE_FILE) -> SchedulerState:
@@ -100,7 +99,7 @@ class WEScheduler:
         self.we_config_prober: WEConfigProber | None = None
         self.managed_playlists: set[str] = set()
 
-        self.cached_playlist: str = ""
+        self.cached_playlists: list[str] = []
         self.last_status_line: str = ""
         self.last_tick_trace: SchedulerTickTrace | None = None
         self.last_reload_error: ConfigLoadError | None = None
@@ -210,28 +209,28 @@ class WEScheduler:
         live_context = self.context_manager.refresh()  # Sense
         context_snapshot = copy.deepcopy(live_context)
         match = self.matcher.evaluate(context_snapshot)  # Think
-        cached_playlist_before = self.cached_playlist
+        cached_playlists_before = self.cached_playlists
         factual = self.we_config_prober.probe_playlist()
         resolution = resolve_playlist_state(
             factual,
-            cached_playlist=cached_playlist_before,
+            cached_playlists=cached_playlists_before,
             managed_playlists=self.managed_playlists,
             paused=self.paused,
         )
 
         if self.paused:
-            action = self._build_paused_actuation_outcome(match, cached_playlist_before)
+            action = self._build_paused_actuation_outcome(match, cached_playlists_before)
         elif resolution.recovery_needed and resolution.recovery_reason is not None:
             action = self.actuator.act_recovery(
                 match,
-                resolution.effective_playlist,
+                resolution.effective_playlists,
                 resolution.recovery_reason,
             )
         else:
             action = self.actuator.act(
                 context_snapshot,
                 match,
-                resolution.effective_playlist,
+                resolution.effective_playlists,
             )
 
         self.tick_id += 1
@@ -256,8 +255,7 @@ class WEScheduler:
         live_context = self.context_manager.refresh()
         context_snapshot = copy.deepcopy(live_context)
         match = self.matcher.evaluate(context_snapshot)
-        effective_playlist_before = self.cached_playlist
-        action = self.actuator.act_manual(match, effective_playlist_before)
+        action = self.actuator.act_manual(match, self.cached_playlists)
 
         self.tick_id += 1
         return SchedulerTickTrace(
@@ -273,17 +271,17 @@ class WEScheduler:
     def _build_paused_actuation_outcome(
         self,
         match: MatchEvaluation,
-        effective_playlist_before: str,
+        effective_playlists_before: list[str],
     ) -> ActuationOutcome:
         return ActuationOutcome(
             decision=ControllerDecision(
                 kind=ActionKind.PAUSE,
                 reason_code=ActionReasonCode.SCHEDULER_PAUSED,
-                matched_playlist=match.best_playlist,
+                matched_playlists=match.best_playlists,
                 evaluation=None,
             ),
-            effective_playlist_before=effective_playlist_before,
-            effective_playlist_after=effective_playlist_before,
+            effective_playlists_before=effective_playlists_before,
+            effective_playlists_after=effective_playlists_before,
             executed=False,
         )
 
@@ -291,9 +289,9 @@ class WEScheduler:
         self.last_tick_trace = trace
 
         should_save_state = False
-        next_cached_playlist = self._resolve_cached_playlist_after(trace.action)
-        if next_cached_playlist != self.cached_playlist:
-            self.cached_playlist = next_cached_playlist
+        next_cached_playlists = self._resolve_cached_playlists_after(trace.action)
+        if next_cached_playlists != self.cached_playlists:
+            self.cached_playlists = next_cached_playlists
             should_save_state = True
 
         if trace.action.executed:
@@ -310,12 +308,12 @@ class WEScheduler:
             except Exception:
                 logger.exception("on_tick hook failed")
 
-    def _resolve_cached_playlist_after(self, action: ActuationOutcome) -> str:
+    def _resolve_cached_playlists_after(self, action: ActuationOutcome) -> list[str]:
         if action.kind == ActionKind.SWITCH and action.executed:
-            return action.effective_playlist_after
-        if action.effective_playlist_before:
-            return action.effective_playlist_before
-        return self.cached_playlist
+            return list(action.effective_playlists_after)
+        if action.effective_playlists_before:
+            return list(action.effective_playlists_before)
+        return list(self.cached_playlists)
 
     def _check_hot_reload(self) -> None:
         fingerprint = self.config_loader.fingerprint()
@@ -338,6 +336,7 @@ class WEScheduler:
             executor,
             SchedulingController(config.scheduling),
             history_logger=self.history_logger,
+            playlists=config.playlists,
         )
         display_of = {playlist_name: playlist.display or playlist_name for playlist_name, playlist in config.playlists.items()}
         color_of = {playlist_name: playlist.color for playlist_name, playlist in config.playlists.items()}
@@ -405,17 +404,15 @@ class WEScheduler:
         return SchedulerState(
             paused=self.paused,
             pause_until=self.pause_until,
-            cached_playlist=self.cached_playlist,
-            last_playlist_switch_time=controller.last_playlist_switch_time,
-            last_wallpaper_switch_time=controller.last_wallpaper_switch_time,
+            cached_playlists=self.cached_playlists,
+            last_action_time=controller.last_action_time,
         )
 
     def _restore_state(self, state: SchedulerState) -> None:
-        self.cached_playlist = state.cached_playlist
+        self.cached_playlists = list(state.cached_playlists)
         self.actuator.controller.import_state(
             {
-                "last_playlist_switch_time": state.last_playlist_switch_time,
-                "last_wallpaper_switch_time": state.last_wallpaper_switch_time,
+                "last_action_time": state.last_action_time,
             }
         )
 
@@ -434,11 +431,15 @@ class WEScheduler:
     def _update_status(self, trace: SchedulerTickTrace) -> None:
         process_name = trace.context.window.process or "N/A"
         idle_time = trace.context.idle
-        best_playlist = trace.match.best_playlist
+        best_playlists = trace.match.best_playlists
         tags = trace.match.raw_context_vector
         sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:3]
 
-        label = self.display_of.get(best_playlist) if best_playlist else None
+        if best_playlists:
+            primary = self.display_of.get(best_playlists[0], best_playlists[0])
+            label = f"{primary}(+{len(best_playlists) - 1})" if len(best_playlists) > 1 else primary
+        else:
+            label = None
 
         tag_parts = []
         for tag, weight in sorted_tags:

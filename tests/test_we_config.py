@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 
-from utils.we_config import FactualPlaylistStatus, WEConfigProber
+import pytest
+
+from utils.we_config import FactualPlaylistStatus, WEConfigProber, WEConfigReadError
 
 
 def _write_we_config(tmp_path, data: object) -> str:
@@ -156,3 +158,51 @@ def test_scan_playlist_names_reads_playlist_list(monkeypatch, tmp_path):
     names = WEConfigProber(exe).scan_playlist_names()
 
     assert names == ["Focus", "Rain"]
+
+
+def test_probe_item_counts_returns_item_count_per_playlist(monkeypatch, tmp_path):
+    monkeypatch.setattr("utils.we_config.getpass.getuser", lambda: "test-user")
+    exe = _write_we_config(
+        tmp_path,
+        _user_config(
+            {
+                "playlists": [
+                    {"name": "Focus", "items": ["a.mp4", "b.pkg", "c.mp4"]},
+                    {"name": "Rain", "items": ["x.pkg"]},
+                ]
+            }
+        ),
+    )
+
+    counts = WEConfigProber(exe).probe_item_counts()
+
+    assert counts == {"Focus": 3, "Rain": 1}
+
+
+def test_probe_item_counts_skips_entries_without_items(monkeypatch, tmp_path):
+    monkeypatch.setattr("utils.we_config.getpass.getuser", lambda: "test-user")
+    exe = _write_we_config(
+        tmp_path,
+        _user_config(
+            {
+                "playlists": [
+                    {"name": "Focus", "items": ["a.mp4"]},
+                    {"name": "Empty"},
+                    {"name": "Bad", "items": "not_a_list"},
+                ]
+            }
+        ),
+    )
+
+    counts = WEConfigProber(exe).probe_item_counts()
+
+    assert counts == {"Focus": 1}
+
+
+def test_probe_item_counts_raises_on_read_error(tmp_path):
+    exe = tmp_path / "wallpaper64.exe"
+    exe.write_text("fake", encoding="utf-8")
+    (tmp_path / "config.json").write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(WEConfigReadError):
+        WEConfigProber(str(exe)).probe_item_counts()

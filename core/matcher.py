@@ -15,6 +15,8 @@ logger = logging.getLogger("WEScheduler.Matcher")
 
 _MIN_SIMILARITY = 0.001
 _MIN_EXPAND_WEIGHT = 0.02
+_CLUSTER_GAP_THRESHOLD = 0.02  # adjacent score gap exceeding this breaks clustering
+_MAX_CLUSTER_SIZE = 4  # max length of best_playlists
 
 
 class Matcher:
@@ -37,6 +39,10 @@ class Matcher:
         self.dim = len(self.all_tags)
 
         self._warned_tags: set[str] = set()
+
+        self._item_counts: dict[str, int] = {
+            name: cfg.item_count for name, cfg in playlists.items()
+        }
 
         self.playlist_vectors: list[tuple[str, list[float]]] = []
         for playlist_name, playlist in playlists.items():
@@ -76,7 +82,7 @@ class Matcher:
                 for resolved_tag, resolved_weight in resolved_tags.items():
                     bucket[resolved_tag] = bucket.get(resolved_tag, 0.0) + resolved_weight
 
-        best_playlist: str | None = None
+        best_playlists: list[str] = []
         playlist_matches: list[tuple[str, float]] = []
 
         if self.playlist_vectors and resolved_context_vector:
@@ -88,25 +94,59 @@ class Matcher:
             norm_env = math.sqrt(sum(value * value for value in env_vector))
             if norm_env >= 1e-6:
                 env_vector = [value / norm_env for value in env_vector]
-                scores: list[tuple[float, str]] = []
+                raw_scores: list[tuple[float, str]] = []
                 for name, playlist_vector in self.playlist_vectors:
                     sim = sum(a * b for a, b in zip(env_vector, playlist_vector))
-                    scores.append((sim, name))
+                    raw_scores.append((sim, name))
 
-                scores.sort(reverse=True)
-                candidate_score, candidate = scores[0]
-                playlist_matches = [(name, score) for score, name in scores]
-                if candidate_score > _MIN_SIMILARITY:
-                    best_playlist = candidate
+                raw_scores.sort(reverse=True)
+                playlist_matches = [(name, score) for score, name in raw_scores]
+
+                # Gap-based clustering
+                for i, (score, name) in enumerate(raw_scores):
+                    if score < _MIN_SIMILARITY:
+                        break
+                    if i >= _MAX_CLUSTER_SIZE:
+                        break
+                    if i > 0 and raw_scores[i - 1][0] - score > _CLUSTER_GAP_THRESHOLD:
+                        break
+                    best_playlists.append(name)
+
+        # Compute similarity: weighted average of best_playlists scores by item_count
+        similarity = 0.0
+        if best_playlists and playlist_matches:
+            score_lookup = dict(playlist_matches)
+            weighted_sum = 0.0
+            total_weight = 0.0
+            for name in best_playlists:
+                score = score_lookup.get(name, 0.0)
+                weight = self._item_counts.get(name, 0)
+                if weight > 0:
+                    weighted_sum += score * weight
+                    total_weight += weight
+                else:
+                    weighted_sum += score
+                    total_weight += 1
+            similarity = weighted_sum / total_weight if total_weight > 0 else 0.0
+
+        # Compute similarity_gap: top-1 vs top-2 score difference
+        similarity_gap = 0.0
+        if playlist_matches:
+            if len(playlist_matches) >= 2:
+                similarity_gap = playlist_matches[0][1] - playlist_matches[1][1]
+            else:
+                similarity_gap = playlist_matches[0][1]
 
         return MatchEvaluation(
-            best_playlist=best_playlist,
+            best_playlists=best_playlists,
             playlist_matches=playlist_matches,
             raw_context_vector=raw_context_vector,
             resolved_context_vector=resolved_context_vector,
             fallback_expansions=fallback_expansions,
             policy_evaluations=policy_evaluations,
             max_policy_magnitude=max_policy_magnitude,
+            similarity=similarity,
+            similarity_gap=similarity_gap,
         )
 
     def _resolve_raw_tags(

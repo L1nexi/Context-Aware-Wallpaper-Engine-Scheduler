@@ -261,12 +261,15 @@ class TrayIcon:
         return t("status_paused_remaining", remaining=" ".join(parts))
 
     def _get_active_text(self) -> str:
-        playlist = self.scheduler.cached_playlist
+        playlists = self.scheduler.cached_playlists
         if not self.scheduler.paused and self.scheduler.last_tick_trace is not None:
-            playlist = self.scheduler.last_tick_trace.action.effective_playlist_after or playlist
+            effective = self.scheduler.last_tick_trace.action.effective_playlists_after
+            if effective:
+                playlists = effective
 
-        if playlist:
-            active = self.scheduler.display_of.get(playlist, playlist)
+        if playlists:
+            primary = self.scheduler.display_of.get(playlists[0], playlists[0])
+            active = f"{primary}(+{len(playlists) - 1})" if len(playlists) > 1 else primary
         else:
             active = t("tray_outside_configured_playlists")
         return t("tray_active", playlist=active)
@@ -275,10 +278,13 @@ class TrayIcon:
         trace = self.scheduler.last_tick_trace
         if trace is None:
             return None
-        playlist = trace.match.best_playlist
-        if playlist is None:
+        best_playlists = trace.match.best_playlists
+        if not best_playlists:
             return None
-        return self.scheduler.display_of.get(playlist, playlist)
+        primary = self.scheduler.display_of.get(best_playlists[0], best_playlists[0])
+        if len(best_playlists) > 1:
+            return f"{primary}(+{len(best_playlists) - 1})"
+        return primary
 
     def _can_apply_match(self) -> bool:
         return self._current_match_display() is not None

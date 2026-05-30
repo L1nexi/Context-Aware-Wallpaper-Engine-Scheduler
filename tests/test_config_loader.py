@@ -23,6 +23,7 @@ def mock_resolved_wallpaper_engine_path(monkeypatch, tmp_path):
         return str(fake_exe)
 
     monkeypatch.setattr("utils.config_documents.resolve_wallpaper_engine_path", _resolve)
+    monkeypatch.setattr("utils.we_config.WEConfigProber.probe_item_counts", lambda self: {})
     return str(fake_exe)
 
 

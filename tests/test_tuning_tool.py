@@ -29,6 +29,11 @@ from tools.tuning.tune import run_tuning
 from utils.config_loader import ConfigLoader
 from utils.runtime_config import ActivityPolicyConfig
 
+
+@pytest.fixture(autouse=True)
+def mock_probe_item_counts(monkeypatch):
+    monkeypatch.setattr("utils.we_config.WEConfigProber.probe_item_counts", lambda self: {})
+
 TAG_NAMES = [
     "focus",
     "chill",

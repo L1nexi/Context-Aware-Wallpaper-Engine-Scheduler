@@ -13,39 +13,39 @@ class PlaylistRecoveryReason(StrEnum):
 
 @dataclass(frozen=True)
 class PlaylistStateResolution:
-    effective_playlist: str
+    effective_playlists: list[str]
     recovery_needed: bool = False
     recovery_reason: PlaylistRecoveryReason | None = None
 
 
 def resolve_playlist_state(
     factual: FactualPlaylistState,
-    cached_playlist: str,
+    cached_playlists: list[str],
     managed_playlists: set[str],
     paused: bool,
 ) -> PlaylistStateResolution:
-    """空 effective_playlist 表示本 tick 已知 WE 不处于任何可信的 managed playlist 中。
-    它不是缓存值。这防止普通调度把过期 cached_playlist 当成当前 playlist。
+    """空 effective_playlists 表示本 tick 已知 WE 不处于任何可信的 managed playlist 中。
+    它不是缓存值。这防止普通调度把过期 cached_playlists 当成当前 playlist。
     """
     if factual.status == FactualPlaylistStatus.PLAYLIST:
         playlist = factual.playlist
         if playlist in managed_playlists:
             return PlaylistStateResolution(
-                effective_playlist=playlist,  # Factual managed playlist
+                effective_playlists=[playlist],  # Factual managed playlist
             )
         return PlaylistStateResolution(
-            effective_playlist="",
+            effective_playlists=[],
             recovery_needed=not paused,
             recovery_reason=PlaylistRecoveryReason.UNMANAGED_PLAYLIST,
         )
 
     if factual.status == FactualPlaylistStatus.NO_PLAYLIST:
         return PlaylistStateResolution(
-            effective_playlist="",
+            effective_playlists=[],
             recovery_needed=not paused,
             recovery_reason=PlaylistRecoveryReason.NO_PLAYLIST,
         )
 
     return PlaylistStateResolution(
-        effective_playlist=cached_playlist,  # Unknown/Ambiguous
+        effective_playlists=list(cached_playlists),  # Unknown/Ambiguous
     )

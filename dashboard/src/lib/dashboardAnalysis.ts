@@ -161,9 +161,9 @@ export interface ActionDecision {
   kind: ActionKind
   reasonCode: ActionReasonCode
   executed: boolean
-  activePlaylistBefore: PlaylistRef | null
-  activePlaylistAfter: PlaylistRef | null
-  matchedPlaylist: PlaylistRef | null
+  activePlaylistsBefore: PlaylistRef[]
+  activePlaylistsAfter: PlaylistRef[]
+  matchedPlaylists: PlaylistRef[]
 }
 
 export interface TopMatch {
@@ -198,8 +198,8 @@ export interface TickSummary {
   ts: number
   similarity: number
   similarityGap: number
-  activePlaylist: PlaylistRef | null
-  matchedPlaylist: PlaylistRef | null
+  activePlaylists: PlaylistRef[]
+  matchedPlaylists: PlaylistRef[]
   actionKind: ActionKind
   reasonCode: ActionReasonCode
   paused: boolean
