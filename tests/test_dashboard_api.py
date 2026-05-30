@@ -246,7 +246,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
         matched_playlist="focus",
         executed=False,
         action_kind=ActionKind.HOLD,
-        reason_code=ActionReasonCode.SWITCH_BLOCKED_COOLDOWN,
+        reason_code=ActionReasonCode.SWITCH_BLOCKED_NOT_IDLE,
         evaluation=evaluation,
         weather=WeatherData(
             id=501,
@@ -294,7 +294,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
         "color": "#4A90D9",
     }
     assert snapshot["act"]["controller"]["evaluation"]["operation"] == "switch"
-    assert snapshot["act"]["decision"]["reasonCode"] == "switch_blocked_cooldown"
+    assert snapshot["act"]["decision"]["reasonCode"] == "switch_blocked_not_idle"
     assert snapshot["act"]["decision"]["activePlaylistBefore"] == {
         "name": "idle",
         "display": "idle",

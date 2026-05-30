@@ -131,7 +131,7 @@
   "dashboard_reason_no_match": "No playlist match was available.",
   "dashboard_reason_hold_same_playlist": "The matched playlist is already active.",
   "dashboard_reason_switch_allowed": "A playlist switch was allowed and executed.",
-  "dashboard_reason_switch_blocked_cooldown": "A playlist switch was blocked by cooldown.",
+  "dashboard_reason_switch_blocked_cooldown": "A playlist switch was blocked by startup warmup.",
   "dashboard_reason_switch_blocked_fullscreen": "A playlist switch was blocked by fullscreen pause.",
   "dashboard_reason_switch_blocked_cpu": "A playlist switch was blocked by CPU threshold.",
   "dashboard_reason_switch_blocked_not_idle": "A playlist switch was blocked because the user was not idle long enough.",

@@ -142,7 +142,6 @@ weather:
 scheduling:
   startup_delay: 15
   idle_threshold: 20
-  switch_cooldown: 150
   cycle_cooldown: 900
   force_after: 3600
   cpu_threshold: 85

@@ -106,7 +106,6 @@ class SchedulingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     startup_delay: float = Field(30.0, ge=0)
     idle_threshold: float = Field(60.0, ge=0)
-    switch_cooldown: float = Field(1800.0, ge=0)
     force_after: float = Field(14400.0, ge=0)
     cycle_cooldown: float = Field(600.0, ge=0)
     cpu_threshold: float = Field(85.0, ge=0, le=100)

@@ -294,7 +294,6 @@ class SchedulingFileEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     startup_delay: float = Field(30.0, ge=0)
     idle_threshold: float = Field(60.0, ge=0)
-    switch_cooldown: float = Field(1800.0, ge=0)
     force_after: float = Field(14400.0, ge=0)
     cycle_cooldown: float = Field(600.0, ge=0)
     cpu_threshold: float = Field(85.0, ge=0, le=100)
@@ -305,7 +304,6 @@ class SchedulingFileEntry(BaseModel):
         return SchedulingConfig(
             startup_delay=self.startup_delay,
             idle_threshold=self.idle_threshold,
-            switch_cooldown=self.switch_cooldown,
             force_after=self.force_after,
             cycle_cooldown=self.cycle_cooldown,
             cpu_threshold=self.cpu_threshold,

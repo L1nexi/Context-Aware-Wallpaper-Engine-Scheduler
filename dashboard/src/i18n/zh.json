@@ -131,7 +131,7 @@
   "dashboard_reason_no_match": "没有可用的播放列表匹配结果。",
   "dashboard_reason_hold_same_playlist": "命中的播放列表已经处于激活状态。",
   "dashboard_reason_switch_allowed": "允许并执行了一次播放列表切换。",
-  "dashboard_reason_switch_blocked_cooldown": "播放列表切换被冷却时间阻止。",
+  "dashboard_reason_switch_blocked_cooldown": "播放列表切换被启动预热阻止。",
   "dashboard_reason_switch_blocked_fullscreen": "播放列表切换被全屏暂停阻止。",
   "dashboard_reason_switch_blocked_cpu": "播放列表切换被 CPU 阈值阻止。",
   "dashboard_reason_switch_blocked_not_idle": "播放列表切换被“用户尚未空闲足够久”阻止。",

@@ -174,7 +174,6 @@ def test_controller_evaluation_reports_all_blockers(monkeypatch):
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
-            switch_cooldown=10,
             force_after=100,
             cycle_cooldown=15,
             idle_threshold=60,
@@ -202,10 +201,9 @@ def test_controller_evaluation_reports_all_blockers(monkeypatch):
 
     assert switch_eval.allowed is False
     assert switch_eval.operation == "switch"
-    assert switch_eval.cooldown_remaining == pytest.approx(5.0)
+    assert switch_eval.cooldown_remaining == pytest.approx(0.0)
     assert switch_eval.force_after_remaining == pytest.approx(95.0)
     assert set(switch_eval.blocked_by) == {
-        ControllerBlocker.COOLDOWN,
         ControllerBlocker.CPU,
         ControllerBlocker.FULLSCREEN,
         ControllerBlocker.IDLE,
@@ -222,12 +220,61 @@ def test_controller_evaluation_reports_all_blockers(monkeypatch):
     }
 
 
+def test_controller_warmup_blocks_all_operations(monkeypatch):
+    """During startup warmup, both switch and cycle are blocked by COOLDOWN,
+    and context gates (CPU, fullscreen) are still collected."""
+    monkeypatch.setattr("core.controller.time.time", lambda: 100.0)
+    controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=30,
+            force_after=100,
+            cycle_cooldown=15,
+            idle_threshold=60,
+            cpu_threshold=80,
+            cpu_sample_window=1,
+            pause_on_fullscreen=True,
+        )
+    )
+    # t=105: 5s into 30s warmup
+    monkeypatch.setattr("core.controller.time.time", lambda: 105.0)
+
+    context = Context(idle=120.0, cpu=90.0, fullscreen=True)
+
+    switch_decision = controller.decide_action(
+        context,
+        MatchEvaluation(best_playlist="rain", playlist_matches=[("rain", 0.8)]),
+        "focus",
+    )
+    cycle_decision = controller.decide_action(
+        context,
+        MatchEvaluation(best_playlist="focus", playlist_matches=[("focus", 0.8)]),
+        "focus",
+    )
+
+    switch_eval = switch_decision.evaluation
+    cycle_eval = cycle_decision.evaluation
+
+    # Both blocked despite user being idle (idle=120 >= threshold=60)
+    assert switch_eval.allowed is False
+    assert ControllerBlocker.COOLDOWN in switch_eval.blocked_by
+    assert ControllerBlocker.IDLE not in switch_eval.blocked_by
+    assert switch_eval.cooldown_remaining == pytest.approx(25.0)
+
+    assert cycle_eval.allowed is False
+    assert ControllerBlocker.COOLDOWN in cycle_eval.blocked_by
+    assert ControllerBlocker.IDLE not in cycle_eval.blocked_by
+    assert cycle_eval.cooldown_remaining == pytest.approx(25.0)
+
+    # Context gates still collected
+    assert ControllerBlocker.CPU in switch_eval.blocked_by
+    assert ControllerBlocker.FULLSCREEN in switch_eval.blocked_by
+
+
 def test_controller_switch_force_after_overrides_idle(monkeypatch):
     monkeypatch.setattr("core.controller.time.time", lambda: 500.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
-            switch_cooldown=10,
             force_after=100,
             cycle_cooldown=15,
             idle_threshold=60,
@@ -269,17 +316,6 @@ def test_controller_switch_force_after_overrides_idle(monkeypatch):
             ActionReasonCode.SWITCH_ALLOWED,
         ),
         (
-            MatchEvaluation(best_playlist="rain", playlist_matches=[("rain", 0.8), ("focus", 0.6)]),
-            "focus",
-            ControllerEvaluation(
-                operation="switch",
-                allowed=False,
-                blocked_by=[ControllerBlocker.COOLDOWN],
-            ),
-            ControllerEvaluation(operation="cycle", allowed=False),
-            ActionReasonCode.SWITCH_BLOCKED_COOLDOWN,
-        ),
-        (
             MatchEvaluation(best_playlist="focus", playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
             "focus",
             ControllerEvaluation(operation="switch", allowed=False),
@@ -316,7 +352,6 @@ def test_controller_decide_reason_code(
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
-            switch_cooldown=10,
             force_after=100,
             cycle_cooldown=15,
             idle_threshold=60,

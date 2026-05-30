@@ -9,6 +9,7 @@ Windows-only Python 桌面应用，基于用户上下文（活动窗口、空闲
 ## 常用命令
 
 ### Python 后端
+
 ```bash
 pip install -r requirements.txt
 python main.py              # 托盘模式
@@ -19,17 +20,22 @@ pytest tests/test_foo.py    # 运行单个测试文件
 ```
 
 ### 代码检查 / 格式化（Ruff，Python 3.13，行宽 150）
+
+虚拟环境位于 `venv313/`
+
 ```powershell
 python -m ruff check . --fix
 python -m ruff format .
 ```
 
 ### 构建可执行文件
+
 ```powershell
 .\scripts\build.bat
 ```
 
 ### Dashboard 前端（Vue 3 + Vite + TypeScript）
+
 ```bash
 cd dashboard
 npm run dev           # 开发服务器
@@ -40,10 +46,12 @@ npm run format        # Prettier
 ```
 
 Dashboard 联调（避免完整托盘流程）：
+
 ```bash
 python main.py --dashboard-api-port 38417
 cd dashboard && npm run dev
 ```
+
 后端端口需与前端 `DASHBOARD_API_PORT=<port>` 保持一致，默认端口 `38417`。
 
 ## 架构
@@ -69,12 +77,14 @@ Sensors -> Context -> Policies -> Matcher -> Controller -> Actuator -> WEExecuto
 - **Diagnostics** (`core/diagnostics.py`)：`SchedulerTickTrace` dataclass 层级，用于 tick 内省
 
 ### UI 层
+
 - **Tray** (`ui/tray.py`)：pystray 系统托盘，支持 i18n（中文/英文）
 - **Dashboard HTTP** (`ui/dashboard.py`)：Bottle 服务器，`GET /api/analysis/window` 提供 tick 诊断数据
 - **Dashboard Analysis** (`ui/dashboard_analysis.py`)：`AnalysisStore`（最多 1200 条 trace 的 deque），Pydantic DTO（camelCase 别名）
 - **Dashboard 前端** (`dashboard/`)：Vue 3 SPA，Pinia + ECharts + Tailwind CSS v4
 
 ### Utils 层
+
 - `config_loader.py` / `config_documents.py` / `runtime_config.py`：加载、校验（Pydantic v2，`extra="forbid"`）、合并 6 个 YAML 配置文件为 `SchedulerConfig`
 - `history_logger.py`：JSONL 事件日志，按月分片
 - `i18n.py`：根据系统语言自动切换中文/英文

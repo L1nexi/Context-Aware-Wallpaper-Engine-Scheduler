@@ -79,16 +79,16 @@ def _blocked_reason(
 class SchedulingController:
     def __init__(self, config: SchedulingConfig):
         self.idle_threshold = config.idle_threshold
-        self.switch_cooldown = config.switch_cooldown
         self.force_after = config.force_after
         self.cycle_cooldown = config.cycle_cooldown
         self.cpu_threshold = config.cpu_threshold
         self.pause_on_fullscreen = config.pause_on_fullscreen
 
-        startup_delay = min(max(config.startup_delay, 0), self.switch_cooldown)
-        init_time = time.time() - (self.switch_cooldown - startup_delay)
-        self.last_playlist_switch_time = init_time
-        self.last_wallpaper_switch_time = init_time
+        startup_delay = max(config.startup_delay, 0)
+        now = time.time()
+        self.startup_end = now + startup_delay
+        self.last_playlist_switch_time = now
+        self.last_wallpaper_switch_time = now
         self._gates: list[CpuGate | FullscreenGate] = []
         if self.cpu_threshold > 0:
             self._gates.append(CpuGate(self.cpu_threshold))
@@ -102,19 +102,24 @@ class SchedulingController:
         operation: ControllerOperation,
     ) -> ControllerEvaluation:
         current_time = time.time()
+
+        blocked_by: list[ControllerBlocker] = []
+        warmup_remaining = max(0.0, self.startup_end - current_time)
+        if warmup_remaining > 0:
+            blocked_by.append(ControllerBlocker.COOLDOWN)
+        blocked_by.extend(self._evaluate_gates(context))
+
         if operation == "switch":
             time_since_last = current_time - self.last_playlist_switch_time
-            cooldown_remaining = max(0.0, self.switch_cooldown - time_since_last)
+            cooldown_remaining = 0.0
             force_after_remaining = max(0.0, self.force_after - time_since_last)
         else:
             time_since_last = current_time - self.last_wallpaper_switch_time
             cooldown_remaining = max(0.0, self.cycle_cooldown - time_since_last)
             force_after_remaining = None
 
-        blocked_by: list[ControllerBlocker] = []
-        if cooldown_remaining > 0:
+        if cooldown_remaining > 0 and ControllerBlocker.COOLDOWN not in blocked_by:
             blocked_by.append(ControllerBlocker.COOLDOWN)
-        blocked_by.extend(self._evaluate_gates(context))
 
         idle_seconds = context.idle
         if operation == "switch":
@@ -129,7 +134,7 @@ class SchedulingController:
             operation=operation,
             allowed=not blocked_by,
             blocked_by=blocked_by,
-            cooldown_remaining=cooldown_remaining,
+            cooldown_remaining=warmup_remaining if warmup_remaining > 0 else cooldown_remaining,
             idle_seconds=idle_seconds,
             idle_threshold=self.idle_threshold,
             cpu_percent=context.cpu,
