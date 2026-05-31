@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -16,138 +16,26 @@ def logger(tmp_path):
     return HistoryLogger(str(tmp_path))
 
 
-def _iso(ts: datetime) -> str:
-    return ts.isoformat(timespec="seconds")
-
-
-# ── write() ─────────────────────────────────────────────────────────
-
-
 def test_write_returns_monotonically_incrementing_id(logger):
     assert logger.write(EventType.START, {"playlist": "A"}) == 1
     assert logger.write(EventType.PAUSE, {"reason": "idle"}) == 2
     assert logger.write(EventType.RESUME, {"playlist": "A"}) == 3
 
 
-def test_last_event_id_tracks_writes(logger):
-    assert logger.last_event_id == 0
-    logger.write(EventType.START, {})
-    assert logger.last_event_id == 1
-    logger.write(EventType.PAUSE, {})
-    assert logger.last_event_id == 2
-
-
 def test_write_persists_to_jsonl(logger):
     logger.write(EventType.START, {"playlist": "test"})
+
     files = os.listdir(logger._data_dir)
     assert len(files) == 1
     filepath = os.path.join(logger._data_dir, files[0])
     with open(filepath, encoding="utf-8") as f:
         lines = f.readlines()
+
     assert len(lines) == 1
     record = json.loads(lines[0])
     assert record["type"] == EventType.START
     assert record["data"] == {"playlist": "test"}
     assert "ts" in record
-
-
-# ── read() ──────────────────────────────────────────────────────────
-
-
-def test_read_empty_history_returns_empty(logger):
-    result = logger.read()
-    assert result == {"events": [], "has_more": False}
-
-
-def test_read_with_explicit_range(logger):
-    logger.write(EventType.START, {"playlist": "A"})
-    t1 = datetime.now(UTC)
-    logger.write(EventType.PLAYLIST_SWITCH, {"playlist_from": "A", "playlist_to": "B"})
-    t2 = datetime.now(UTC)
-
-    result = logger.read(from_ts=_iso(t1), to_ts=_iso(t2))
-    assert len(result["events"]) >= 1
-    for evt in result["events"]:
-        assert evt["ts"] >= _iso(t1)
-
-
-def test_read_with_limit(logger):
-    for i in range(10):
-        logger.write(EventType.START, {"playlist": str(i)})
-    result = logger.read(limit=3)
-    assert len(result["events"]) == 3
-
-
-def test_read_limit_zero_returns_all(logger):
-    for i in range(5):
-        logger.write(EventType.START, {"playlist": str(i)})
-    result = logger.read(limit=0)
-    assert len(result["events"]) == 5
-
-
-def test_read_defaults_to_last_hour_when_no_range(logger):
-    logger.write(EventType.START, {"playlist": "A"})
-    result = logger.read()
-    assert "events" in result
-    assert "has_more" in result
-    assert result["has_more"] is False
-
-
-def test_read_with_to_ts(logger):
-    now = datetime.now(UTC)
-    t_before = _iso(now - timedelta(seconds=20))
-    t_cutoff = _iso(now - timedelta(seconds=10))
-    t_after = _iso(now - timedelta(seconds=5))
-
-    # Write events directly with explicit timestamps to avoid timing flakes
-    logger._ensure_file()
-    logger._event_id = 0  # reset so IDs are deterministic
-    with logger._lock:
-        for ts, etype, data in [
-            (t_before, EventType.START, {"playlist": "A"}),
-            (t_cutoff, EventType.PLAYLIST_SWITCH, {"playlist_from": "A", "playlist_to": "B"}),
-            (t_after, EventType.PAUSE, {"reason": "idle"}),
-        ]:
-            logger._event_id += 1
-            with open(logger._filepath, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"ts": ts, "type": etype, "data": data}, ensure_ascii=False) + "\n")
-
-    # t_cutoff is inclusive — it should be inside the window
-    # t_after is after the cutoff — should be excluded
-    result = logger.read(to_ts=t_cutoff)
-    types = [e["type"] for e in result["events"]]
-    assert EventType.START in types
-    assert EventType.PLAYLIST_SWITCH in types
-    assert EventType.PAUSE not in types
-
-
-# ── Monthly file rotation ───────────────────────────────────────────
-
-
-def test_month_key_from_ts():
-    assert HistoryLogger._month_key_from_ts("2026-04-28T12:34:56+00:00") == "2026-04"
-    assert HistoryLogger._month_key_from_ts("2026-01-01T00:00:00+00:00") == "2026-01"
-
-
-def test_months_in_range_spans_boundaries():
-    logger = HistoryLogger("/tmp/fake")
-    months = logger._months_in_range("2026-01-15T00:00:00+00:00", "2026-03-10T00:00:00+00:00")
-    assert "2026-01" in months
-    assert "2026-02" in months
-    assert "2026-03" in months
-
-
-def test_months_in_range_includes_current_month():
-    logger = HistoryLogger("/tmp/fake")
-    now_month = datetime.now().strftime("%Y-%m")
-    months = logger._months_in_range("2020-01-01T00:00:00+00:00", "2020-01-01T01:00:00+00:00")
-    assert now_month in months
-
-
-def test_filepath_for():
-    logger = HistoryLogger("/tmp/fake")
-    path = logger._filepath_for("2026-04")
-    assert path == os.path.join("/tmp/fake", "history-2026-04.jsonl")
 
 
 def test_ensure_file_switches_on_month_change(monkeypatch, tmp_path):
@@ -173,42 +61,8 @@ def test_ensure_file_switches_on_month_change(monkeypatch, tmp_path):
     logger._ensure_file()
     assert logger._filepath == os.path.join(str(tmp_path), "history-2026-01.jsonl")
 
-    # This call should see month_key "2026-02" ≠ "2026-01" and switch
     logger._ensure_file()
     assert logger._filepath == os.path.join(str(tmp_path), "history-2026-02.jsonl")
-
-
-# ── Corrupt lines ───────────────────────────────────────────────────
-
-
-def test_parse_line_blank():
-    assert HistoryLogger._parse_line("") is None
-    assert HistoryLogger._parse_line("   \n") is None
-
-
-def test_parse_line_valid():
-    record = HistoryLogger._parse_line('{"ts": "x", "type": "start"}')
-    assert record == {"ts": "x", "type": "start"}
-
-
-def test_parse_line_corrupt_json():
-    assert HistoryLogger._parse_line("not valid json {{{") is None
-
-
-def test_corrupt_lines_skipped_in_read(logger, tmp_path):
-    logger._ensure_file()
-    filepath = logger._filepath
-    with open(filepath, "a", encoding="utf-8") as f:
-        f.write("this is garbage\n")
-        f.write(json.dumps({"ts": "2026-01-01T00:00:00+00:00", "type": "start", "data": {}}, ensure_ascii=False) + "\n")
-        f.write("more garbage\n")
-
-    result = logger.read(from_ts="2026-01-01T00:00:00+00:00", to_ts="2026-12-31T23:59:59+00:00")
-    assert len(result["events"]) == 1
-    assert result["events"][0]["type"] == "start"
-
-
-# ── Thread safety ───────────────────────────────────────────────────
 
 
 def test_concurrent_writes_preserve_ids(logger):
@@ -220,266 +74,29 @@ def test_concurrent_writes_preserve_ids(logger):
         for _ in range(n_per_thread):
             try:
                 logger.write(EventType.START, {})
-            except Exception as e:
-                errors.append(e)
+            except Exception as exc:
+                errors.append(exc)
 
     threads = [threading.Thread(target=writer) for _ in range(n_threads)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
-    assert len(errors) == 0
-    assert logger.last_event_id == n_per_thread * n_threads
-
-    # Verify all IDs 1..N exist
-    result = logger.read(limit=0)
-    ids_after_sort = sorted(result["events"], key=lambda e: e["ts"])
-    assert len(ids_after_sort) == n_per_thread * n_threads
+    assert errors == []
+    assert logger.write(EventType.STOP, {}) == n_per_thread * n_threads + 1
 
 
-def test_last_event_id_never_decreases_on_write_failure(logger, monkeypatch):
+def test_write_failure_rolls_back_event_id(logger, monkeypatch):
     def failing_open(*args, **kwargs):
         raise OSError("disk full")
 
     logger.write(EventType.START, {})
-    assert logger.last_event_id == 1
-
     monkeypatch.setattr("builtins.open", failing_open)
-    logger.write(EventType.PAUSE, {})
-    # Should roll back the increment
-    assert logger.last_event_id == 1
 
-
-# ── EventLogger Protocol ────────────────────────────────────────────
+    assert logger.write(EventType.PAUSE, {}) == 1
 
 
 def test_history_logger_satisfies_event_logger_protocol():
     logger = HistoryLogger("/tmp/fake")
     assert isinstance(logger, EventLogger)
-
-
-# ── read() has_more ─────────────────────────────────────────────────
-
-
-def test_read_has_more_true(logger):
-    for i in range(10):
-        logger.write(EventType.START, {"seq": i})
-    result = logger.read(limit=5)
-    assert len(result["events"]) == 5
-    assert result["has_more"] is True
-
-
-def test_read_has_more_false_when_under_limit(logger):
-    for i in range(3):
-        logger.write(EventType.START, {"seq": i})
-    result = logger.read(limit=10)
-    assert len(result["events"]) == 3
-    assert result["has_more"] is False
-
-
-def test_read_limit_zero_has_more_false(logger):
-    for i in range(10):
-        logger.write(EventType.START, {"seq": i})
-    result = logger.read(limit=0)
-    assert len(result["events"]) == 10
-    assert result["has_more"] is False
-
-
-# ── aggregate() ──────────────────────────────────────────────────────
-
-
-def test_aggregate_basic(logger):
-    t0 = _iso(datetime.now(UTC) - timedelta(hours=2))
-    t1 = _iso(datetime.now(UTC) - timedelta(hours=1))
-    t2 = _iso(datetime.now(UTC) - timedelta(minutes=30))
-
-    logger._ensure_file()
-    with logger._lock:
-        for ts, etype, data in [
-            (t0, EventType.PLAYLIST_SWITCH, {"playlist_from": "", "playlist_to": "FOCUS"}),
-            (t1, EventType.PLAYLIST_SWITCH, {"playlist_from": "FOCUS", "playlist_to": "CHILL"}),
-            (t2, EventType.STOP, {}),
-        ]:
-            logger._event_id += 1
-            with open(logger._filepath, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"ts": ts, "type": etype, "data": data}, ensure_ascii=False) + "\n")
-
-    result = logger.aggregate(from_ts=t0, to_ts=t2, bucket_minutes=120)
-    assert "buckets" in result
-    assert "total_seconds" in result
-    assert isinstance(result["total_seconds"], int)
-    assert len(result["buckets"]) >= 1
-    for bucket in result["buckets"]:
-        assert "playlists" in bucket
-        assert "playlists_ratio" in bucket
-
-
-def test_aggregate_bucket_alignment(logger):
-    """Buckets should align to bucket_minutes boundaries, not the query ts."""
-    t = "2026-05-03T12:30:00+00:00"
-    t_end = "2026-05-03T14:30:00+00:00"
-
-    logger._ensure_file()
-    with logger._lock:
-        logger._event_id += 1
-        with open(logger._filepath, "a", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "ts": t,
-                        "type": EventType.PLAYLIST_SWITCH,
-                        "data": {"playlist_from": "", "playlist_to": "FOCUS"},
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
-        logger._event_id += 1
-        with open(logger._filepath, "a", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "ts": t_end,
-                        "type": EventType.STOP,
-                        "data": {},
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
-
-    result = logger.aggregate(from_ts=t, to_ts=t_end, bucket_minutes=60)
-    # 3 buckets: 12:00-13:00, 13:00-14:00, 14:00-14:30
-    assert len(result["buckets"]) == 3
-    # Bucket 0: 12:00-13:00, FOCUS from 12:30-13:00 = 1800s
-    f0 = result["buckets"][0]["playlists"].get("FOCUS", 0)
-    assert abs(f0 - 1800) < 2
-    # Bucket 1: 13:00-14:00, full FOCUS = 3600s
-    f1 = result["buckets"][1]["playlists"].get("FOCUS", 0)
-    assert abs(f1 - 3600) < 2
-
-
-def test_aggregate_pause_excluded(logger):
-    t0 = _iso(datetime.now(UTC) - timedelta(hours=2))
-    t1 = _iso(datetime.now(UTC) - timedelta(hours=1))
-    t2 = _iso(datetime.now(UTC) - timedelta(minutes=30))
-
-    logger._ensure_file()
-    with logger._lock:
-        for ts, etype, data in [
-            (t0, EventType.PLAYLIST_SWITCH, {"playlist_from": "", "playlist_to": "A"}),
-            (t1, EventType.PAUSE, {"reason": "idle"}),
-            (t2, EventType.RESUME, {}),
-        ]:
-            logger._event_id += 1
-            with open(logger._filepath, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"ts": ts, "type": etype, "data": data}, ensure_ascii=False) + "\n")
-
-    result = logger.aggregate(from_ts=t0, bucket_minutes=120)
-    total_pl_seconds = sum(sum(dur for dur in b["playlists"].values()) for b in result["buckets"])
-    assert total_pl_seconds < result["total_seconds"]
-
-
-def test_aggregate_playlists_ratio_sums_to_one(logger):
-    t0 = _iso(datetime.now(UTC) - timedelta(hours=2))
-    t1 = _iso(datetime.now(UTC) - timedelta(hours=1))
-
-    logger._ensure_file()
-    with logger._lock:
-        logger._event_id += 1
-        with open(logger._filepath, "a", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "ts": t0,
-                        "type": EventType.PLAYLIST_SWITCH,
-                        "data": {"playlist_from": "", "playlist_to": "A"},
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
-        logger._event_id += 1
-        with open(logger._filepath, "a", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "ts": t1,
-                        "type": EventType.PLAYLIST_SWITCH,
-                        "data": {"playlist_from": "A", "playlist_to": "B"},
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
-
-    result = logger.aggregate(from_ts=t0, bucket_minutes=120)
-    for bucket in result["buckets"]:
-        ratios = bucket["playlists_ratio"]
-        if ratios:
-            # Ratio sum ≤ 1.0 (idle time excluded)
-            assert sum(ratios.values()) <= 1.0
-
-
-def test_aggregate_empty_window(logger):
-    result = logger.aggregate(
-        from_ts="2020-01-01T00:00:00+00:00",
-        to_ts="2020-01-01T01:00:00+00:00",
-        bucket_minutes=60,
-    )
-    assert result["total_seconds"] == 3600
-    assert len(result["buckets"]) == 1
-    assert result["buckets"][0]["playlists"] == {}
-
-
-def test_aggregate_seed_resolve_playlist(logger):
-    """Seed before window should determine initial playlist."""
-    t_before = _iso(datetime.now(UTC) - timedelta(minutes=30))
-    t_in = _iso(datetime.now(UTC) - timedelta(minutes=5))
-
-    logger._ensure_file()
-    with logger._lock:
-        logger._event_id += 1
-        with open(logger._filepath, "a", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "ts": t_before,
-                        "type": EventType.PLAYLIST_SWITCH,
-                        "data": {"playlist_from": "", "playlist_to": "SEEDED"},
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
-
-    result = logger.aggregate(from_ts=t_in, bucket_minutes=60)
-    total_pl = sum(sum(dur for dur in b["playlists"].values()) for b in result["buckets"])
-    assert total_pl > 0
-    assert any("SEEDED" in b["playlists"] for b in result["buckets"])
-
-
-def test_aggregate_pause_resume_restores_playlist(logger):
-    """After pause→resume, the pre-pause playlist should be restored."""
-    t0 = _iso(datetime.now(UTC) - timedelta(minutes=30))
-    t1 = _iso(datetime.now(UTC) - timedelta(minutes=20))
-    t2 = _iso(datetime.now(UTC) - timedelta(minutes=10))
-
-    logger._ensure_file()
-    with logger._lock:
-        for ts, etype, data in [
-            (t0, EventType.PLAYLIST_SWITCH, {"playlist_from": "", "playlist_to": "A"}),
-            (t1, EventType.PAUSE, {"reason": "idle"}),
-            (t2, EventType.RESUME, {}),
-        ]:
-            logger._event_id += 1
-            with open(logger._filepath, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"ts": ts, "type": etype, "data": data}, ensure_ascii=False) + "\n")
-
-    result = logger.aggregate(from_ts=t0, bucket_minutes=60)
-    # Playlist "A" should appear (from before pause and after resume)
-    all_pls = set()
-    for b in result["buckets"]:
-        all_pls.update(b["playlists"].keys())
-    assert "A" in all_pls

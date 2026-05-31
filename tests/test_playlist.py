@@ -83,6 +83,21 @@ class TestPlaylistsInstance:
         p = Playlists(["c"])
         assert p.select_target() == "c"
 
+    def test_select_target_treats_zero_count_as_unknown(self, monkeypatch):
+        captured = {}
+
+        def fake_choices(names, weights=None, k=1):
+            captured["names"] = names
+            captured["weights"] = weights
+            captured["k"] = k
+            return ["a"]
+
+        monkeypatch.setattr("core.playlist.random.choices", fake_choices)
+
+        Playlists(["a", "c"]).select_target()
+
+        assert captured == {"names": ["a", "c"], "weights": [10, 1], "k": 1}
+
     def test_select_target_weighted(self):
         """With enough runs, higher item_count should be selected more often."""
         p = Playlists(["a", "b"])
@@ -93,7 +108,7 @@ class TestPlaylistsInstance:
 
     def test_equality(self):
         assert Playlists(["a", "b"]) == Playlists(["a", "b"])
-        assert Playlists(["a", "b"]) != Playlists(["b", "a"])
+        assert Playlists(["a", "b"]) == Playlists(["b", "a"])
 
     def test_equality_not_playlists(self):
         assert Playlists(["a"]).__eq__("not_playlists") is NotImplemented

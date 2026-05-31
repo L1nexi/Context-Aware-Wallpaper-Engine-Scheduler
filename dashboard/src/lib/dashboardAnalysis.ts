@@ -164,6 +164,7 @@ export interface ActionDecision {
   activePlaylistsBefore: PlaylistRef[]
   activePlaylistsAfter: PlaylistRef[]
   matchedPlaylists: PlaylistRef[]
+  targetPlaylist: PlaylistRef | null
 }
 
 export interface TopMatch {

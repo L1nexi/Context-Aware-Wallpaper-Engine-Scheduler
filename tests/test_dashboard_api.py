@@ -110,6 +110,7 @@ def _make_trace(
     active_playlist_before: str = "",
     active_playlist_after: str = "",
     matched_playlist: str | None = None,
+    target_playlist: str | None = None,
     executed: bool = False,
     action_kind: ActionKind = ActionKind.HOLD,
     reason_code: ActionReasonCode = ActionReasonCode.NO_MATCH,
@@ -151,6 +152,7 @@ def _make_trace(
             ),
             effective_playlists_before=Playlists([active_playlist_before]) if active_playlist_before else Playlists([]),
             effective_playlists_after=Playlists([active_playlist_after]) if active_playlist_after else Playlists([]),
+            target_playlist=target_playlist,
             executed=executed,
         ),
     )
@@ -294,6 +296,28 @@ def test_build_tick_snapshot_maps_analysis_fields():
     assert snapshot["act"]["decision"]["matchedPlaylists"] == [
         {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
     ]
+    assert snapshot["act"]["decision"]["targetPlaylist"] is None
+
+
+def test_build_tick_snapshot_maps_target_playlist():
+    trace = _make_trace(
+        tick_id=10,
+        active_playlist_before="idle",
+        active_playlist_after="focus",
+        matched_playlist="focus",
+        target_playlist="focus",
+        executed=True,
+        action_kind=ActionKind.SWITCH,
+        reason_code=ActionReasonCode.SWITCH_ALLOWED,
+    )
+
+    snapshot = build_tick_snapshot(trace)
+
+    assert snapshot["act"]["decision"]["targetPlaylist"] == {
+        "name": "focus",
+        "display": "Focus Flow",
+        "color": "#F5C518",
+    }
 
 
 def test_build_tick_snapshot_maps_paused_tick():

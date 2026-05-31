@@ -103,32 +103,18 @@ class Actuator:
                 executed=False,
             )
 
-        target = matched.select_target()
+        target = None
         effective_playlists_after = effective_playlists
         executed = False
 
-        if decision.kind == ActionKind.SWITCH:
-            logger.info("[Action] Switching Playlist from '%s' to '%s'", effective_playlists, target)
+        if decision.kind in {ActionKind.SWITCH, ActionKind.CYCLE}:
+            target = matched.select_target()
+            logger.info("[Action] Applying playlist pool '%s' via playlist '%s'", matched, target)
             _log_tags(match.raw_context_vector)
             if self.executor.open_playlist(target):
                 self.controller.notify_action()
-                effective_playlists_after = Playlists([target])
+                effective_playlists_after = matched
                 executed = True
-
-        elif decision.kind == ActionKind.CYCLE:
-            if Playlists([target]) == effective_playlists:
-                # Target is current playlist -> nextWallpaper
-                logger.info("[Action] Cycling Wallpaper in '%s'", target)
-                if self.executor.next_wallpaper():
-                    self.controller.notify_action()
-                    executed = True
-            else:
-                # Target differs from current -> openPlaylist (cycle semantic expansion)
-                logger.info("[Action] Cycling to different playlist '%s' from '%s'", target, effective_playlists)
-                if self.executor.open_playlist(target):
-                    self.controller.notify_action()
-                    effective_playlists_after = Playlists([target])
-                    executed = True
 
         outcome = ActuationOutcome(
             decision=decision,
@@ -140,10 +126,11 @@ class Actuator:
 
         if outcome.kind == ActionKind.SWITCH and executed:
             self._history.write(
-                EventType.PLAYLIST_SWITCH,
+                EventType.PLAYLISTS_SWITCH,
                 {
-                    "playlist_from": effective_playlists.names(),
-                    "playlist_to": [target],
+                    "playlists_from": effective_playlists.names(),
+                    "playlists_to": matched.names(),
+                    "target_playlist": target,
                     "tags": _tag_dict(match.raw_context_vector),
                     "similarity": round(match.similarity, 4),
                     "similarity_gap": round(match.similarity_gap, 4),
@@ -153,9 +140,10 @@ class Actuator:
             )
         elif outcome.kind == ActionKind.CYCLE and executed:
             self._history.write(
-                EventType.WALLPAPER_CYCLE,
+                EventType.PLAYLISTS_CYCLE,
                 {
-                    "playlist": target,
+                    "playlists": matched.names(),
+                    "target_playlist": target,
                     "tags": _tag_dict(match.raw_context_vector),
                     "reason_code": outcome.reason_code.value,
                 },

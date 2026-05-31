@@ -30,6 +30,11 @@ const activePlaylistBeforeLabel = computed(() =>
 const activePlaylistAfterLabel = computed(() =>
   formatPlaylistRefs(props.tick.act.decision.activePlaylistsAfter, t),
 )
+const targetPlaylistLabel = computed(() =>
+  props.tick.act.decision.targetPlaylist?.display ??
+  props.tick.act.decision.targetPlaylist?.name ??
+  t('dashboard_none'),
+)
 const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
 </script>
 
@@ -138,6 +143,13 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
               <dt class="text-xs text-muted-foreground">{{ t('dashboard_active_after') }}</dt>
               <dd class="mt-1 font-medium data-mono">
                 {{ activePlaylistAfterLabel }}
+              </dd>
+            </div>
+
+            <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
+              <dt class="text-xs text-muted-foreground">{{ t('dashboard_target_playlist') }}</dt>
+              <dd class="mt-1 font-medium data-mono">
+                {{ targetPlaylistLabel }}
               </dd>
             </div>
           </dl>

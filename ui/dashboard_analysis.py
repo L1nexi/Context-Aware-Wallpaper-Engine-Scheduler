@@ -181,6 +181,7 @@ class ActionDecisionDto(ApiDto):
     active_playlists_before: list[PlaylistRefDto]
     active_playlists_after: list[PlaylistRefDto]
     matched_playlists: list[PlaylistRefDto]
+    target_playlist: PlaylistRefDto | None
 
 
 class TopMatchDto(ApiDto):
@@ -408,6 +409,7 @@ def map_tick_snapshot(trace: SchedulerTickTrace) -> TickSnapshotDto:
     action_matched_playlist_refs = _playlist_refs(trace.action.decision.matched_playlists)
     active_playlists_after_refs = _playlist_refs(trace.action.effective_playlists_after)
     active_playlists_before_refs = _playlist_refs(trace.action.effective_playlists_before)
+    target_playlist_ref = _playlist_ref(trace.action.target_playlist)
     has_event = trace.action.kind in {ActionKind.SWITCH, ActionKind.CYCLE}
 
     return TickSnapshotDto(
@@ -459,6 +461,7 @@ def map_tick_snapshot(trace: SchedulerTickTrace) -> TickSnapshotDto:
                 active_playlists_before=active_playlists_before_refs,
                 active_playlists_after=active_playlists_after_refs,
                 matched_playlists=action_matched_playlist_refs,
+                target_playlist=target_playlist_ref,
             ),
         ),
     )

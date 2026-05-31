@@ -123,6 +123,7 @@
   "dashboard_matched_playlist": "Matched Playlist",
   "dashboard_active_before": "Active Before",
   "dashboard_active_after": "Active After",
+  "dashboard_target_playlist": "Target Playlist",
   "dashboard_decision_switch": "Switched: {from} -> {to}",
   "dashboard_decision_cycle": "Cycled within: {playlist}",
   "dashboard_decision_pause": "Paused",

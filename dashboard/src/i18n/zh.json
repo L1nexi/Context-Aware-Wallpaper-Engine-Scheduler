@@ -123,6 +123,7 @@
   "dashboard_matched_playlist": "匹配到的播放列表",
   "dashboard_active_before": "执行前 Active",
   "dashboard_active_after": "执行后 Active",
+  "dashboard_target_playlist": "实际执行播单",
   "dashboard_decision_switch": "已切换：{from} -> {to}",
   "dashboard_decision_cycle": "已在 {playlist} 内轮播",
   "dashboard_decision_pause": "已暂停",

@@ -18,6 +18,7 @@ from core.diagnostics import (
     ControllerEvaluation,
     MatchEvaluation,
 )
+from core.event_logger import EventType
 from core.matcher import Matcher
 from core.playlist import PlaylistInfo, Playlists
 from core.playlist_state import PlaylistRecoveryReason, resolve_playlist_state
@@ -46,10 +47,7 @@ def _configure_playlists():
         "C": PlaylistInfo(display="C", color="#0000FF", item_count=0),
         "STRONG": PlaylistInfo(display="STRONG", color="#FF0000", item_count=0),
         "WEAK": PlaylistInfo(display="WEAK", color="#00FF00", item_count=0),
-        **{
-            f"P{i}": PlaylistInfo(display=f"P{i}", color="#FF0000", item_count=0)
-            for i in range(6)
-        },
+        **{f"P{i}": PlaylistInfo(display=f"P{i}", color="#FF0000", item_count=0) for i in range(6)},
     }
     yield
     Playlists._configs = {}
@@ -486,8 +484,63 @@ def test_actuator_switch_logs_event():
     executor.open_playlist.assert_called_once_with("rain")
     controller.notify_action.assert_called_once()
     history.write.assert_called_once()
+    assert history.write.call_args.args[0] == EventType.PLAYLISTS_SWITCH
     assert history.write.call_args.args[1]["reason_code"] == "switch_allowed"
-    assert history.write.call_args.args[1]["playlist_to"] == ["rain"]
+    assert history.write.call_args.args[1]["playlists_to"] == ["rain"]
+    assert history.write.call_args.args[1]["target_playlist"] == "rain"
+
+
+def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
+    monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
+    executor = mock.Mock()
+    history = mock.Mock()
+    controller = mock.Mock()
+    matched_pool = Playlists(["A", "B"])
+    controller.decide_action.return_value = ControllerDecision(
+        kind=ActionKind.SWITCH,
+        reason_code=ActionReasonCode.SWITCH_ALLOWED,
+        matched_playlists=matched_pool,
+        evaluation=ControllerEvaluation(operation="switch", allowed=True),
+    )
+    actuator = Actuator(executor, controller, history)
+
+    outcome = actuator.act(
+        Context(),
+        MatchEvaluation(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
+        Playlists([]),
+    )
+
+    assert outcome.executed is True
+    assert outcome.effective_playlists_after == matched_pool
+    assert outcome.target_playlist == "A"
+    executor.open_playlist.assert_called_once_with("A")
+
+
+def test_actuator_cycle_uses_open_playlist_without_next_wallpaper(monkeypatch):
+    monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
+    executor = mock.Mock()
+    history = mock.Mock()
+    controller = mock.Mock()
+    matched_pool = Playlists(["A", "B"])
+    controller.decide_action.return_value = ControllerDecision(
+        kind=ActionKind.CYCLE,
+        reason_code=ActionReasonCode.CYCLE_ALLOWED,
+        matched_playlists=matched_pool,
+        evaluation=ControllerEvaluation(operation="cycle", allowed=True),
+    )
+    actuator = Actuator(executor, controller, history)
+
+    outcome = actuator.act(
+        Context(),
+        MatchEvaluation(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
+        matched_pool,
+    )
+
+    assert outcome.executed is True
+    assert outcome.effective_playlists_after == matched_pool
+    assert outcome.target_playlist == "A"
+    executor.open_playlist.assert_called_once_with("A")
+    executor.next_wallpaper.assert_not_called()
 
 
 def test_actuator_recovery_switch_bypasses_controller_gates():
@@ -526,6 +579,17 @@ def test_playlist_state_uses_managed_factual_playlist():
     assert resolution.effective_playlists == Playlists(["rain"])
     assert resolution.recovery_needed is False
     assert resolution.recovery_reason is None
+
+
+def test_playlist_state_preserves_cached_pool_when_factual_playlist_is_member():
+    resolution = resolve_playlist_state(
+        FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="A"),
+        cached_playlists=Playlists(["A", "B"]),
+        paused=False,
+    )
+
+    assert resolution.effective_playlists == Playlists(["A", "B"])
+    assert resolution.recovery_needed is False
 
 
 @pytest.mark.parametrize(
@@ -585,10 +649,8 @@ def test_playlist_state_falls_back_to_cached_playlist_when_factual_unknown(statu
 
 def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
     class DummyHistory:
-        last_event_id = 0
-
         def write(self, *_args, **_kwargs):
-            return None
+            return 0
 
     scheduler = WEScheduler("config", DummyHistory())
     scheduler.context_manager = mock.Mock(refresh=mock.Mock(return_value=Context(window=WindowData(title="", process=""), idle=0.0)))
@@ -610,10 +672,8 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
 
 def test_hot_reload_config_error_keeps_previous_runtime_and_notifies():
     class DummyHistory:
-        last_event_id = 0
-
         def write(self, *_args, **_kwargs):
-            return None
+            return 0
 
     scheduler = WEScheduler("config", DummyHistory())
     old_executor = object()
@@ -656,10 +716,8 @@ def test_hot_reload_config_error_keeps_previous_runtime_and_notifies():
 
 def test_hot_reload_state_import_error_keeps_previous_runtime():
     class DummyHistory:
-        last_event_id = 0
-
-        def write(self, *_args: object, **_kwargs: object) -> None:
-            return None
+        def write(self, *_args: object, **_kwargs: object) -> int:
+            return 0
 
     class StatefulPolicy:
         def __init__(self, raise_on_import: bool = False):

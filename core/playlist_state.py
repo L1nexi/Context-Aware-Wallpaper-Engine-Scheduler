@@ -29,8 +29,12 @@ def resolve_playlist_state(
     它不是缓存值。这防止普通调度把过期 cached_playlists 当成当前 playlist。
     """
     if factual.status == FactualPlaylistStatus.PLAYLIST:
-        playlist = factual.playlist
+        playlist = factual.playlist or ""
         if Playlists.is_managed(playlist):
+            if playlist in cached_playlists:
+                return PlaylistStateResolution(
+                    effective_playlists=cached_playlists,
+                )
             return PlaylistStateResolution(
                 effective_playlists=Playlists([playlist]),
             )

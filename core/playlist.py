@@ -18,7 +18,11 @@ class Playlists:
     _configs: ClassVar[dict[str, PlaylistInfo]] = {}
 
     def __init__(self, names: list[str]):
-        self._names = list(names)
+        unique_names: list[str] = []
+        for name in names:
+            if name not in unique_names:
+                unique_names.append(name)
+        self._names = unique_names
 
     @classmethod
     def configure(cls, configs: dict[str, PlaylistConfig]) -> None:
@@ -52,9 +56,10 @@ class Playlists:
         return {n: self._configs[n].item_count for n in self._names}
 
     def select_target(self) -> str:
-        weights = [self._configs[n].item_count for n in self._names]
-        if not any(weights):
-            weights = None  # uniform distribution
+        weights: list[int] = []
+        for name in self._names:
+            item_count = self._configs[name].item_count
+            weights.append(item_count if item_count > 0 else 1)
         return random.choices(self._names, weights=weights, k=1)[0]
 
     def __len__(self) -> int:
@@ -72,10 +77,10 @@ class Playlists:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Playlists):
             return NotImplemented
-        return self._names == other._names
+        return set(self._names) == set(other._names)
 
     def __hash__(self) -> int:
-        return hash(tuple(self._names))
+        return hash(frozenset(self._names))
 
     def __repr__(self) -> str:
         return f"Playlists({self._names!r})"
