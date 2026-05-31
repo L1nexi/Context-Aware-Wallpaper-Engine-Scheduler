@@ -35,6 +35,7 @@ from utils.runtime_config import ActivityPolicyConfig
 def mock_probe_item_counts(monkeypatch):
     monkeypatch.setattr("utils.we_config.WEConfigProber.probe_item_counts", lambda self: {})
 
+
 TAG_NAMES = [
     "focus",
     "chill",

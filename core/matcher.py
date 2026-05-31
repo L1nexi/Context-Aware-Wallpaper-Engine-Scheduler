@@ -16,8 +16,8 @@ logger = logging.getLogger("WEScheduler.Matcher")
 
 _MIN_SIMILARITY = 0.001
 _MIN_EXPAND_WEIGHT = 0.02
-_CLUSTER_GAP_THRESHOLD = 0.02  # adjacent score gap exceeding this breaks clustering
-_MAX_CLUSTER_SIZE = 4  # max length of best_playlists
+_CLUSTER_GAP_THRESHOLD = 0.02
+_MAX_CLUSTER_SIZE = 3
 
 
 class Matcher:
