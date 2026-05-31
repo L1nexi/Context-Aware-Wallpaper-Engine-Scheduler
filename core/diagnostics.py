@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
+from core.playlist import Playlists
+
 if TYPE_CHECKING:
     from core.context import Context
 
@@ -123,7 +125,7 @@ type PolicyEvaluation = ActivityPolicyEvaluation | TimePolicyEvaluation | Season
 
 @dataclass
 class MatchEvaluation:
-    best_playlists: list[str]
+    best_playlists: Playlists
     playlist_matches: list[tuple[str, float]] = field(default_factory=list)
     raw_context_vector: dict[str, float] = field(default_factory=dict)
     resolved_context_vector: dict[str, float] = field(default_factory=dict)
@@ -161,15 +163,15 @@ class ControllerDecision:
 
     kind: ActionKind
     reason_code: ActionReasonCode
-    matched_playlists: list[str]
+    matched_playlists: Playlists
     evaluation: ControllerEvaluation | None = None
 
 
 @dataclass
 class ActuationOutcome:
     decision: ControllerDecision
-    effective_playlists_before: list[str]
-    effective_playlists_after: list[str]
+    effective_playlists_before: Playlists
+    effective_playlists_after: Playlists
     target_playlist: str | None = None
     executed: bool = False
 

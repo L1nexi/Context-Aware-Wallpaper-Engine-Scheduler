@@ -4,7 +4,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -22,9 +22,7 @@ from core.diagnostics import (
     TimePolicyEvaluation,
     WeatherPolicyEvaluation,
 )
-
-if TYPE_CHECKING:
-    from core.scheduler import WEScheduler
+from core.playlist import Playlists
 
 
 def _round_float(value: float | None, digits: int = 4) -> float | None:
@@ -239,43 +237,31 @@ class TickWindowResponseDto(ApiDto):
 
 
 @dataclass(frozen=True)
-class DashboardRuntimeMetadata:
-    display_of: dict[str, str]
-    color_of: dict[str, str]
-
-
-@dataclass(frozen=True)
 class AnalysisTraceWindow:
     live_tick_id: int | None
     traces: list[SchedulerTickTrace]
 
 
-def _playlist_ref_from_name(
-    playlist: str,
-    metadata: DashboardRuntimeMetadata,
-) -> PlaylistRefDto:
+def _playlist_ref_from_name(playlist: str) -> PlaylistRefDto:
+    managed = Playlists.managed()
+    displays = managed.displays()
+    colors = managed.colors()
     return PlaylistRefDto(
         name=playlist,
-        display=metadata.display_of.get(playlist, playlist),
-        color=metadata.color_of.get(playlist),
+        display=displays.get(playlist, playlist),
+        color=colors.get(playlist),
     )
 
 
-def _playlist_refs(
-    playlists: list[str],
-    metadata: DashboardRuntimeMetadata,
-) -> list[PlaylistRefDto]:
-    return [_playlist_ref_from_name(name, metadata) for name in playlists if name]
+def _playlist_refs(playlists: Playlists) -> list[PlaylistRefDto]:
+    return [_playlist_ref_from_name(name) for name in playlists.names() if name]
 
 
-def _playlist_ref(
-    playlist: str | None,
-    metadata: DashboardRuntimeMetadata,
-) -> PlaylistRefDto | None:
+def _playlist_ref(playlist: str | None) -> PlaylistRefDto | None:
     normalized_playlist = _playlist_or_none(playlist)
     if normalized_playlist is None:
         return None
-    return _playlist_ref_from_name(normalized_playlist, metadata)
+    return _playlist_ref_from_name(normalized_playlist)
 
 
 class AnalysisStore:
@@ -296,13 +282,6 @@ class AnalysisStore:
             if count is not None:
                 items = items[-count:]
         return AnalysisTraceWindow(live_tick_id=live_tick_id, traces=items)
-
-
-def extract_runtime_metadata(scheduler: WEScheduler) -> DashboardRuntimeMetadata:
-    return DashboardRuntimeMetadata(
-        display_of=dict(getattr(scheduler, "display_of", {})),
-        color_of=dict(getattr(scheduler, "color_of", {})),
-    )
 
 
 def _tag_weights(values: dict[str, float]) -> list[TagWeightDto]:
@@ -424,14 +403,11 @@ def _controller_evaluation(
     )
 
 
-def map_tick_snapshot(
-    trace: SchedulerTickTrace,
-    metadata: DashboardRuntimeMetadata,
-) -> TickSnapshotDto:
-    matched_playlist_refs = _playlist_refs(trace.match.best_playlists, metadata)
-    action_matched_playlist_refs = _playlist_refs(trace.action.decision.matched_playlists, metadata)
-    active_playlists_after_refs = _playlist_refs(trace.action.effective_playlists_after, metadata)
-    active_playlists_before_refs = _playlist_refs(trace.action.effective_playlists_before, metadata)
+def map_tick_snapshot(trace: SchedulerTickTrace) -> TickSnapshotDto:
+    matched_playlist_refs = _playlist_refs(trace.match.best_playlists)
+    action_matched_playlist_refs = _playlist_refs(trace.action.decision.matched_playlists)
+    active_playlists_after_refs = _playlist_refs(trace.action.effective_playlists_after)
+    active_playlists_before_refs = _playlist_refs(trace.action.effective_playlists_before)
     has_event = trace.action.kind in {ActionKind.SWITCH, ActionKind.CYCLE}
 
     return TickSnapshotDto(
@@ -470,7 +446,7 @@ def map_tick_snapshot(
         act=ActSnapshotDto(
             top_matches=[
                 TopMatchDto(
-                    playlist=_playlist_ref_from_name(playlist, metadata),
+                    playlist=_playlist_ref_from_name(playlist),
                     score=_round_float(score),
                 )
                 for playlist, score in trace.match.playlist_matches[:5]
@@ -488,20 +464,14 @@ def map_tick_snapshot(
     )
 
 
-def build_tick_snapshot(
-    scheduler: WEScheduler,
-    trace: SchedulerTickTrace,
-) -> dict[str, Any]:
-    snapshot = map_tick_snapshot(trace, extract_runtime_metadata(scheduler))
+def build_tick_snapshot(trace: SchedulerTickTrace) -> dict[str, Any]:
+    snapshot = map_tick_snapshot(trace)
     return snapshot.model_dump(mode="json", by_alias=True)
 
 
-def build_tick_window_response(
-    window: AnalysisTraceWindow,
-    metadata: DashboardRuntimeMetadata,
-) -> dict[str, Any]:
+def build_tick_window_response(window: AnalysisTraceWindow) -> dict[str, Any]:
     response = TickWindowResponseDto(
         live_tick_id=window.live_tick_id,
-        ticks=[map_tick_snapshot(trace, metadata) for trace in window.traces],
+        ticks=[map_tick_snapshot(trace) for trace in window.traces],
     )
     return response.model_dump(mode="json", by_alias=True)

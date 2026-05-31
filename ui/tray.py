@@ -7,6 +7,7 @@ from tkinter import ttk
 
 import pystray
 
+from core.playlist import Playlists
 from core.scheduler import WEScheduler
 from utils.app_context import get_app_root
 from utils.i18n import t
@@ -268,7 +269,8 @@ class TrayIcon:
                 playlists = effective
 
         if playlists:
-            primary = self.scheduler.display_of.get(playlists[0], playlists[0])
+            displays = Playlists.managed().displays()
+            primary = displays.get(playlists[0], playlists[0])
             active = f"{primary}(+{len(playlists) - 1})" if len(playlists) > 1 else primary
         else:
             active = t("tray_outside_configured_playlists")
@@ -281,7 +283,8 @@ class TrayIcon:
         best_playlists = trace.match.best_playlists
         if not best_playlists:
             return None
-        primary = self.scheduler.display_of.get(best_playlists[0], best_playlists[0])
+        displays = Playlists.managed().displays()
+        primary = displays.get(best_playlists[0], best_playlists[0])
         if len(best_playlists) > 1:
             return f"{primary}(+{len(best_playlists) - 1})"
         return primary

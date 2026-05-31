@@ -19,10 +19,11 @@ from core.diagnostics import (
     MatchEvaluation,
 )
 from core.matcher import Matcher
+from core.playlist import PlaylistInfo, Playlists
 from core.playlist_state import PlaylistRecoveryReason, resolve_playlist_state
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
 from core.scheduler import WEScheduler, _RuntimeComponents
-from ui.dashboard_analysis import DashboardRuntimeMetadata, map_tick_snapshot
+from ui.dashboard_analysis import map_tick_snapshot
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
     ActivityPolicyConfig,
@@ -33,6 +34,25 @@ from utils.runtime_config import (
     WeatherPolicyConfig,
 )
 from utils.we_config import FactualPlaylistState, FactualPlaylistStatus
+
+
+@pytest.fixture(autouse=True)
+def _configure_playlists():
+    Playlists._configs = {
+        "focus": PlaylistInfo(display="Focus Flow", color="#F5C518", item_count=10),
+        "rain": PlaylistInfo(display="Rain", color="#2563EB", item_count=5),
+        "A": PlaylistInfo(display="A", color="#FF0000", item_count=10),
+        "B": PlaylistInfo(display="B", color="#00FF00", item_count=40),
+        "C": PlaylistInfo(display="C", color="#0000FF", item_count=0),
+        "STRONG": PlaylistInfo(display="STRONG", color="#FF0000", item_count=0),
+        "WEAK": PlaylistInfo(display="WEAK", color="#00FF00", item_count=0),
+        **{
+            f"P{i}": PlaylistInfo(display=f"P{i}", color="#FF0000", item_count=0)
+            for i in range(6)
+        },
+    }
+    yield
+    Playlists._configs = {}
 
 
 def test_activity_policy_distinguishes_title_and_process_matchers():
@@ -115,7 +135,7 @@ def test_matcher_preserves_raw_resolved_and_fallback_vectors():
     )
 
     matcher = Matcher(
-        playlists={"focus": PlaylistConfig(color="#F5C518", tags={"focus": 1.0})},
+        playlist_configs={"focus": PlaylistConfig(color="#F5C518", tags={"focus": 1.0})},
         policies=[stub_policy],
         tag_specs={"stormy": TagSpec(fallback={"focus": 1.0})},
     )
@@ -124,7 +144,7 @@ def test_matcher_preserves_raw_resolved_and_fallback_vectors():
 
     assert evaluation.raw_context_vector == {"stormy": 1.0}
     assert evaluation.resolved_context_vector == {"focus": 1.0}
-    assert evaluation.best_playlists == ["focus"]
+    assert evaluation.best_playlists == Playlists(["focus"])
     assert evaluation.fallback_expansions == {"stormy": {"focus": 1.0}}
     assert evaluation.policy_evaluations[0].resolved_contribution == {"focus": 1.0}
 
@@ -136,7 +156,7 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
     trace.paused = False
     trace.context = Context(window=WindowData(title="Docs", process="Code.exe"))
     trace.match = MatchEvaluation(
-        best_playlists=["focus"],
+        best_playlists=Playlists(["focus"]),
         playlist_matches=[("focus", 0.9)],
         raw_context_vector={"focus": 1.0},
         resolved_context_vector={"focus": 1.0},
@@ -146,21 +166,15 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
         decision=ControllerDecision(
             kind=ActionKind.HOLD,
             reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
-            matched_playlists=["focus"],
+            matched_playlists=Playlists(["focus"]),
             evaluation=None,
         ),
-        effective_playlists_before=["focus"],
-        effective_playlists_after=["focus"],
+        effective_playlists_before=Playlists(["focus"]),
+        effective_playlists_after=Playlists(["focus"]),
         executed=False,
     )
 
-    snapshot = map_tick_snapshot(
-        trace,
-        DashboardRuntimeMetadata(
-            display_of={"focus": "Focus Flow"},
-            color_of={"focus": "#F5C518"},
-        ),
-    ).model_dump(mode="json", by_alias=True)
+    snapshot = map_tick_snapshot(trace).model_dump(mode="json", by_alias=True)
 
     assert snapshot["summary"]["matchedPlaylists"] == [
         {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
@@ -185,13 +199,13 @@ def test_controller_evaluation_reports_all_blockers(monkeypatch):
     context = Context(idle=10.0, cpu=90.0, fullscreen=True)
     switch_decision = controller.decide_action(
         context,
-        MatchEvaluation(best_playlists=["rain"], playlist_matches=[("rain", 0.8)]),
-        ["focus"],
+        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Playlists(["focus"]),
     )
     cycle_decision = controller.decide_action(
         context,
-        MatchEvaluation(best_playlists=["focus"], playlist_matches=[("focus", 0.8)]),
-        ["focus"],
+        MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8)]),
+        Playlists(["focus"]),
     )
     switch_eval = switch_decision.evaluation
     cycle_eval = cycle_decision.evaluation
@@ -239,13 +253,13 @@ def test_controller_warmup_blocks_all_operations(monkeypatch):
 
     switch_decision = controller.decide_action(
         context,
-        MatchEvaluation(best_playlists=["rain"], playlist_matches=[("rain", 0.8)]),
-        ["focus"],
+        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Playlists(["focus"]),
     )
     cycle_decision = controller.decide_action(
         context,
-        MatchEvaluation(best_playlists=["focus"], playlist_matches=[("focus", 0.8)]),
-        ["focus"],
+        MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8)]),
+        Playlists(["focus"]),
     )
 
     switch_eval = switch_decision.evaluation
@@ -284,8 +298,8 @@ def test_controller_warmup_switch_reason_code(monkeypatch):
 
     decision = controller.decide_action(
         Context(idle=120.0, cpu=1.0),
-        MatchEvaluation(best_playlists=["rain"], playlist_matches=[("rain", 0.8)]),
-        ["focus"],
+        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Playlists(["focus"]),
     )
 
     assert decision.reason_code == ActionReasonCode.SWITCH_BLOCKED_COOLDOWN
@@ -310,8 +324,8 @@ def test_controller_warmup_expires_normal_behavior(monkeypatch):
 
     decision = controller.decide_action(
         Context(idle=80.0, cpu=1.0),
-        MatchEvaluation(best_playlists=["rain"], playlist_matches=[("rain", 0.8)]),
-        ["focus"],
+        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Playlists(["focus"]),
     )
 
     assert decision.kind == ActionKind.SWITCH
@@ -364,8 +378,8 @@ def test_controller_switch_force_after_overrides_idle(monkeypatch):
 
     decision = controller.decide_action(
         Context(idle=5.0, cpu=1.0),
-        MatchEvaluation(best_playlists=["rain"], playlist_matches=[("rain", 0.8)]),
-        ["focus"],
+        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Playlists(["focus"]),
     )
     evaluation = decision.evaluation
 
@@ -380,29 +394,29 @@ def test_controller_switch_force_after_overrides_idle(monkeypatch):
     ("match", "active_playlists", "switch_eval", "cycle_eval", "expected"),
     [
         (
-            MatchEvaluation(best_playlists=[]),
-            ["focus"],
+            MatchEvaluation(best_playlists=Playlists([])),
+            Playlists(["focus"]),
             ControllerEvaluation(operation="switch", allowed=False),
             ControllerEvaluation(operation="cycle", allowed=False),
             ActionReasonCode.NO_MATCH,
         ),
         (
-            MatchEvaluation(best_playlists=["rain"], playlist_matches=[("rain", 0.8), ("focus", 0.6)]),
-            ["focus"],
+            MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8), ("focus", 0.6)]),
+            Playlists(["focus"]),
             ControllerEvaluation(operation="switch", allowed=True),
             ControllerEvaluation(operation="cycle", allowed=False),
             ActionReasonCode.SWITCH_ALLOWED,
         ),
         (
-            MatchEvaluation(best_playlists=["focus"], playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
-            ["focus"],
+            MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
+            Playlists(["focus"]),
             ControllerEvaluation(operation="switch", allowed=False),
             ControllerEvaluation(operation="cycle", allowed=True),
             ActionReasonCode.CYCLE_ALLOWED,
         ),
         (
-            MatchEvaluation(best_playlists=["focus"], playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
-            ["focus"],
+            MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
+            Playlists(["focus"]),
             ControllerEvaluation(operation="switch", allowed=False),
             ControllerEvaluation(
                 operation="cycle",
@@ -412,8 +426,8 @@ def test_controller_switch_force_after_overrides_idle(monkeypatch):
             ActionReasonCode.CYCLE_BLOCKED_CPU,
         ),
         (
-            MatchEvaluation(best_playlists=["focus"], playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
-            ["focus"],
+            MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
+            Playlists(["focus"]),
             ControllerEvaluation(operation="switch", allowed=False),
             ControllerEvaluation(operation="cycle", allowed=False),
             ActionReasonCode.HOLD_SAME_PLAYLIST,
@@ -451,20 +465,20 @@ def test_actuator_switch_logs_event():
     controller.decide_action.return_value = ControllerDecision(
         kind=ActionKind.SWITCH,
         reason_code=ActionReasonCode.SWITCH_ALLOWED,
-        matched_playlists=["rain"],
+        matched_playlists=Playlists(["rain"]),
         evaluation=ControllerEvaluation(operation="switch", allowed=True),
     )
-    actuator = Actuator(executor, controller, history, playlists={})
+    actuator = Actuator(executor, controller, history)
     outcome = actuator.act(
         Context(),
         MatchEvaluation(
-            best_playlists=["rain"],
+            best_playlists=Playlists(["rain"]),
             playlist_matches=[("rain", 0.9), ("focus", 0.5)],
             raw_context_vector={"rain": 1.0},
             resolved_context_vector={"rain": 1.0},
             max_policy_magnitude=1.0,
         ),
-        ["focus"],
+        Playlists(["focus"]),
     )
 
     assert outcome.kind == ActionKind.SWITCH
@@ -473,21 +487,22 @@ def test_actuator_switch_logs_event():
     controller.notify_action.assert_called_once()
     history.write.assert_called_once()
     assert history.write.call_args.args[1]["reason_code"] == "switch_allowed"
+    assert history.write.call_args.args[1]["playlist_to"] == ["rain"]
 
 
 def test_actuator_recovery_switch_bypasses_controller_gates():
     executor = mock.Mock()
     history = mock.Mock()
     controller = mock.Mock()
-    actuator = Actuator(executor, controller, history, playlists={})
+    actuator = Actuator(executor, controller, history)
 
     outcome = actuator.act_recovery(
         MatchEvaluation(
-            best_playlists=["rain"],
+            best_playlists=Playlists(["rain"]),
             playlist_matches=[("rain", 0.9), ("focus", 0.5)],
             raw_context_vector={"rain": 1.0},
         ),
-        [],
+        Playlists([]),
         PlaylistRecoveryReason.NO_PLAYLIST,
     )
 
@@ -504,12 +519,11 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
 def test_playlist_state_uses_managed_factual_playlist():
     resolution = resolve_playlist_state(
         FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="rain"),
-        cached_playlists=["focus"],
-        managed_playlists={"focus", "rain"},
+        cached_playlists=Playlists(["focus"]),
         paused=False,
     )
 
-    assert resolution.effective_playlists == ["rain"]
+    assert resolution.effective_playlists == Playlists(["rain"])
     assert resolution.recovery_needed is False
     assert resolution.recovery_reason is None
 
@@ -533,12 +547,11 @@ def test_playlist_state_requests_recovery_for_running_broken_state(
 ):
     resolution = resolve_playlist_state(
         factual,
-        cached_playlists=["focus"],
-        managed_playlists={"focus", "rain"},
+        cached_playlists=Playlists(["focus"]),
         paused=False,
     )
 
-    assert resolution.effective_playlists == []
+    assert resolution.effective_playlists == Playlists([])
     assert resolution.recovery_needed is True
     assert resolution.recovery_reason == expected_reason
 
@@ -546,12 +559,11 @@ def test_playlist_state_requests_recovery_for_running_broken_state(
 def test_playlist_state_suppresses_recovery_while_paused():
     resolution = resolve_playlist_state(
         FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST),
-        cached_playlists=["focus"],
-        managed_playlists={"focus"},
+        cached_playlists=Playlists(["focus"]),
         paused=True,
     )
 
-    assert resolution.effective_playlists == []
+    assert resolution.effective_playlists == Playlists([])
     assert resolution.recovery_needed is False
     assert resolution.recovery_reason == PlaylistRecoveryReason.NO_PLAYLIST
 
@@ -563,12 +575,11 @@ def test_playlist_state_suppresses_recovery_while_paused():
 def test_playlist_state_falls_back_to_cached_playlist_when_factual_unknown(status):
     resolution = resolve_playlist_state(
         FactualPlaylistState(status),
-        cached_playlists=["focus"],
-        managed_playlists={"focus"},
+        cached_playlists=Playlists(["focus"]),
         paused=False,
     )
 
-    assert resolution.effective_playlists == ["focus"]
+    assert resolution.effective_playlists == Playlists(["focus"])
     assert resolution.recovery_needed is False
 
 
@@ -581,13 +592,12 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
 
     scheduler = WEScheduler("config", DummyHistory())
     scheduler.context_manager = mock.Mock(refresh=mock.Mock(return_value=Context(window=WindowData(title="", process=""), idle=0.0)))
-    scheduler.matcher = mock.Mock(evaluate=mock.Mock(return_value=MatchEvaluation(best_playlists=[], playlist_matches=[])))
+    scheduler.matcher = mock.Mock(evaluate=mock.Mock(return_value=MatchEvaluation(best_playlists=Playlists([]), playlist_matches=[])))
     scheduler.executor = mock.Mock()
     scheduler.executor.is_we_running = mock.Mock(return_value=False)
     scheduler.executor.request_we_start = mock.Mock(return_value=True)
     scheduler.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN)))
-    scheduler.managed_playlists = {"focus"}
-    scheduler.cached_playlists = ["focus"]
+    scheduler.cached_playlists = Playlists(["focus"])
     scheduler.paused = True
 
     trace = scheduler._run_tick()
@@ -617,8 +627,6 @@ def test_hot_reload_config_error_keeps_previous_runtime_and_notifies():
     scheduler.context_manager = old_context_manager
     scheduler.matcher = old_matcher
     scheduler.actuator = old_actuator
-    scheduler.display_of = {"focus": "Focus"}
-    scheduler.color_of = {"focus": "#F5C518"}
     scheduler.config_loader = mock.Mock()
     scheduler.config_loader.config = mock.Mock()
     scheduler.config_loader.load_verified_config.side_effect = ConfigLoadError(
@@ -676,8 +684,6 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
     scheduler.context_manager = old_context_manager
     scheduler.matcher = old_matcher
     scheduler.actuator = old_actuator
-    scheduler.display_of = {"focus": "Focus"}
-    scheduler.color_of = {"focus": "#F5C518"}
     scheduler.config_loader = mock.Mock()
     previous_config = mock.Mock()
     scheduler.config_loader.config = previous_config
@@ -688,10 +694,8 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
         context_manager=object(),
         matcher=mock.Mock(policies=[StatefulPolicy(raise_on_import=True)]),
         actuator=mock.Mock(),
-        display_of={"rain": "Rain"},
-        color_of={"rain": "#2563EB"},
+        playlist_configs={},
         we_config_prober=mock.Mock(),
-        managed_playlists={"rain"},
     )
     scheduler._build_runtime_components = mock.Mock(return_value=next_runtime)
 
@@ -702,8 +706,6 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
     assert scheduler.context_manager is old_context_manager
     assert scheduler.matcher is old_matcher
     assert scheduler.actuator is old_actuator
-    assert scheduler.display_of == {"focus": "Focus"}
-    assert scheduler.color_of == {"focus": "#F5C518"}
     assert scheduler.config_loader.config is previous_config
     assert scheduler._config_fingerprint == fingerprint
 
@@ -729,7 +731,7 @@ def test_matcher_cluster_groups_playlists_within_gap_threshold():
 
     # Create playlists with similar tag vectors so scores are close
     matcher = Matcher(
-        playlists={
+        playlist_configs={
             "A": PlaylistConfig(color="#FF0000", tags={"focus": 1.0}),
             "B": PlaylistConfig(color="#00FF00", tags={"focus": 0.99}),
             "C": PlaylistConfig(color="#0000FF", tags={"chill": 1.0}),
@@ -763,7 +765,7 @@ def test_matcher_cluster_breaks_on_large_gap():
     )
 
     matcher = Matcher(
-        playlists={
+        playlist_configs={
             "STRONG": PlaylistConfig(color="#FF0000", tags={"focus": 1.0}),
             "WEAK": PlaylistConfig(color="#00FF00", tags={"chill": 1.0}),
         },
@@ -772,7 +774,7 @@ def test_matcher_cluster_breaks_on_large_gap():
 
     evaluation = matcher.evaluate(Context())
 
-    assert evaluation.best_playlists == ["STRONG"]
+    assert evaluation.best_playlists == Playlists(["STRONG"])
     assert len(evaluation.best_playlists) == 1
 
 
@@ -793,7 +795,7 @@ def test_matcher_cluster_empty_when_no_match():
     )
 
     matcher = Matcher(
-        playlists={
+        playlist_configs={
             "A": PlaylistConfig(color="#FF0000", tags={"focus": 1.0}),
         },
         policies=[stub_policy],
@@ -801,7 +803,7 @@ def test_matcher_cluster_empty_when_no_match():
 
     evaluation = matcher.evaluate(Context())
 
-    assert evaluation.best_playlists == []
+    assert evaluation.best_playlists == Playlists([])
     assert evaluation.similarity == 0.0
 
 
@@ -822,7 +824,7 @@ def test_matcher_cluster_respects_max_size():
     )
 
     playlists = {f"P{i}": PlaylistConfig(color="#FF0000", tags={"focus": 1.0 - i * 0.001}) for i in range(6)}
-    matcher = Matcher(playlists=playlists, policies=[stub_policy])
+    matcher = Matcher(playlist_configs=playlists, policies=[stub_policy])
 
     evaluation = matcher.evaluate(Context())
 
@@ -832,7 +834,7 @@ def test_matcher_cluster_respects_max_size():
 def test_matcher_similarity_is_field_not_property():
     """similarity and similarity_gap are plain fields filled by Matcher, not computed properties."""
     evaluation = MatchEvaluation(
-        best_playlists=["A"],
+        best_playlists=Playlists(["A"]),
         playlist_matches=[("A", 0.9)],
     )
     # As plain fields with defaults, they start at 0.0
@@ -862,7 +864,7 @@ def test_matcher_fills_similarity_and_similarity_gap():
     )
 
     matcher = Matcher(
-        playlists={
+        playlist_configs={
             "A": PlaylistConfig(color="#FF0000", tags={"focus": 1.0}),
             "B": PlaylistConfig(color="#00FF00", tags={"focus": 1.0, "chill": 0.01}),
         },
@@ -895,7 +897,7 @@ def test_matcher_weighted_similarity():
     )
 
     matcher = Matcher(
-        playlists={
+        playlist_configs={
             "A": PlaylistConfig(color="#FF0000", tags={"focus": 1.0}, item_count=10),
             "B": PlaylistConfig(color="#00FF00", tags={"focus": 1.0, "chill": 0.01}, item_count=40),
         },

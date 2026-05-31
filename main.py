@@ -152,7 +152,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     """
     from core.scheduler import WEScheduler
     from ui.dashboard import DashboardHTTPServer
-    from ui.dashboard_analysis import AnalysisStore, extract_runtime_metadata
+    from ui.dashboard_analysis import AnalysisStore
     from ui.tray import TrayIcon
     from utils.app_context import get_data_dir
     from utils.history_logger import HistoryLogger
@@ -177,7 +177,6 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     httpd = DashboardHTTPServer(
         analysis_store,
         requested_port=dashboard_api_port,
-        metadata_provider=lambda: extract_runtime_metadata(scheduler),
     )
     try:
         httpd.start()

@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from core.matcher import Matcher
+from core.playlist import Playlists
 from core.policies import SeasonPolicy, TimePolicy, WeatherPolicy
 from tools.tuning.heatmaps import (
     HeatmapFigure,
@@ -227,6 +228,7 @@ def test_heatmap_grid_uses_evaluate_scenario_results(tmp_path: Path) -> None:
 
 def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> None:
     config = ConfigLoader(str(_write_config_dir(tmp_path))).load_verified_config()
+    Playlists.configure(config.playlists)
     scenario = Scenario(
         "day focus clear",
         hour=14,

@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 import threading
-from collections.abc import Callable
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 
@@ -13,7 +12,6 @@ import bottle
 
 from ui.dashboard_analysis import (
     AnalysisStore,
-    DashboardRuntimeMetadata,
     build_tick_window_response,
 )
 from utils.app_context import get_app_root
@@ -41,19 +39,8 @@ def _parse_positive_count(raw_value: str) -> int:
     return count
 
 
-MetadataProvider = Callable[[], DashboardRuntimeMetadata]
-
-
-def _empty_metadata() -> DashboardRuntimeMetadata:
-    return DashboardRuntimeMetadata(display_of={}, color_of={})
-
-
-def _build_app(
-    analysis_store: AnalysisStore,
-    metadata_provider: MetadataProvider | None = None,
-) -> bottle.Bottle:
+def _build_app(analysis_store: AnalysisStore) -> bottle.Bottle:
     app = bottle.Bottle()
-    resolve_metadata = metadata_provider or _empty_metadata
 
     @app.route("/api/analysis/window")
     def api_analysis_window():
@@ -66,7 +53,7 @@ def _build_app(
             return json.dumps({"error": "invalid_count"})
 
         window = analysis_store.read_window(count)
-        payload = build_tick_window_response(window, resolve_metadata())
+        payload = build_tick_window_response(window)
         bottle.response.content_type = "application/json; charset=utf-8"
         return json.dumps(payload)
 
@@ -99,24 +86,16 @@ class DashboardHTTPServer:
         self,
         analysis_store: AnalysisStore,
         requested_port: int = 0,
-        metadata_provider: MetadataProvider | None = None,
     ):
-        """
-        metadata_provider: callback to get metadata at request time, showing the latest metadata in case of hotreload
-        """
         self._analysis_store = analysis_store
         self._requested_port = requested_port
-        self._metadata_provider = metadata_provider
         self._httpd: _ThreadingWSGIServer | None = None
         self._thread: threading.Thread | None = None
         self.port: int = 0
 
     def start(self) -> None:
         os.makedirs(_resolve_static_root(), exist_ok=True)
-        app = _build_app(
-            self._analysis_store,
-            self._metadata_provider,
-        )
+        app = _build_app(self._analysis_store)
 
         try:
             self._httpd = make_server(

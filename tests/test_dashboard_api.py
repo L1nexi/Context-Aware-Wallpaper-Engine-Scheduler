@@ -6,8 +6,6 @@ import os
 import socket
 import time
 import urllib.request
-from types import SimpleNamespace
-from unittest import mock
 
 import pytest
 
@@ -25,6 +23,7 @@ from core.diagnostics import (
     WeatherPolicyDetails,
     WeatherPolicyEvaluation,
 )
+from core.playlist import Playlists
 from ui.dashboard import (
     DASHBOARD_STATIC_APP_DIR,
     DASHBOARD_STATIC_DIST_DIR,
@@ -32,7 +31,22 @@ from ui.dashboard import (
     _build_app,
     _resolve_static_root,
 )
-from ui.dashboard_analysis import AnalysisStore, DashboardRuntimeMetadata, build_tick_snapshot
+from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
+from utils.runtime_config import PlaylistConfig
+
+
+@pytest.fixture(autouse=True)
+def _configure_playlists():
+    """Configure Playlists with test data for all tests."""
+    Playlists.configure(
+        {
+            "focus": PlaylistConfig(display="Focus Flow", color="#F5C518", item_count=10),
+            "rainy": PlaylistConfig(display="Rainy Mood", color="#4A90D9", item_count=5),
+            "idle": PlaylistConfig(display="", color="#2E5F8A", item_count=3),
+        }
+    )
+    yield
+    Playlists.configure({})
 
 
 @pytest.fixture
@@ -89,24 +103,6 @@ def wsgi_post(app, path, data=None):
     return wsgi_request(app, "POST", path, body=body_bytes)
 
 
-def _make_scheduler(
-    *,
-    weather_enabled: bool = True,
-    display_of: dict[str, str] | None = None,
-    color_of: dict[str, str] | None = None,
-):
-    scheduler = mock.MagicMock()
-    scheduler.display_of = display_of or {}
-    scheduler.color_of = color_of or {}
-    weather_cfg = SimpleNamespace(enabled=weather_enabled) if weather_enabled else None
-    scheduler.config_loader = SimpleNamespace(
-        config=SimpleNamespace(
-            policies=SimpleNamespace(weather=weather_cfg),
-        )
-    )
-    return scheduler
-
-
 def _make_trace(
     *,
     tick_id: int = 1,
@@ -123,7 +119,7 @@ def _make_trace(
 ) -> SchedulerTickTrace:
     current_time = time.localtime(1714800000)
     playlist_matches = [("focus", 0.91), ("rainy", 0.66)]
-    best_playlists = [matched_playlist] if matched_playlist else []
+    best_playlists = Playlists([matched_playlist]) if matched_playlist else Playlists([])
     return SchedulerTickTrace(
         tick_id=tick_id,
         ts=1714800000.0 + tick_id,
@@ -153,8 +149,8 @@ def _make_trace(
                 matched_playlists=best_playlists,
                 evaluation=evaluation,
             ),
-            effective_playlists_before=[active_playlist_before] if active_playlist_before else [],
-            effective_playlists_after=[active_playlist_after] if active_playlist_after else [],
+            effective_playlists_before=Playlists([active_playlist_before]) if active_playlist_before else Playlists([]),
+            effective_playlists_after=Playlists([active_playlist_after]) if active_playlist_after else Playlists([]),
             executed=executed,
         ),
     )
@@ -184,11 +180,6 @@ def test_analysis_store_read_window_returns_recent(analysis_store):
 
 
 def test_build_tick_snapshot_maps_analysis_fields():
-    scheduler = _make_scheduler(
-        weather_enabled=True,
-        display_of={"focus": "Focus Flow", "rainy": "Rainy Mood"},
-        color_of={"focus": "#F5C518", "rainy": "#4A90D9", "idle": "#2E5F8A"},
-    )
     evaluation = ControllerEvaluation(
         operation="switch",
         allowed=False,
@@ -261,7 +252,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
         policy_evaluations=[activity_policy, weather_policy],
     )
 
-    snapshot = build_tick_snapshot(scheduler, trace)
+    snapshot = build_tick_snapshot(trace)
 
     assert snapshot["summary"]["tickId"] == 7
     assert snapshot["summary"]["activePlaylists"] == [
@@ -306,10 +297,6 @@ def test_build_tick_snapshot_maps_analysis_fields():
 
 
 def test_build_tick_snapshot_maps_paused_tick():
-    scheduler = _make_scheduler(
-        weather_enabled=False,
-        color_of={"focus": "#F5C518", "rainy": "#4A90D9"},
-    )
     trace = _make_trace(
         tick_id=8,
         paused=True,
@@ -323,29 +310,28 @@ def test_build_tick_snapshot_maps_paused_tick():
         weather=None,
     )
 
-    snapshot = build_tick_snapshot(scheduler, trace)
+    snapshot = build_tick_snapshot(trace)
 
     assert snapshot["summary"]["actionKind"] == "pause"
     assert snapshot["summary"]["paused"] is True
     assert snapshot["summary"]["hasEvent"] is False
     assert snapshot["summary"]["activePlaylists"] == [
-        {"name": "focus", "display": "focus", "color": "#F5C518"},
+        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
     ]
     assert snapshot["summary"]["matchedPlaylists"] == [
-        {"name": "rainy", "display": "rainy", "color": "#4A90D9"},
+        {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9"},
     ]
     assert snapshot["sense"]["weather"]["available"] is False
     assert snapshot["act"]["controller"]["evaluation"] is None
     assert snapshot["act"]["decision"]["activePlaylistsAfter"] == [
-        {"name": "focus", "display": "focus", "color": "#F5C518"},
+        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
     ]
     assert snapshot["act"]["decision"]["matchedPlaylists"] == [
-        {"name": "rainy", "display": "rainy", "color": "#4A90D9"},
+        {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9"},
     ]
 
 
 def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
-    scheduler = _make_scheduler()
     trace = _make_trace(
         tick_id=9,
         active_playlist_before="",
@@ -358,7 +344,7 @@ def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
         weather=None,
     )
 
-    snapshot = build_tick_snapshot(scheduler, trace)
+    snapshot = build_tick_snapshot(trace)
 
     assert snapshot["summary"]["activePlaylists"] == [
         {"name": "unknown_active", "display": "unknown_active", "color": None},
@@ -389,14 +375,14 @@ def test_api_analysis_window_returns_recent(analysis_store):
 def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
     analysis_store,
 ):
-    metadata = DashboardRuntimeMetadata(
-        display_of={"test_pl": "Test Playlist"},
-        color_of={"test_pl": "#5BB8D4"},
+    Playlists.configure(
+        {
+            "focus": PlaylistConfig(display="Focus Flow", color="#F5C518", item_count=10),
+            "rainy": PlaylistConfig(display="Rainy Mood", color="#4A90D9", item_count=5),
+            "test_pl": PlaylistConfig(display="Test Playlist", color="#5BB8D4", item_count=1),
+        }
     )
-    app = _build_app(
-        analysis_store,
-        metadata_provider=lambda: metadata,
-    )
+    app = _build_app(analysis_store)
     analysis_store.update(
         _make_trace(
             tick_id=1,
@@ -421,8 +407,8 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
     ]
     assert tick["act"]["topMatches"][0]["playlist"] == {
         "name": "focus",
-        "display": "focus",
-        "color": None,
+        "display": "Focus Flow",
+        "color": "#F5C518",
     }
 
 

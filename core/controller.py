@@ -14,6 +14,7 @@ from core.diagnostics import (
     ControllerOperation,
     MatchEvaluation,
 )
+from core.playlist import Playlists
 from utils.runtime_config import SchedulingConfig
 
 logger = logging.getLogger("WEScheduler.Controller")
@@ -145,7 +146,7 @@ class SchedulingController:
         self,
         context: Context,
         match: MatchEvaluation,
-        active_playlists: list[str],
+        active_playlists: Playlists,
     ) -> ControllerDecision:
         matched = match.best_playlists
 
@@ -153,7 +154,7 @@ class SchedulingController:
             return ControllerDecision(
                 kind=ActionKind.HOLD if active_playlists else ActionKind.NONE,
                 reason_code=ActionReasonCode.NO_MATCH,
-                matched_playlists=[],
+                matched_playlists=Playlists([]),
             )
 
         if matched != active_playlists:
@@ -197,7 +198,7 @@ class SchedulingController:
     def decide_manual_action(
         self,
         match: MatchEvaluation,
-        active_playlists: list[str],
+        active_playlists: Playlists,
     ) -> ControllerDecision:
         matched = match.best_playlists
 
@@ -205,7 +206,7 @@ class SchedulingController:
             return ControllerDecision(
                 kind=ActionKind.HOLD if active_playlists else ActionKind.NONE,
                 reason_code=ActionReasonCode.NO_MATCH,
-                matched_playlists=[],
+                matched_playlists=Playlists([]),
             )
 
         if matched != active_playlists:

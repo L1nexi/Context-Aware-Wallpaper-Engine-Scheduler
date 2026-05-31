@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from core.context import Context
 from core.diagnostics import MatchEvaluation, PolicyEvaluation
+from core.playlist import Playlists
 from utils.runtime_config import PlaylistConfig, TagSpec
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ _MAX_CLUSTER_SIZE = 4  # max length of best_playlists
 class Matcher:
     def __init__(
         self,
-        playlists: dict[str, PlaylistConfig],
+        playlist_configs: dict[str, PlaylistConfig],
         policies: list[Policy],
         tag_specs: dict[str, TagSpec] | None = None,
     ):
@@ -30,7 +31,7 @@ class Matcher:
         self._tag_specs: dict[str, TagSpec] = tag_specs or {}
 
         all_tags: set[str] = set()
-        for playlist in playlists.values():
+        for playlist in playlist_configs.values():
             all_tags.update(playlist.tags.keys())
 
         self._known_tags: set[str] = set(all_tags)
@@ -40,12 +41,8 @@ class Matcher:
 
         self._warned_tags: set[str] = set()
 
-        self._item_counts: dict[str, int] = {
-            name: cfg.item_count for name, cfg in playlists.items()
-        }
-
         self.playlist_vectors: list[tuple[str, list[float]]] = []
-        for playlist_name, playlist in playlists.items():
+        for playlist_name, playlist in playlist_configs.items():
             vector = [0.0] * self.dim
             for tag, weight in playlist.tags.items():
                 if tag in self.tag_to_index:
@@ -82,7 +79,7 @@ class Matcher:
                 for resolved_tag, resolved_weight in resolved_tags.items():
                     bucket[resolved_tag] = bucket.get(resolved_tag, 0.0) + resolved_weight
 
-        best_playlists: list[str] = []
+        best_playlist_names: list[str] = []
         playlist_matches: list[tuple[str, float]] = []
 
         if self.playlist_vectors and resolved_context_vector:
@@ -110,17 +107,19 @@ class Matcher:
                         break
                     if i > 0 and raw_scores[i - 1][0] - score > _CLUSTER_GAP_THRESHOLD:
                         break
-                    best_playlists.append(name)
+                    best_playlist_names.append(name)
 
+        best_playlists = Playlists(best_playlist_names)
         # Compute similarity: weighted average of best_playlists scores by item_count
         similarity = 0.0
         if best_playlists and playlist_matches:
             score_lookup = dict(playlist_matches)
+            weights = best_playlists.item_counts()
             weighted_sum = 0.0
             total_weight = 0.0
-            for name in best_playlists:
+            for name in best_playlists.names():
                 score = score_lookup.get(name, 0.0)
-                weight = self._item_counts.get(name, 0)
+                weight = weights.get(name, 0)
                 if weight > 0:
                     weighted_sum += score * weight
                     total_weight += weight

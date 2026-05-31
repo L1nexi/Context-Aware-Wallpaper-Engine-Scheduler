@@ -3,14 +3,26 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest import mock
 
+import pytest
+
+from core.playlist import PlaylistInfo, Playlists
 from ui.tray import TrayIcon
+
+
+@pytest.fixture(autouse=True)
+def _configure_playlists():
+    Playlists._configs = {
+        "focus": PlaylistInfo(display="Focus Flow", color="#F5C518", item_count=10),
+        "rain": PlaylistInfo(display="Rain Mood", color="#2563EB", item_count=5),
+    }
+    yield
+    Playlists._configs = {}
 
 
 class FakeScheduler:
     def __init__(self) -> None:
         self.paused = False
-        self.cached_playlists: list[str] = []
-        self.display_of = {}
+        self.cached_playlists = Playlists([])
         self.last_tick_trace = None
         self.on_auto_resume = None
         self.apply_current_match_now = mock.Mock()
@@ -25,16 +37,15 @@ def _trace(
     best_playlists: list[str] | None = None,
 ):
     return SimpleNamespace(
-        action=SimpleNamespace(effective_playlists_after=effective_playlists_after or []),
-        match=SimpleNamespace(best_playlists=best_playlists or []),
+        action=SimpleNamespace(effective_playlists_after=Playlists(effective_playlists_after or [])),
+        match=SimpleNamespace(best_playlists=Playlists(best_playlists or [])),
     )
 
 
 def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
-    scheduler.cached_playlists = ["focus"]
-    scheduler.display_of = {"focus": "Focus Flow", "rain": "Rain Mood"}
+    scheduler.cached_playlists = Playlists(["focus"])
     scheduler.last_tick_trace = _trace(
         effective_playlists_after=["focus"],
         best_playlists=["rain"],
@@ -51,8 +62,7 @@ def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
 def test_tray_summary_disables_apply_when_no_match(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
-    scheduler.cached_playlists = ["focus"]
-    scheduler.display_of = {"focus": "Focus Flow"}
+    scheduler.cached_playlists = Playlists(["focus"])
     scheduler.last_tick_trace = _trace(
         effective_playlists_after=["focus"],
         best_playlists=[],
@@ -81,8 +91,7 @@ def test_tray_summary_reports_outside_configured_playlists(monkeypatch):
 def test_tray_summary_falls_back_to_cached_active_playlist(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
-    scheduler.cached_playlists = ["focus"]
-    scheduler.display_of = {"focus": "Focus Flow"}
+    scheduler.cached_playlists = Playlists(["focus"])
     scheduler.last_tick_trace = _trace(
         effective_playlists_after=[],
         best_playlists=["rain"],
@@ -97,8 +106,7 @@ def test_tray_summary_uses_cached_active_playlist_while_paused(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.paused = True
-    scheduler.cached_playlists = ["focus"]
-    scheduler.display_of = {"focus": "Focus Flow"}
+    scheduler.cached_playlists = Playlists(["focus"])
     scheduler.last_tick_trace = _trace(
         effective_playlists_after=[],
         best_playlists=["rain"],
