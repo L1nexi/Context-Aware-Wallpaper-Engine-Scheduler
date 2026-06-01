@@ -6,6 +6,7 @@ export type ActionKind = 'none' | 'switch' | 'cycle' | 'hold' | 'pause'
 export type ActionReasonCode =
   | 'no_match'
   | 'hold_same_playlist'
+  | 'hold_semantic_continuity'
   | 'switch_allowed'
   | 'switch_blocked_cooldown'
   | 'switch_blocked_fullscreen'
@@ -18,8 +19,7 @@ export type ActionReasonCode =
   | 'cycle_blocked_not_idle'
   | 'scheduler_paused'
   | 'manual_apply_requested'
-  | 'recovery_no_playlist'
-  | 'recovery_unmanaged_playlist'
+  | 'recovery_unmanaged'
   | 'recovery_no_match'
 
 export type ControllerBlocker = 'cooldown' | 'fullscreen' | 'cpu' | 'idle'

@@ -264,9 +264,9 @@ class TrayIcon:
     def _get_active_text(self) -> str:
         playlists = self.scheduler.cached_playlists
         if not self.scheduler.paused and self.scheduler.last_tick_trace is not None:
-            effective = self.scheduler.last_tick_trace.action.effective_playlists_after
-            if effective:
-                playlists = effective
+            active = self.scheduler.last_tick_trace.action.active_playlists_after
+            if active:
+                playlists = active
 
         if playlists:
             displays = Playlists.managed().displays()

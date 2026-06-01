@@ -17,10 +17,7 @@ from core.context import ContextManager
 from core.controller import SchedulingController
 from core.diagnostics import (
     ActionKind,
-    ActionReasonCode,
     ActuationOutcome,
-    ControllerDecision,
-    MatchEvaluation,
     SchedulerTickTrace,
 )
 from core.event_logger import EventLogger, EventType
@@ -41,22 +38,23 @@ logger = logging.getLogger("WEScheduler.Core")
 _STATE_FILE = os.path.join(get_data_dir(), "state.json")
 
 
-class SchedulerState(BaseModel):
+class SchedulerPersistedState(BaseModel):
+    """Snapshot of state that persists across process restarts."""
+
     paused: bool = False
     pause_until: float = 0.0
     cached_playlists: list[str] = []
-    last_action_time: float = 0.0
 
     @staticmethod
-    def load_state(path: str = _STATE_FILE) -> SchedulerState:
+    def load_state(path: str = _STATE_FILE) -> SchedulerPersistedState:
         try:
             with open(path, encoding="utf-8") as f:
-                return SchedulerState.model_validate(json.load(f))
+                return SchedulerPersistedState.model_validate(json.load(f))
         except Exception:
-            return SchedulerState()
+            return SchedulerPersistedState()
 
     @staticmethod
-    def save_state(state: SchedulerState, path: str = _STATE_FILE) -> None:
+    def save_persisted_state(state: SchedulerPersistedState, path: str = _STATE_FILE) -> None:
         try:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(state.model_dump_json(indent=2))
@@ -111,7 +109,7 @@ class WEScheduler:
         logger.info("Loaded %d playlists.", len(config.playlists))
 
         self._install_runtime_components(self._build_runtime_components(config))
-        self._restore_state(SchedulerState.load_state())
+        self._restore_persistent_state(SchedulerPersistedState.load_state())
 
         logger.info("Scheduler initialized successfully.")
         self.initialized = True
@@ -140,7 +138,7 @@ class WEScheduler:
         self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=2)
-        SchedulerState.save_state(self._build_state())
+        SchedulerPersistedState.save_persisted_state(self._build_persisted_state())
         self.history_logger.write(EventType.STOP, {})
         logger.info("Scheduler stopped.")
 
@@ -157,7 +155,7 @@ class WEScheduler:
             else:
                 self.pause_until = 0
                 logger.info("Scheduler paused (indefinitely).")
-            SchedulerState.save_state(self._build_state())
+            SchedulerPersistedState.save_persisted_state(self._build_persisted_state())
             self.history_logger.write(EventType.PAUSE, {"duration": seconds})
 
     def resume(self):
@@ -166,7 +164,7 @@ class WEScheduler:
             self.pause_until = 0
             logger.info("Scheduler resumed.")
             self.history_logger.write(EventType.RESUME, {})
-            SchedulerState.save_state(self._build_state())
+            SchedulerPersistedState.save_persisted_state(self._build_persisted_state())
 
     def get_pause_remaining(self) -> float | None:
         if not self.paused or self.pause_until == 0:
@@ -215,18 +213,23 @@ class WEScheduler:
         )
 
         if self.paused:
-            action = self._build_paused_actuation_outcome(match, resolution.effective_playlists)
-        elif resolution.recovery_needed and resolution.recovery_reason is not None:
-            action = self.actuator.act_recovery(
-                match,
-                resolution.effective_playlists,
-                resolution.recovery_reason,
+            action = self.actuator.act(
+                "pause",
+                match=match,
+                active_playlists=resolution.active_playlists,
+            )
+        elif resolution.recovery_needed:
+            action = self.actuator.act(
+                "recovery",
+                match=match,
+                active_playlists=resolution.active_playlists,
             )
         else:
             action = self.actuator.act(
-                context_snapshot,
-                match,
-                resolution.effective_playlists,
+                "normal",
+                match=match,
+                active_playlists=resolution.active_playlists,
+                context=context_snapshot,
             )
 
         self.tick_id += 1
@@ -251,7 +254,11 @@ class WEScheduler:
         live_context = self.context_manager.refresh()
         context_snapshot = copy.deepcopy(live_context)
         match = self.matcher.evaluate(context_snapshot)
-        action = self.actuator.act_manual(match, self.cached_playlists)
+        action = self.actuator.act(
+            "manual",
+            match=match,
+            active_playlists=self.cached_playlists,
+        )
 
         self.tick_id += 1
         return SchedulerTickTrace(
@@ -264,23 +271,6 @@ class WEScheduler:
             action=action,
         )
 
-    def _build_paused_actuation_outcome(
-        self,
-        match: MatchEvaluation,
-        effective_playlists: Playlists,
-    ) -> ActuationOutcome:
-        return ActuationOutcome(
-            decision=ControllerDecision(
-                kind=ActionKind.PAUSE,
-                reason_code=ActionReasonCode.SCHEDULER_PAUSED,
-                matched_playlists=match.best_playlists,
-                evaluation=None,
-            ),
-            effective_playlists_before=effective_playlists,
-            effective_playlists_after=effective_playlists,
-            executed=False,
-        )
-
     def _commit_tick(self, trace: SchedulerTickTrace) -> None:
         self.last_tick_trace = trace
 
@@ -290,13 +280,10 @@ class WEScheduler:
             self.cached_playlists = next_cached_playlists
             should_save_state = True
 
-        if trace.action.executed:
-            should_save_state = True
-
         if should_save_state:
-            SchedulerState.save_state(self._build_state())
+            SchedulerPersistedState.save_persisted_state(self._build_persisted_state())
 
-        self._update_status(trace)
+        self._update_cli_status(trace)
 
         if self.on_tick:
             try:
@@ -306,9 +293,9 @@ class WEScheduler:
 
     def _resolve_cached_playlists_after(self, action: ActuationOutcome) -> Playlists:
         if action.kind == ActionKind.SWITCH and action.executed:
-            return action.effective_playlists_after
-        if action.effective_playlists_before:
-            return action.effective_playlists_before
+            return action.active_playlists_after
+        if action.active_playlists_before:
+            return action.active_playlists_before
         return self.cached_playlists
 
     def _check_hot_reload(self) -> None:
@@ -388,22 +375,15 @@ class WEScheduler:
             # in all cases, we update fingerprint to avoid repeated reloads.
             self._config_fingerprint = fingerprint
 
-    def _build_state(self) -> SchedulerState:
-        controller = self.actuator.controller
-        return SchedulerState(
+    def _build_persisted_state(self) -> SchedulerPersistedState:
+        return SchedulerPersistedState(
             paused=self.paused,
             pause_until=self.pause_until,
             cached_playlists=self.cached_playlists.names(),
-            last_action_time=controller.last_action_time,
         )
 
-    def _restore_state(self, state: SchedulerState) -> None:
+    def _restore_persisted_state(self, state: SchedulerPersistedState) -> None:
         self.cached_playlists = Playlists(list(state.cached_playlists))
-        self.actuator.controller.import_state(
-            {
-                "last_action_time": state.last_action_time,
-            }
-        )
 
         if state.pause_until > time.time():
             self.paused = True
@@ -417,7 +397,7 @@ class WEScheduler:
             self.pause_until = 0
             logger.info("Restored indefinite pause.")
 
-    def _update_status(self, trace: SchedulerTickTrace) -> None:
+    def _update_cli_status(self, trace: SchedulerTickTrace) -> None:
         process_name = trace.context.window.process or "N/A"
         idle_time = trace.context.idle
         best_playlists = trace.match.best_playlists

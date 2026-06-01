@@ -407,8 +407,8 @@ def _controller_evaluation(
 def map_tick_snapshot(trace: SchedulerTickTrace) -> TickSnapshotDto:
     matched_playlist_refs = _playlist_refs(trace.match.best_playlists)
     action_matched_playlist_refs = _playlist_refs(trace.action.decision.matched_playlists)
-    active_playlists_after_refs = _playlist_refs(trace.action.effective_playlists_after)
-    active_playlists_before_refs = _playlist_refs(trace.action.effective_playlists_before)
+    active_playlists_after_refs = _playlist_refs(trace.action.active_playlists_after)
+    active_playlists_before_refs = _playlist_refs(trace.action.active_playlists_before)
     target_playlist_ref = _playlist_ref(trace.action.target_playlist)
     has_event = trace.action.kind in {ActionKind.SWITCH, ActionKind.CYCLE}
 

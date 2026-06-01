@@ -27,6 +27,7 @@ class ActionReasonCode(StrEnum):
 
     NO_MATCH = "no_match"
     HOLD_SAME_PLAYLIST = "hold_same_playlist"
+    HOLD_SEMANTIC_CONTINUITY = "hold_semantic_continuity"
     SWITCH_ALLOWED = "switch_allowed"
     SWITCH_BLOCKED_COOLDOWN = "switch_blocked_cooldown"
     SWITCH_BLOCKED_FULLSCREEN = "switch_blocked_fullscreen"
@@ -39,8 +40,7 @@ class ActionReasonCode(StrEnum):
     CYCLE_BLOCKED_NOT_IDLE = "cycle_blocked_not_idle"
     SCHEDULER_PAUSED = "scheduler_paused"
     MANUAL_APPLY_REQUESTED = "manual_apply_requested"
-    RECOVERY_NO_PLAYLIST = "recovery_no_playlist"
-    RECOVERY_UNMANAGED_PLAYLIST = "recovery_unmanaged_playlist"
+    RECOVERY_UNMANAGED = "recovery_unmanaged"
     RECOVERY_NO_MATCH = "recovery_no_match"
 
 
@@ -170,8 +170,8 @@ class ControllerDecision:
 @dataclass
 class ActuationOutcome:
     decision: ControllerDecision
-    effective_playlists_before: Playlists
-    effective_playlists_after: Playlists
+    active_playlists_before: Playlists
+    active_playlists_after: Playlists
     target_playlist: str | None = None
     executed: bool = False
 

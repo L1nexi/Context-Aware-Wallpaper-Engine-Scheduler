@@ -33,11 +33,11 @@ class FakeScheduler:
 
 def _trace(
     *,
-    effective_playlists_after: list[str] | None = None,
+    active_playlists_after: list[str] | None = None,
     best_playlists: list[str] | None = None,
 ):
     return SimpleNamespace(
-        action=SimpleNamespace(effective_playlists_after=Playlists(effective_playlists_after or [])),
+        action=SimpleNamespace(active_playlists_after=Playlists(active_playlists_after or [])),
         match=SimpleNamespace(best_playlists=Playlists(best_playlists or [])),
     )
 
@@ -47,7 +47,7 @@ def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
     scheduler = FakeScheduler()
     scheduler.cached_playlists = Playlists(["focus"])
     scheduler.last_tick_trace = _trace(
-        effective_playlists_after=["focus"],
+        active_playlists_after=["focus"],
         best_playlists=["rain"],
     )
 
@@ -64,7 +64,7 @@ def test_tray_summary_disables_apply_when_no_match(monkeypatch):
     scheduler = FakeScheduler()
     scheduler.cached_playlists = Playlists(["focus"])
     scheduler.last_tick_trace = _trace(
-        effective_playlists_after=["focus"],
+        active_playlists_after=["focus"],
         best_playlists=[],
     )
 
@@ -79,7 +79,7 @@ def test_tray_summary_reports_outside_configured_playlists(monkeypatch):
     monkeypatch.setattr("utils.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.last_tick_trace = _trace(
-        effective_playlists_after=[],
+        active_playlists_after=[],
         best_playlists=["rain"],
     )
 
@@ -93,7 +93,7 @@ def test_tray_summary_falls_back_to_cached_active_playlist(monkeypatch):
     scheduler = FakeScheduler()
     scheduler.cached_playlists = Playlists(["focus"])
     scheduler.last_tick_trace = _trace(
-        effective_playlists_after=[],
+        active_playlists_after=[],
         best_playlists=["rain"],
     )
 
@@ -108,7 +108,7 @@ def test_tray_summary_uses_cached_active_playlist_while_paused(monkeypatch):
     scheduler.paused = True
     scheduler.cached_playlists = Playlists(["focus"])
     scheduler.last_tick_trace = _trace(
-        effective_playlists_after=[],
+        active_playlists_after=[],
         best_playlists=["rain"],
     )
 

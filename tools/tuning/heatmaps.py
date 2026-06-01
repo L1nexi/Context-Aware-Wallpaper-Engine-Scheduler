@@ -17,9 +17,9 @@ from tools.tuning.models import (
 )
 from utils.runtime_config import SchedulerConfig
 
-HeatmapMode = Literal["wx-hour", "act-hour", "wx-act", "wx-doy", "act-doy", "hour-doy"]
-HeatmapType = Literal["winner"]
-AxisName = Literal["weather", "hour", "activity", "day_of_year"]
+type HeatmapMode = Literal["wx-hour", "act-hour", "wx-act", "wx-doy", "act-doy", "hour-doy"]
+type HeatmapType = Literal["winner"]
+type AxisName = Literal["weather", "hour", "activity", "day_of_year"]
 
 WEATHER_HEATMAP_PRESETS: tuple[str | None, ...] = (
     None,
