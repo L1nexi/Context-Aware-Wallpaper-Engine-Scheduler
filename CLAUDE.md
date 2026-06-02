@@ -56,25 +56,27 @@ cd dashboard && npm run dev
 
 ## 架构
 
-**Sense-Think-Act 管线**（`WEScheduler` 1 秒 tick 循环）：
+**Sense-Think-Act-Trace-Commit 管线**（`WEScheduler` 1 秒 tick 循环）：
 
 ```
-Sensors -> Context -> Policies -> Matcher -> Controller -> Actuator -> WEExecutor
-                                                           |
-                                          SchedulerTickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
-                                                           |
-                                      HistoryLogger.write() -> history-{YYYY}-{MM}.jsonl
+Sense:    ContextManager.sense()       -> Context snapshot
+Think:    Matcher.evaluate()           -> Match (policy evaluations + playlist ranking)
+Act:      plan_actuation() + Actuator  -> ActionResult (decision + execution)
+Trace:    _build_tick_trace()          -> TickTrace (full tick record)
+Commit:   _commit_tick()               -> cache persist, tick listeners, HistoryLogger
+
+TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
+                                        HistoryLogger.write() -> history-{YYYY}-{MM}.jsonl
 ```
 
 - **Sensors** (`core/sensors.py`)：WindowSensor、IdleSensor、CpuSensor、FullscreenSensor、WeatherSensor、TimeSensor
-- **Context** (`core/context.py`)：`Context` dataclass，`ContextManager` 每 tick 轮询传感器
+- **Context** (`core/context.py`)：`Context` dataclass，`ContextManager` 每 tick 轮询传感器，`sense()` 返回深拷贝快照
 - **Policies** (`core/policies.py`)：ActivityPolicy（双 EMA）、TimePolicy（Hann 窗插值）、SeasonPolicy（Hann 窗插值）、WeatherPolicy（四档连续强度）— 各输出归一化标签向量 + salience
 - **Matcher** (`core/matcher.py`)：上下文向量与播放列表标签向量的余弦相似度匹配；通过 `tags.yaml` 递归展开 fallback
-- **Controller** (`core/controller.py`)：门控逻辑（空闲阈值、冷却计时器、CPU、全屏、强制超时）→ SWITCH / CYCLE / HOLD / NONE
-- **Actuator** (`core/actuator.py`)：将 controller 决策桥接到 executor 命令
+- **Actuator** (`core/actuator.py`)：将 matcher 结果与 actuation plan 桥接为 `ActionResult`，`ActionResult.cache_update` 是播放列表缓存的唯一写入权威
 - **Executor** (`core/executor.py`)：Wallpaper Engine CLI 命令（`-control openPlaylist`、`-control nextWallpaper`）
-- **Scheduler** (`core/scheduler.py`)：主编排器，tick 循环、热重载、暂停/恢复、状态持久化
-- **Diagnostics** (`core/diagnostics.py`)：`SchedulerTickTrace` dataclass 层级，用于 tick 内省
+- **Scheduler** (`core/scheduler.py`)：主编排器，tick 循环（Sense -> Think -> Act -> Trace -> Commit）、热重载、暂停/恢复、状态持久化
+- **Trace** (`core/trace.py`)：`TickTrace`、`ActionResult`、`Decision` 等 dataclass 层级，用于 tick 内省
 
 ### UI 层
 
@@ -116,5 +118,5 @@ pytest 配置以 `pytest.ini` 为准，必须在仓库根目录运行。`testpat
 
 - 真实运行配置读 `config/`；测试或样例用 `config.example/` 或测试 fixture，不要无提示改写真实配置
 - 不要新增 include 或隐藏配置层
-- Diagnostics 消费基于 `SchedulerTickTrace` 的 `GET /api/analysis/window` DTO，不要恢复旧 dashboard summary 契约
+- Diagnostics 消费基于 `TickTrace` 的 `GET /api/analysis/window` DTO，不要恢复旧 dashboard summary 契约
 - `docs/archived/done/` 是当前仍引用的规格；`docs/archived/deprecated/` 只作历史记录

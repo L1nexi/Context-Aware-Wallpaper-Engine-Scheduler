@@ -245,7 +245,7 @@ def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> Non
         SeasonPolicy(config.policies.season),
         WeatherPolicy(config.policies.weather),
     ]
-    expected_match = Matcher(config.playlists, policies, config.tags).evaluate(context)
+    expected_match = Matcher(config.playlists, policies, config.tags).match(context)
 
     result = evaluate_scenario(config, scenario, MatchProfile("current"))
 

@@ -261,7 +261,7 @@ def evaluate_scenario(
         SeasonPolicy(config.policies.season),
         WeatherPolicy(config.policies.weather),
     ]
-    match = Matcher(config.playlists, policies, config.tags).evaluate(context)
+    match = Matcher(config.playlists, policies, config.tags).match(context)
     playlist_matches = rank_for_profile(config, match.resolved_context_vector, profile)
     match.playlist_matches = playlist_matches
     best_name = playlist_matches[0][0] if playlist_matches and playlist_matches[0][1] > 0.001 else None

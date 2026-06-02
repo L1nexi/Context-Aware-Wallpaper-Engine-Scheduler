@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 import logging
 import time
@@ -83,5 +84,5 @@ class ContextManager:
                 logger.warning(f"Error collecting from sensor '{key}': {e}")
         return self._context
 
-    def get_context(self) -> Context:
-        return self._context
+    def sense(self) -> Context:
+        return copy.deepcopy(self.refresh())

@@ -11,7 +11,6 @@ from core.controller import Intent, SchedulingController, weighted_jaccard
 from core.event_logger import EventType
 from core.matcher import Matcher
 from core.playlist import PlaylistInfo, Playlists
-from core.playlist_state import resolve_playlist_state
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
 from core.scheduler import WEScheduler, _RuntimeComponents
 from core.state import PersistedState
@@ -171,7 +170,7 @@ def test_matcher_preserves_raw_resolved_and_fallback_vectors():
         tag_specs={"stormy": TagSpec(fallback={"focus": 1.0})},
     )
 
-    evaluation = matcher.evaluate(Context())
+    evaluation = matcher.match(Context())
 
     assert evaluation.raw_context_vector == {"stormy": 1.0}
     assert evaluation.resolved_context_vector == {"focus": 1.0}
@@ -894,6 +893,7 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
     )
     actuator = Actuator(executor, controller)
 
+    ctx = mock.Mock(spec=Context)
     outcome = actuator.act(
         "recovery",
         match=Match(
@@ -902,6 +902,7 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
             raw_context_vector={"rain": 1.0},
         ),
         active_playlists=Playlists([]),
+        context=ctx,
     )
 
     assert outcome.action == Action.SWITCH
@@ -910,79 +911,11 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
     executor.open_playlist.assert_called_once_with("rain")
     controller.decide_action.assert_called_once_with(
         "recovery",
-        match=mock.ANY,
-        active_playlists=Playlists([]),
-        context=None,
+        mock.ANY,
+        Playlists([]),
+        ctx,
     )
     controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
-
-
-def test_playlist_state_uses_managed_factual_playlist():
-    resolution = resolve_playlist_state(
-        FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="rain"),
-        cached_playlists=Playlists(["focus"]),
-        paused=False,
-    )
-
-    assert resolution.active_playlists == Playlists(["rain"])
-    assert resolution.recovery_needed is False
-
-
-def test_playlist_state_preserves_cached_pool_when_factual_playlist_is_member():
-    resolution = resolve_playlist_state(
-        FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="A"),
-        cached_playlists=Playlists(["A", "B"]),
-        paused=False,
-    )
-
-    assert resolution.active_playlists == Playlists(["A", "B"])
-    assert resolution.recovery_needed is False
-
-
-@pytest.mark.parametrize(
-    "factual",
-    [
-        FactualPlaylistState(FactualPlaylistStatus.PLAYLIST, playlist="other"),
-        FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST),
-    ],
-)
-def test_playlist_state_requests_recovery_for_running_broken_state(
-    factual,
-):
-    resolution = resolve_playlist_state(
-        factual,
-        cached_playlists=Playlists(["focus"]),
-        paused=False,
-    )
-
-    assert resolution.active_playlists == Playlists([])
-    assert resolution.recovery_needed is True
-
-
-def test_playlist_state_suppresses_recovery_while_paused():
-    resolution = resolve_playlist_state(
-        FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST),
-        cached_playlists=Playlists(["focus"]),
-        paused=True,
-    )
-
-    assert resolution.active_playlists == Playlists([])
-    assert resolution.recovery_needed is False
-
-
-@pytest.mark.parametrize(
-    "status",
-    [FactualPlaylistStatus.UNKNOWN, FactualPlaylistStatus.AMBIGUOUS],
-)
-def test_playlist_state_falls_back_to_cached_playlist_when_factual_unknown(status):
-    resolution = resolve_playlist_state(
-        FactualPlaylistState(status),
-        cached_playlists=Playlists(["focus"]),
-        paused=False,
-    )
-
-    assert resolution.active_playlists == Playlists(["focus"])
-    assert resolution.recovery_needed is False
 
 
 def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
@@ -1016,7 +949,7 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
     assert trace.paused is True
     scheduler.we_config_prober.probe_playlist.assert_called_once()
     scheduler.actuator.act.assert_called_once()
-    assert scheduler.actuator.act.call_args.args == ("pause",)
+    assert scheduler.actuator.act.call_args.args[0] == "pause"
     scheduler.executor.is_we_running.assert_not_called()
     scheduler.executor.request_we_start.assert_not_called()
 
@@ -1054,8 +987,7 @@ def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
     scheduler._run_tick()
 
     scheduler.actuator.act.assert_called_once()
-    assert scheduler.actuator.act.call_args.args == ("recovery",)
-    assert "recovery_reason_code" not in scheduler.actuator.act.call_args.kwargs
+    assert scheduler.actuator.act.call_args.args[0] == "recovery"
 
 
 def test_scheduler_commit_tick_fans_out_to_listeners():
@@ -1255,7 +1187,7 @@ def test_matcher_cluster_groups_playlists_within_gap_threshold():
         policies=[stub_policy],
     )
 
-    evaluation = matcher.evaluate(Context())
+    evaluation = matcher.match(Context())
 
     # A and B should cluster (similar scores), C should be excluded (different tag)
     assert len(evaluation.best_playlists) >= 1
@@ -1288,7 +1220,7 @@ def test_matcher_cluster_breaks_on_large_gap():
         policies=[stub_policy],
     )
 
-    evaluation = matcher.evaluate(Context())
+    evaluation = matcher.match(Context())
 
     assert evaluation.best_playlists == Playlists(["STRONG"])
     assert len(evaluation.best_playlists) == 1
@@ -1317,7 +1249,7 @@ def test_matcher_cluster_empty_when_no_match():
         policies=[stub_policy],
     )
 
-    evaluation = matcher.evaluate(Context())
+    evaluation = matcher.match(Context())
 
     assert evaluation.best_playlists == Playlists([])
     assert evaluation.similarity == 0.0
@@ -1342,7 +1274,7 @@ def test_matcher_cluster_respects_max_size():
     playlists = {f"P{i}": PlaylistConfig(color="#FF0000", tags={"focus": 1.0 - i * 0.001}) for i in range(6)}
     matcher = Matcher(playlist_configs=playlists, policies=[stub_policy])
 
-    evaluation = matcher.evaluate(Context())
+    evaluation = matcher.match(Context())
 
     assert len(evaluation.best_playlists) <= 4
 
@@ -1387,7 +1319,7 @@ def test_matcher_fills_similarity_and_similarity_gap():
         policies=[stub_policy],
     )
 
-    evaluation = matcher.evaluate(Context())
+    evaluation = matcher.match(Context())
 
     assert evaluation.similarity > 0
     assert evaluation.similarity_gap >= 0
@@ -1420,7 +1352,7 @@ def test_matcher_weighted_similarity():
         policies=[stub_policy],
     )
 
-    evaluation = matcher.evaluate(Context())
+    evaluation = matcher.match(Context())
 
     score_lookup = dict(evaluation.playlist_matches)
     score_a = score_lookup.get("A", 0)

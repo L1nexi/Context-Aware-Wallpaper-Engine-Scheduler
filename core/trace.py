@@ -186,6 +186,12 @@ class ActionResult:
     def evaluation(self) -> BlockerEvaluation | None:
         return self.decision.evaluation
 
+    @property
+    def cache_update(self) -> Playlists | None:
+        if self.executed and self.action == Action.SWITCH:
+            return self.active_playlists_after
+        return None
+
 
 @dataclass
 class TickTrace:

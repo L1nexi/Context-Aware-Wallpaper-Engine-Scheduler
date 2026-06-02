@@ -46,17 +46,11 @@ class Actuator:
     def act(
         self,
         mode: DecisionMode,
-        *,
         match: Match,
         active_playlists: Playlists,
-        context: Context | None = None,
+        context: Context,
     ) -> ActionResult:
-        decision = self.controller.decide_action(
-            mode,
-            match=match,
-            active_playlists=active_playlists,
-            context=context,
-        )
+        decision = self.controller.decide_action(mode, match, active_playlists, context)
         return self._act_from_decision(active_playlists, decision)
 
     def _act_from_decision(

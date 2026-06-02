@@ -223,13 +223,7 @@ class TrayIcon:
             self.on_show_dashboard()
 
     def _on_apply_current_match_now(self, icon, item):
-        def _apply() -> None:
-            try:
-                self.scheduler.apply_current_match_now()
-            except Exception:
-                logger.exception("Manual apply failed")
-
-        threading.Thread(target=_apply, daemon=True).start()
+        self.scheduler.apply_current_match_now()
 
     def _on_exit(self, icon, item):
         self.scheduler.stop()

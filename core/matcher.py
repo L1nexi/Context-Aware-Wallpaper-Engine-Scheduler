@@ -54,7 +54,7 @@ class Matcher:
             else:
                 logger.warning("Playlist '%s' has no valid tags or zero weights.", playlist_name)
 
-    def evaluate(self, context: Context) -> Match:
+    def match(self, context: Context) -> Match:
         raw_context_vector: dict[str, float] = {}
         resolved_context_vector: dict[str, float] = {}
         fallback_expansions: dict[str, dict[str, float]] = {}

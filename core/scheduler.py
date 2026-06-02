@@ -1,27 +1,26 @@
 from __future__ import annotations
 
-import copy
 import logging
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from core.act_plan import plan_actuation
 from core.action_history import ActionHistoryWriter
 from core.actuator import Actuator
-from core.context import ContextManager
+from core.context import Context, ContextManager
 from core.controller import SchedulingController
 from core.event_logger import EventLogger, EventType
 from core.executor import WEExecutor
 from core.matcher import Matcher
 from core.playlist import Playlists
-from core.playlist_state import resolve_playlist_state
 from core.policies import POLICY_REGISTRY, Policy
 from core.sensors import SENSOR_REGISTRY
 from core.state import PersistedState
 from core.trace import (
-    Action,
     ActionResult,
+    Match,
     TickTrace,
 )
 from utils.config_errors import ConfigLoadError
@@ -76,6 +75,7 @@ class WEScheduler:
         self.last_reload_error: ConfigLoadError | None = None
         self.tick_id: int = 0
         self._config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
+        self._manual_apply_pending: bool = False
 
     def initialize(self) -> bool:
         self.config_loader = ConfigLoader(self.config_dir)
@@ -179,72 +179,38 @@ class WEScheduler:
                 logger.exception("on_auto_resume hook failed")
 
     def _run_tick(self) -> TickTrace:
-        live_context = self.context_manager.refresh()
-        context_snapshot = copy.deepcopy(live_context)
-        match = self.matcher.evaluate(context_snapshot)
-        cached_playlists_before = self.cached_playlists
-        factual = self.we_config_prober.probe_playlist()
-        resolution = resolve_playlist_state(
-            factual,
-            cached_playlists=cached_playlists_before,
+        context = self.context_manager.sense()
+        match = self.matcher.match(context)
+
+        plan = plan_actuation(
+            factual=self.we_config_prober.probe_playlist(),
+            cached_playlists=self.cached_playlists,
             paused=self.paused,
+            manual_requested=self._consume_manual_apply_request(),
         )
 
-        if self.paused:
-            action = self.actuator.act(
-                "pause",
-                match=match,
-                active_playlists=resolution.active_playlists,
-            )
-        elif resolution.recovery_needed:
-            action = self.actuator.act(
-                "recovery",
-                match=match,
-                active_playlists=resolution.active_playlists,
-            )
-        else:
-            action = self.actuator.act(
-                "normal",
-                match=match,
-                active_playlists=resolution.active_playlists,
-                context=context_snapshot,
-            )
+        action = self.actuator.act(plan.mode, match, plan.active_playlists, context)
 
+        return self._build_tick_trace(context, match, action)
+
+    def apply_current_match_now(self) -> None:
+        logger.info("Manual apply requested.")
+        self._manual_apply_pending = True
+
+    def _consume_manual_apply_request(self) -> bool:
+        if self._manual_apply_pending:
+            self._manual_apply_pending = False
+            return True
+        return False
+
+    def _build_tick_trace(self, context: Context, match: Match, action: ActionResult) -> TickTrace:
         self.tick_id += 1
         return TickTrace(
             tick_id=self.tick_id,
             ts=time.time(),
             paused=self.paused,
             pause_until=self.pause_until,
-            context=context_snapshot,
-            match=match,
-            action=action,
-        )
-
-    def apply_current_match_now(self) -> TickTrace | None:
-        with self._runtime_lock:
-            logger.info("Manual apply requested.")
-            trace = self._run_manual_apply_tick()
-            self._commit_tick(trace)
-            return trace
-
-    def _run_manual_apply_tick(self) -> TickTrace:
-        live_context = self.context_manager.refresh()
-        context_snapshot = copy.deepcopy(live_context)
-        match = self.matcher.evaluate(context_snapshot)
-        action = self.actuator.act(
-            "manual",
-            match=match,
-            active_playlists=self.cached_playlists,
-        )
-
-        self.tick_id += 1
-        return TickTrace(
-            tick_id=self.tick_id,
-            ts=time.time(),
-            paused=self.paused,
-            pause_until=self.pause_until,
-            context=context_snapshot,
+            context=context,
             match=match,
             action=action,
         )
@@ -253,9 +219,9 @@ class WEScheduler:
         self.last_tick_trace = trace
 
         should_save_state = False
-        next_cached_playlists = self._resolve_cached_playlists_after(trace.action)
-        if next_cached_playlists != self.cached_playlists:
-            self.cached_playlists = next_cached_playlists
+        next_cached = trace.action.cache_update
+        if next_cached is not None and next_cached != self.cached_playlists:
+            self.cached_playlists = next_cached
             should_save_state = True
 
         if should_save_state:
@@ -266,13 +232,6 @@ class WEScheduler:
                 listener(trace)
             except Exception:
                 logger.exception("tick listener failed")
-
-    def _resolve_cached_playlists_after(self, action: ActionResult) -> Playlists:
-        if action.action == Action.SWITCH and action.executed:
-            return action.active_playlists_after
-        if action.active_playlists_before:
-            return action.active_playlists_before
-        return self.cached_playlists
 
     def _check_hot_reload(self) -> None:
         fingerprint = self.config_loader.fingerprint()
