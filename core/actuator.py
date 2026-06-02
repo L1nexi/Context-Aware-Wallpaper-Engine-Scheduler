@@ -16,7 +16,7 @@ from core.trace import (
 logger = logging.getLogger("WEScheduler.Actuator")
 
 
-class Result:
+class ActResult:
     @staticmethod
     def make(
         decision: Decision,
@@ -66,7 +66,7 @@ class Actuator:
 
         # No execution needed or no valid target
         if not target_playlists:
-            return Result.make(decision, active_playlists)
+            return ActResult.make(decision, active_playlists)
 
         target_playlist = target_playlists.select_target()
         logger.info("Applying playlist pool '%s' via playlist '%s'", target_playlists, target_playlist)
@@ -77,4 +77,4 @@ class Actuator:
             self.controller.notify_executed(decision)
             if decision.action == Action.SWITCH:
                 active_playlists_after = decision.matched
-        return Result.make(decision, active_playlists, active_playlists_after, target_playlist, executed)
+        return ActResult.make(decision, active_playlists, active_playlists_after, target_playlist, executed)

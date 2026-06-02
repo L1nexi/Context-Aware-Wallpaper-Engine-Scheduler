@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import subprocess
@@ -11,6 +13,11 @@ WE_CONTROL_TIMEOUT_SECONDS = 3.0
 
 class WEExecutor:
     def __init__(self, we_path: str):
+        """Create an executor for the given Wallpaper Engine executable.
+
+        Raises:
+            ValueError: If *we_path* is empty or does not point to an existing file.
+        """
         if not we_path or not os.path.isfile(we_path):
             raise ValueError("WEExecutor requires a resolved Wallpaper Engine executable path")
         self.we_path = we_path

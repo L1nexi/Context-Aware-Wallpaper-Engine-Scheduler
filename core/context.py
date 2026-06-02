@@ -5,7 +5,7 @@ import dataclasses
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.sensors import Sensor
@@ -44,10 +44,9 @@ class Context:
     fullscreen: bool = False
     weather: WeatherData | None = None
     time: time.struct_time = field(default_factory=time.localtime)
-    extra: dict[str, Any] = field(default_factory=dict)
 
 
-_CONTEXT_FIELD_NAMES: frozenset = frozenset(f.name for f in dataclasses.fields(Context) if f.name != "extra")
+_CONTEXT_FIELD_NAMES: frozenset[str] = frozenset(f.name for f in dataclasses.fields(Context))
 
 
 class ContextManager:
@@ -59,10 +58,10 @@ class ContextManager:
         """Register a sensor.
 
         The sensor's ``key`` class attribute must match a field on
-        :class:`Context` (excluding ``extra``).  This enforces ``Context``
-        as the single authoritative schema: add a field there first, then
-        register the sensor.  Passing ``None`` is a no-op so sensor factories
-        can return ``None`` to signal "do not register".
+        :class:`Context`.  This enforces ``Context`` as the single
+        authoritative schema: add a field there first, then register the
+        sensor.  Passing ``None`` is a no-op so sensor factories can return
+        ``None`` to signal "do not register".
         """
         if sensor is None:
             return
@@ -76,10 +75,7 @@ class ContextManager:
         for key, sensor in self._sensors:
             try:
                 value = sensor.collect()
-                if hasattr(self._context, key):
-                    setattr(self._context, key, value)
-                else:
-                    self._context.extra[key] = value
+                setattr(self._context, key, value)
             except Exception as e:
                 logger.warning(f"Error collecting from sensor '{key}': {e}")
         return self._context

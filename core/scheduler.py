@@ -90,7 +90,7 @@ class WEScheduler:
         self.initialized = True
         return True
 
-    def start(self):
+    def start(self) -> None:
         if self.running:
             logger.warning("Scheduler is already running.")
             return
@@ -106,7 +106,7 @@ class WEScheduler:
         self.thread.start()
         logger.info("Scheduler started.")
 
-    def stop(self):
+    def stop(self) -> None:
         if not self.running:
             return
         self.running = False
@@ -117,7 +117,7 @@ class WEScheduler:
         self.history_logger.write(EventType.STOP, {})
         logger.info("Scheduler stopped.")
 
-    def pause(self, seconds: int | None = None):
+    def pause(self, seconds: int | None = None) -> None:
         with self._runtime_lock:
             self.paused = True
             if seconds is not None:
@@ -133,7 +133,7 @@ class WEScheduler:
             self._build_persisted_state().save()
             self.history_logger.write(EventType.PAUSE, {"duration": seconds})
 
-    def resume(self):
+    def resume(self) -> None:
         with self._runtime_lock:
             self.paused = False
             self.pause_until = 0
@@ -150,7 +150,7 @@ class WEScheduler:
         remaining = self.pause_until - time.time()
         return max(0.0, remaining)
 
-    def _run_loop(self):
+    def _run_loop(self) -> None:
         while not self.stop_event.is_set():
             try:
                 with self._runtime_lock:

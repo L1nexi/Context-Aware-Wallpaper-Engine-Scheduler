@@ -259,6 +259,11 @@ class SchedulingController:
         active_playlists: Playlists,
         context: Context | None = None,
     ) -> Decision:
+        """Determine the scheduling decision for the current tick.
+
+        Raises:
+            ValueError: If *mode* is ``NORMAL`` and *context* is ``None``.
+        """
         if mode == DecisionMode.NORMAL:
             if context is None:
                 raise ValueError("context is required for normal scheduling decisions")
