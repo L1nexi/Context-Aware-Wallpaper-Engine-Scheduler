@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import math
 import time
+from collections.abc import Callable
 from typing import Any, Literal
 
 from core.context import Context
@@ -178,7 +179,8 @@ class Decisions:
 
 
 class SchedulingController:
-    def __init__(self, config: SchedulingConfig):
+    def __init__(self, config: SchedulingConfig, clock: Callable[[], float] | None = None):
+        self._clock = clock if clock is not None else time.monotonic
         self.idle_threshold = config.idle_threshold
         self.force_after = config.force_after
         self.cycle_cooldown = config.cycle_cooldown
@@ -186,7 +188,7 @@ class SchedulingController:
         self.pause_on_fullscreen = config.pause_on_fullscreen
 
         startup_delay = max(config.startup_delay, 0)
-        now = time.time()
+        now = self._clock()
         self.startup_end = now + startup_delay
         self.last_action_time = now
         self._gates: list[CpuGate | FullscreenGate] = []
@@ -201,7 +203,7 @@ class SchedulingController:
         context: Context,
         operation: ControllerOperation,
     ) -> ControllerEvaluation:
-        current_time = time.time()
+        current_time = self._clock()
 
         blocked_by: list[Blocker] = []
         warmup_remaining = max(0.0, self.startup_end - current_time)
@@ -250,6 +252,8 @@ class SchedulingController:
         context: Context | None = None,
     ) -> ControllerDecision:
         if action == "normal":
+            if context is None:
+                raise ValueError("context is required for normal scheduling decisions")
             return self._decide_normal(context, match, active_playlists)
         if action == "manual":
             return Decisions.manual_apply(match.best_playlists, active_playlists)
@@ -296,7 +300,7 @@ class SchedulingController:
         return blocked_by
 
     def notify_executed(self, decision: ControllerDecision) -> None:
-        self.last_action_time = time.time()
+        self.last_action_time = self._clock()
         plain_cycle = decision.kind == Kind.CYCLE and decision.reason_code == Reason.CYCLE_ALLOWED
         if not plain_cycle:
             self.semantic_continuity_score = 1.0

@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import copy
-import json
 import logging
-import os
-import sys
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from pydantic import BaseModel
-
+from core.action_history import ActionHistoryWriter
 from core.actuator import Actuator
 from core.context import ContextManager
 from core.controller import SchedulingController
@@ -27,39 +23,14 @@ from core.playlist import Playlists
 from core.playlist_state import resolve_playlist_state
 from core.policies import POLICY_REGISTRY, Policy
 from core.sensors import SENSOR_REGISTRY
-from utils.app_context import get_data_dir
+from core.state import PersistedState
 from utils.config_errors import ConfigLoadError
 from utils.config_loader import ConfigLoader
 from utils.runtime_config import PlaylistConfig, SchedulerConfig
 from utils.we_config import WEConfigProber
 
 logger = logging.getLogger("WEScheduler.Core")
-
-_STATE_FILE = os.path.join(get_data_dir(), "state.json")
-
-
-class SchedulerPersistedState(BaseModel):
-    """Snapshot of state that persists across process restarts."""
-
-    paused: bool = False
-    pause_until: float = 0.0
-    cached_playlists: list[str] = []
-
-    @staticmethod
-    def load_state(path: str = _STATE_FILE) -> SchedulerPersistedState:
-        try:
-            with open(path, encoding="utf-8") as f:
-                return SchedulerPersistedState.model_validate(json.load(f))
-        except Exception:
-            return SchedulerPersistedState()
-
-    @staticmethod
-    def save_persisted_state(state: SchedulerPersistedState, path: str = _STATE_FILE) -> None:
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(state.model_dump_json(indent=2))
-        except Exception:
-            logger.warning("Failed to write state.json", exc_info=True)
+type TickListener = Callable[[SchedulerTickTrace], None]
 
 
 @dataclass(frozen=True)
@@ -73,7 +44,11 @@ class _RuntimeComponents:
 
 
 class WEScheduler:
-    def __init__(self, config_dir: str, history_logger: EventLogger):
+    def __init__(
+        self,
+        config_dir: str,
+        history_logger: EventLogger,
+    ):
         self.config_dir = config_dir
         self.history_logger: EventLogger = history_logger
         self.initialized = False
@@ -85,8 +60,9 @@ class WEScheduler:
         self._runtime_lock = threading.RLock()
 
         self.on_auto_resume: Callable[[], None] | None = None
-        self.on_tick: Callable[[SchedulerTickTrace], None] | None = None
         self.on_reload_error: Callable[[ConfigLoadError], None] | None = None
+        self._tick_listeners: list[TickListener] = []
+        self.add_tick_listener(ActionHistoryWriter(history_logger).on_tick)
 
         self.config_loader: ConfigLoader | None = None
         self.executor: WEExecutor | None = None
@@ -96,7 +72,6 @@ class WEScheduler:
         self.we_config_prober: WEConfigProber | None = None
 
         self.cached_playlists: Playlists = Playlists([])
-        self.last_status_line: str = ""
         self.last_tick_trace: SchedulerTickTrace | None = None
         self.last_reload_error: ConfigLoadError | None = None
         self.tick_id: int = 0
@@ -109,7 +84,7 @@ class WEScheduler:
         logger.info("Loaded %d playlists.", len(config.playlists))
 
         self._install_runtime_components(self._build_runtime_components(config))
-        self._restore_persistent_state(SchedulerPersistedState.load_state())
+        self._restore_persistent_state(PersistedState.load())
 
         logger.info("Scheduler initialized successfully.")
         self.initialized = True
@@ -138,7 +113,7 @@ class WEScheduler:
         self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=2)
-        SchedulerPersistedState.save_persisted_state(self._build_persisted_state())
+        self._build_persisted_state().save()
         self.history_logger.write(EventType.STOP, {})
         logger.info("Scheduler stopped.")
 
@@ -155,7 +130,7 @@ class WEScheduler:
             else:
                 self.pause_until = 0
                 logger.info("Scheduler paused (indefinitely).")
-            SchedulerPersistedState.save_persisted_state(self._build_persisted_state())
+            self._build_persisted_state().save()
             self.history_logger.write(EventType.PAUSE, {"duration": seconds})
 
     def resume(self):
@@ -164,7 +139,10 @@ class WEScheduler:
             self.pause_until = 0
             logger.info("Scheduler resumed.")
             self.history_logger.write(EventType.RESUME, {})
-            SchedulerPersistedState.save_persisted_state(self._build_persisted_state())
+            self._build_persisted_state().save()
+
+    def add_tick_listener(self, listener: TickListener) -> None:
+        self._tick_listeners.append(listener)
 
     def get_pause_remaining(self) -> float | None:
         if not self.paused or self.pause_until == 0:
@@ -281,15 +259,13 @@ class WEScheduler:
             should_save_state = True
 
         if should_save_state:
-            SchedulerPersistedState.save_persisted_state(self._build_persisted_state())
+            self._build_persisted_state().save()
 
-        self._update_cli_status(trace)
-
-        if self.on_tick:
+        for listener in list(self._tick_listeners):
             try:
-                self.on_tick(trace)
+                listener(trace)
             except Exception:
-                logger.exception("on_tick hook failed")
+                logger.exception("tick listener failed")
 
     def _resolve_cached_playlists_after(self, action: ActuationOutcome) -> Playlists:
         if action.kind == ActionKind.SWITCH and action.executed:
@@ -318,7 +294,6 @@ class WEScheduler:
         actuator = Actuator(
             executor,
             SchedulingController(config.scheduling),
-            history_logger=self.history_logger,
         )
 
         return _RuntimeComponents(
@@ -375,14 +350,14 @@ class WEScheduler:
             # in all cases, we update fingerprint to avoid repeated reloads.
             self._config_fingerprint = fingerprint
 
-    def _build_persisted_state(self) -> SchedulerPersistedState:
-        return SchedulerPersistedState(
+    def _build_persisted_state(self) -> PersistedState:
+        return PersistedState(
             paused=self.paused,
             pause_until=self.pause_until,
             cached_playlists=self.cached_playlists.names(),
         )
 
-    def _restore_persisted_state(self, state: SchedulerPersistedState) -> None:
+    def _restore_persisted_state(self, state: PersistedState) -> None:
         self.cached_playlists = Playlists(list(state.cached_playlists))
 
         if state.pause_until > time.time():
@@ -396,30 +371,3 @@ class WEScheduler:
             self.paused = True
             self.pause_until = 0
             logger.info("Restored indefinite pause.")
-
-    def _update_cli_status(self, trace: SchedulerTickTrace) -> None:
-        process_name = trace.context.window.process or "N/A"
-        idle_time = trace.context.idle
-        best_playlists = trace.match.best_playlists
-        tags = trace.match.raw_context_vector
-        sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:3]
-
-        displays = Playlists.managed().displays()
-        if best_playlists:
-            primary = displays.get(best_playlists[0], best_playlists[0])
-            label = f"{primary}(+{len(best_playlists) - 1})" if len(best_playlists) > 1 else primary
-        else:
-            label = None
-
-        tag_parts = []
-        for tag, weight in sorted_tags:
-            bar_len = int(min(weight, 1.5) * 5)
-            bar = "■" * bar_len
-            tag_parts.append(f"{tag} {weight:.2f} {bar}")
-
-        tag_str = " | ".join(tag_parts)
-        gap_str = f" gap={trace.match.similarity_gap:.2f}" if trace.match.playlist_matches else ""
-        prefix = "PAUSED " if trace.paused else ""
-        self.last_status_line = f"{prefix}[{label or 'WAITING'}] {process_name}({idle_time:.0f}s) >> {tag_str}{gap_str}"
-        if not getattr(sys, "frozen", False):
-            print(f"\r{self.last_status_line:<110}", end="", flush=True)

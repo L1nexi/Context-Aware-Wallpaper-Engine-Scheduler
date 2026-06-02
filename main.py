@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.diagnostics import SchedulerTickTrace
+    pass
 
 import argparse
 import logging
@@ -124,6 +124,7 @@ def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
     thread with the main thread sleeping until KeyboardInterrupt.
     """
     from core.scheduler import WEScheduler
+    from ui.cli_status import CliStatusReporter
     from utils.app_context import get_data_dir
     from utils.history_logger import HistoryLogger
 
@@ -134,6 +135,7 @@ def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
         logger.critical("Failed to initialize scheduler: %s", e)
         sys.exit(1)
 
+    scheduler.add_tick_listener(CliStatusReporter().on_tick)
     scheduler.start()
 
     try:
@@ -166,14 +168,10 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
         sys.exit(1)
     scheduler.on_reload_error = lambda exc: TrayIcon.show_reload_error(str(exc))
 
-    scheduler.start()
-
     analysis_store = AnalysisStore()
 
-    def _handle_tick(trace: SchedulerTickTrace) -> None:
-        analysis_store.update(trace)
-
-    scheduler.on_tick = _handle_tick
+    scheduler.add_tick_listener(analysis_store.update)
+    scheduler.start()
     httpd = DashboardHTTPServer(
         analysis_store,
         requested_port=dashboard_api_port,

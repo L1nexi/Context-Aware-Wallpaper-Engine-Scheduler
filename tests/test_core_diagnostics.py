@@ -4,6 +4,7 @@ from unittest import mock
 
 import pytest
 
+from core.action_history import ActionHistoryWriter
 from core.actuator import Actuator
 from core.context import Context, WindowData
 from core.controller import SchedulingController, weighted_jaccard
@@ -17,13 +18,15 @@ from core.diagnostics import (
     ControllerDecision,
     ControllerEvaluation,
     MatchEvaluation,
+    SchedulerTickTrace,
 )
 from core.event_logger import EventType
 from core.matcher import Matcher
 from core.playlist import PlaylistInfo, Playlists
 from core.playlist_state import resolve_playlist_state
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
-from core.scheduler import SchedulerPersistedState, WEScheduler, _RuntimeComponents
+from core.scheduler import WEScheduler, _RuntimeComponents
+from core.state import PersistedState
 from ui.dashboard_analysis import map_tick_snapshot
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
@@ -51,6 +54,14 @@ def _configure_playlists():
     }
     yield
     Playlists._configs = {}
+
+
+class _MutableClock:
+    def __init__(self, now: float):
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
 
 
 def test_activity_policy_distinguishes_title_and_process_matchers():
@@ -193,8 +204,8 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
     ]
 
 
-def test_controller_evaluation_reports_all_blockers(monkeypatch):
-    monkeypatch.setattr("core.controller.time.time", lambda: 200.0)
+def test_controller_evaluation_reports_all_blockers():
+    clock = _MutableClock(200.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -204,7 +215,8 @@ def test_controller_evaluation_reports_all_blockers(monkeypatch):
             cpu_threshold=80,
             cpu_sample_window=1,
             pause_on_fullscreen=True,
-        )
+        ),
+        clock=clock,
     )
     controller.last_action_time = 195.0
 
@@ -245,10 +257,10 @@ def test_controller_evaluation_reports_all_blockers(monkeypatch):
     }
 
 
-def test_controller_warmup_blocks_all_operations(monkeypatch):
+def test_controller_warmup_blocks_all_operations():
     """During startup warmup, both switch and cycle are blocked by COOLDOWN,
     and context gates (CPU, fullscreen) are still collected."""
-    monkeypatch.setattr("core.controller.time.time", lambda: 100.0)
+    clock = _MutableClock(100.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=30,
@@ -258,10 +270,11 @@ def test_controller_warmup_blocks_all_operations(monkeypatch):
             cpu_threshold=80,
             cpu_sample_window=1,
             pause_on_fullscreen=True,
-        )
+        ),
+        clock=clock,
     )
     # t=105: 5s into 30s warmup
-    monkeypatch.setattr("core.controller.time.time", lambda: 105.0)
+    clock.now = 105.0
 
     context = Context(idle=120.0, cpu=90.0, fullscreen=True)
 
@@ -297,9 +310,9 @@ def test_controller_warmup_blocks_all_operations(monkeypatch):
     assert ControllerBlocker.FULLSCREEN in switch_eval.blocked_by
 
 
-def test_controller_warmup_switch_reason_code(monkeypatch):
+def test_controller_warmup_switch_reason_code():
     """During warmup, a switch decision should report SWITCH_BLOCKED_COOLDOWN."""
-    monkeypatch.setattr("core.controller.time.time", lambda: 100.0)
+    clock = _MutableClock(100.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=30,
@@ -308,9 +321,10 @@ def test_controller_warmup_switch_reason_code(monkeypatch):
             idle_threshold=60,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
-    monkeypatch.setattr("core.controller.time.time", lambda: 105.0)
+    clock.now = 105.0
 
     decision = _decide_normal(
         controller,
@@ -323,9 +337,9 @@ def test_controller_warmup_switch_reason_code(monkeypatch):
     assert decision.evaluation.cooldown_remaining == pytest.approx(25.0)
 
 
-def test_controller_warmup_expires_normal_behavior(monkeypatch):
+def test_controller_warmup_expires_normal_behavior():
     """After warmup expires, switches proceed with normal idle/force_after logic."""
-    monkeypatch.setattr("core.controller.time.time", lambda: 100.0)
+    clock = _MutableClock(100.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=10,
@@ -334,10 +348,11 @@ def test_controller_warmup_expires_normal_behavior(monkeypatch):
             idle_threshold=60,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
     # t=120: well past 10s warmup, user idle for 80s
-    monkeypatch.setattr("core.controller.time.time", lambda: 120.0)
+    clock.now = 120.0
 
     decision = _decide_normal(
         controller,
@@ -352,9 +367,9 @@ def test_controller_warmup_expires_normal_behavior(monkeypatch):
     assert decision.evaluation.cooldown_remaining == pytest.approx(0.0)
 
 
-def test_controller_switch_has_no_cooldown_gate(monkeypatch):
+def test_controller_switch_has_no_cooldown_gate():
     """Two consecutive switches are not blocked by a cooldown gate."""
-    monkeypatch.setattr("core.controller.time.time", lambda: 100.0)
+    clock = _MutableClock(100.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -363,13 +378,14 @@ def test_controller_switch_has_no_cooldown_gate(monkeypatch):
             idle_threshold=10,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
     # First switch at t=100
     controller.last_action_time = 100.0
 
     # Second switch at t=101 — should NOT be blocked by cooldown
-    monkeypatch.setattr("core.controller.time.time", lambda: 101.0)
+    clock.now = 101.0
     evaluation = controller._evaluate_blockers(
         Context(idle=20.0, cpu=1.0),
         operation="switch",
@@ -380,8 +396,8 @@ def test_controller_switch_has_no_cooldown_gate(monkeypatch):
     assert evaluation.allowed is True
 
 
-def test_controller_switch_force_after_overrides_idle(monkeypatch):
-    monkeypatch.setattr("core.controller.time.time", lambda: 500.0)
+def test_controller_switch_force_after_overrides_idle():
+    clock = _MutableClock(500.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -390,7 +406,8 @@ def test_controller_switch_force_after_overrides_idle(monkeypatch):
             idle_threshold=60,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
     controller.last_action_time = 390.0
 
@@ -409,7 +426,7 @@ def test_controller_switch_force_after_overrides_idle(monkeypatch):
     assert evaluation.force_after_remaining == pytest.approx(0.0)
 
 
-def test_controller_partial_overlap_keeps_active_pool_for_reference_window(monkeypatch):
+def test_controller_partial_overlap_keeps_active_pool_for_reference_window():
     Playlists._configs.update(
         {
             "A": PlaylistInfo(display="A", color="#FF0000", item_count=1),
@@ -417,7 +434,7 @@ def test_controller_partial_overlap_keeps_active_pool_for_reference_window(monke
             "C": PlaylistInfo(display="C", color="#0000FF", item_count=1),
         }
     )
-    monkeypatch.setattr("core.controller.time.time", lambda: 1000.0)
+    clock = _MutableClock(1000.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -426,7 +443,8 @@ def test_controller_partial_overlap_keeps_active_pool_for_reference_window(monke
             idle_threshold=0,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
     active = Playlists(["A", "B"])
     matched = MatchEvaluation(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.8)])
@@ -442,7 +460,7 @@ def test_controller_partial_overlap_keeps_active_pool_for_reference_window(monke
     assert decision.reason_code == ActionReasonCode.SWITCH_ALLOWED
 
 
-def test_controller_partial_overlap_decays_continuity_by_time_only(monkeypatch):
+def test_controller_partial_overlap_decays_continuity_by_time_only():
     Playlists._configs.update(
         {
             "A": PlaylistInfo(display="A", color="#FF0000", item_count=1),
@@ -450,7 +468,7 @@ def test_controller_partial_overlap_decays_continuity_by_time_only(monkeypatch):
             "C": PlaylistInfo(display="C", color="#0000FF", item_count=1),
         }
     )
-    monkeypatch.setattr("core.controller.time.time", lambda: 1000.0)
+    clock = _MutableClock(1000.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -459,7 +477,8 @@ def test_controller_partial_overlap_decays_continuity_by_time_only(monkeypatch):
             idle_threshold=0,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
 
     _decide_normal(
@@ -472,8 +491,8 @@ def test_controller_partial_overlap_decays_continuity_by_time_only(monkeypatch):
     assert controller.semantic_continuity_score == pytest.approx(0.99)
 
 
-def test_controller_no_match_resets_continuity_without_switching(monkeypatch):
-    monkeypatch.setattr("core.controller.time.time", lambda: 1000.0)
+def test_controller_no_match_resets_continuity_without_switching():
+    clock = _MutableClock(1000.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -482,7 +501,8 @@ def test_controller_no_match_resets_continuity_without_switching(monkeypatch):
             idle_threshold=0,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
 
     decision = _decide_normal(
@@ -497,7 +517,7 @@ def test_controller_no_match_resets_continuity_without_switching(monkeypatch):
     assert controller.semantic_continuity_score == pytest.approx(0.0)
 
 
-def test_controller_semantic_overlap_uses_sqrt_item_count_weights(monkeypatch):
+def test_controller_semantic_overlap_uses_sqrt_item_count_weights():
     Playlists._configs.update(
         {
             "A": PlaylistInfo(display="A", color="#FF0000", item_count=100),
@@ -508,8 +528,8 @@ def test_controller_semantic_overlap_uses_sqrt_item_count_weights(monkeypatch):
     assert weighted_jaccard(Playlists(["A", "C"]), Playlists(["A", "B"])) == pytest.approx(10 / 12)
 
 
-def test_controller_notify_executed_resets_continuity_for_switch(monkeypatch):
-    monkeypatch.setattr("core.controller.time.time", lambda: 2000.0)
+def test_controller_notify_executed_resets_continuity_for_switch():
+    clock = _MutableClock(2000.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -518,7 +538,8 @@ def test_controller_notify_executed_resets_continuity_for_switch(monkeypatch):
             idle_threshold=0,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
     controller.semantic_continuity_score = 0.42
 
@@ -534,8 +555,8 @@ def test_controller_notify_executed_resets_continuity_for_switch(monkeypatch):
     assert controller.semantic_continuity_score == pytest.approx(1.0)
 
 
-def test_controller_notify_executed_preserves_continuity_for_plain_cycle(monkeypatch):
-    monkeypatch.setattr("core.controller.time.time", lambda: 2000.0)
+def test_controller_notify_executed_preserves_continuity_for_plain_cycle():
+    clock = _MutableClock(2000.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -544,7 +565,8 @@ def test_controller_notify_executed_preserves_continuity_for_plain_cycle(monkeyp
             idle_threshold=0,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
     controller.semantic_continuity_score = 0.42
 
@@ -560,8 +582,8 @@ def test_controller_notify_executed_preserves_continuity_for_plain_cycle(monkeyp
     assert controller.semantic_continuity_score == pytest.approx(0.42)
 
 
-def test_controller_notify_executed_resets_continuity_for_manual_cycle(monkeypatch):
-    monkeypatch.setattr("core.controller.time.time", lambda: 2000.0)
+def test_controller_notify_executed_resets_continuity_for_manual_cycle():
+    clock = _MutableClock(2000.0)
     controller = SchedulingController(
         SchedulingConfig(
             startup_delay=0,
@@ -570,7 +592,8 @@ def test_controller_notify_executed_resets_continuity_for_manual_cycle(monkeypat
             idle_threshold=0,
             cpu_threshold=0,
             pause_on_fullscreen=False,
-        )
+        ),
+        clock=clock,
     )
     controller.semantic_continuity_score = 0.42
 
@@ -701,9 +724,28 @@ def test_controller_recovery_without_match_does_not_switch():
     assert decision.reason_code == ActionReasonCode.RECOVERY_NO_MATCH
 
 
-def test_actuator_switch_logs_event():
+def test_controller_normal_requires_context():
+    controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=0,
+            force_after=100,
+            cycle_cooldown=15,
+            idle_threshold=60,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        )
+    )
+
+    with pytest.raises(ValueError, match="context is required"):
+        controller.decide_action(
+            "normal",
+            match=MatchEvaluation(best_playlists=Playlists(["rain"])),
+            active_playlists=Playlists([]),
+        )
+
+
+def test_actuator_switch_returns_executed_outcome():
     executor = mock.Mock()
-    history = mock.Mock()
     controller = mock.Mock()
     controller.decide_action.return_value = ControllerDecision(
         kind=ActionKind.SWITCH,
@@ -711,7 +753,7 @@ def test_actuator_switch_logs_event():
         matched_playlists=Playlists(["rain"]),
         evaluation=ControllerEvaluation(operation="switch", allowed=True),
     )
-    actuator = Actuator(executor, controller, history)
+    actuator = Actuator(executor, controller)
     outcome = actuator.act(
         "normal",
         context=Context(),
@@ -729,6 +771,42 @@ def test_actuator_switch_logs_event():
     assert outcome.executed is True
     executor.open_playlist.assert_called_once_with("rain")
     controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
+
+
+def test_scheduler_history_recorder_logs_switch_event():
+    history = mock.Mock()
+    recorder = ActionHistoryWriter(history)
+    outcome = ActuationOutcome(
+        decision=ControllerDecision(
+            kind=ActionKind.SWITCH,
+            reason_code=ActionReasonCode.SWITCH_ALLOWED,
+            matched_playlists=Playlists(["rain"]),
+        ),
+        active_playlists_before=Playlists(["focus"]),
+        active_playlists_after=Playlists(["rain"]),
+        target_playlist="rain",
+        executed=True,
+    )
+    trace = SchedulerTickTrace(
+        tick_id=1,
+        ts=123.0,
+        paused=False,
+        pause_until=0.0,
+        context=Context(),
+        match=MatchEvaluation(
+            best_playlists=Playlists(["rain"]),
+            playlist_matches=[("rain", 0.9), ("focus", 0.5)],
+            raw_context_vector={"rain": 1.0},
+            resolved_context_vector={"rain": 1.0},
+            max_policy_magnitude=1.0,
+            similarity=0.9,
+            similarity_gap=0.4,
+        ),
+        action=outcome,
+    )
+
+    recorder.on_tick(trace)
+
     history.write.assert_called_once()
     assert history.write.call_args.args[0] == EventType.PLAYLISTS_SWITCH
     assert history.write.call_args.args[1]["reason_code"] == "switch_allowed"
@@ -739,7 +817,6 @@ def test_actuator_switch_logs_event():
 def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
     monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
     executor = mock.Mock()
-    history = mock.Mock()
     controller = mock.Mock()
     matched_pool = Playlists(["A", "B"])
     controller.decide_action.return_value = ControllerDecision(
@@ -748,7 +825,7 @@ def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
         matched_playlists=matched_pool,
         evaluation=ControllerEvaluation(operation="switch", allowed=True),
     )
-    actuator = Actuator(executor, controller, history)
+    actuator = Actuator(executor, controller)
 
     outcome = actuator.act(
         "normal",
@@ -766,7 +843,6 @@ def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
 def test_actuator_cycle_uses_open_playlist_without_next_wallpaper(monkeypatch):
     monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
     executor = mock.Mock()
-    history = mock.Mock()
     controller = mock.Mock()
     matched_pool = Playlists(["A", "B"])
     controller.decide_action.return_value = ControllerDecision(
@@ -775,7 +851,7 @@ def test_actuator_cycle_uses_open_playlist_without_next_wallpaper(monkeypatch):
         matched_playlists=matched_pool,
         evaluation=ControllerEvaluation(operation="cycle", allowed=True),
     )
-    actuator = Actuator(executor, controller, history)
+    actuator = Actuator(executor, controller)
 
     outcome = actuator.act(
         "normal",
@@ -795,7 +871,6 @@ def test_actuator_cycle_uses_open_playlist_without_next_wallpaper(monkeypatch):
 def test_actuator_cycle_selects_from_active_pool(monkeypatch):
     monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: [names[0]])
     executor = mock.Mock()
-    history = mock.Mock()
     controller = mock.Mock()
     controller.decide_action.return_value = ControllerDecision(
         kind=ActionKind.CYCLE,
@@ -803,7 +878,7 @@ def test_actuator_cycle_selects_from_active_pool(monkeypatch):
         matched_playlists=Playlists(["A", "C"]),
         evaluation=ControllerEvaluation(operation="cycle", allowed=True),
     )
-    actuator = Actuator(executor, controller, history)
+    actuator = Actuator(executor, controller)
 
     outcome = actuator.act(
         "normal",
@@ -821,14 +896,13 @@ def test_actuator_cycle_selects_from_active_pool(monkeypatch):
 
 def test_actuator_recovery_switch_bypasses_controller_gates():
     executor = mock.Mock()
-    history = mock.Mock()
     controller = mock.Mock()
     controller.decide_action.return_value = ControllerDecision(
         kind=ActionKind.SWITCH,
         reason_code=ActionReasonCode.RECOVERY_UNMANAGED,
         matched_playlists=Playlists(["rain"]),
     )
-    actuator = Actuator(executor, controller, history)
+    actuator = Actuator(executor, controller)
 
     outcome = actuator.act(
         "recovery",
@@ -851,8 +925,6 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
         context=None,
     )
     controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
-    history.write.assert_called_once()
-    assert history.write.call_args.args[1]["reason_code"] == "recovery_unmanaged"
 
 
 def test_playlist_state_uses_managed_factual_playlist():
@@ -996,8 +1068,41 @@ def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
     assert "recovery_reason_code" not in scheduler.actuator.act.call_args.kwargs
 
 
+def test_scheduler_commit_tick_fans_out_to_listeners():
+    class DummyHistory:
+        def write(self, *_args, **_kwargs):
+            return 0
+
+    scheduler = WEScheduler("config", DummyHistory())
+    calls: list[tuple[str, int]] = []
+    scheduler.add_tick_listener(lambda trace: calls.append(("first", trace.tick_id)))
+    scheduler.add_tick_listener(lambda trace: calls.append(("second", trace.tick_id)))
+    trace = SchedulerTickTrace(
+        tick_id=42,
+        ts=123.0,
+        paused=False,
+        pause_until=0.0,
+        context=Context(),
+        match=MatchEvaluation(best_playlists=Playlists([])),
+        action=ActuationOutcome(
+            decision=ControllerDecision(
+                kind=ActionKind.HOLD,
+                reason_code=ActionReasonCode.NO_MATCH,
+                matched_playlists=Playlists([]),
+            ),
+            active_playlists_before=Playlists([]),
+            active_playlists_after=Playlists([]),
+            executed=False,
+        ),
+    )
+
+    scheduler._commit_tick(trace)
+
+    assert calls == [("first", 42), ("second", 42)]
+
+
 def test_scheduler_persistent_state_excludes_controller_runtime_state():
-    state = SchedulerPersistedState(
+    state = PersistedState(
         paused=True,
         pause_until=123.0,
         cached_playlists=["focus"],
@@ -1025,7 +1130,7 @@ def test_scheduler_persistent_state_ignores_legacy_controller_runtime_state(tmp_
         encoding="utf-8",
     )
 
-    state = SchedulerPersistedState.load_state(str(state_path))
+    state = PersistedState.load(str(state_path))
 
     assert state.paused is True
     assert state.cached_playlists == ["focus"]
