@@ -127,7 +127,10 @@ type PolicyEvaluation = ActivityEvaluation | TimeEvaluation | SeasonEvaluation |
 class Match:
     best_playlists: Playlists
     playlist_matches: list[tuple[str, float]] = field(default_factory=list)
+    # Direct policy outputs keyed by tag name, before fallback expansion.
+    # Used by action_history for user-facing log entries.
     raw_context_vector: dict[str, float] = field(default_factory=dict)
+    # Same data after fallback expansion — fed into cosine-similarity scoring.
     resolved_context_vector: dict[str, float] = field(default_factory=dict)
     fallback_expansions: dict[str, dict[str, float]] = field(default_factory=dict)
     policy_evaluations: list[PolicyEvaluation] = field(default_factory=list)

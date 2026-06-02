@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from core.context import Context
 from core.controller import DecisionMode, SchedulingController
@@ -78,3 +79,9 @@ class Actuator:
             if decision.action == Action.SWITCH:
                 active_playlists_after = decision.matched
         return ActResult.make(decision, active_playlists, active_playlists_after, target_playlist, executed)
+
+    def export_state(self) -> dict[str, Any]:
+        return self.controller.export_state()
+
+    def import_state(self, state: dict[str, Any]) -> None:
+        self.controller.import_state(state)

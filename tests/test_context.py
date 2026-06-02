@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from core.context import Context, ContextManager, WindowData
+from core.context import ContextManager, WindowData
 
 
 def test_sense_returns_independent_snapshot():

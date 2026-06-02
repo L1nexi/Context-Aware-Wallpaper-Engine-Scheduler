@@ -22,11 +22,11 @@ from core.trace import (
 )
 from utils.runtime_config import (
     ActivityPolicyConfig,
+    BasePolicyConfig,
     PoliciesConfig,
     SeasonPolicyConfig,
     TimePolicyConfig,
     WeatherPolicyConfig,
-    _BasePolicyConfig,
 )
 
 logger = logging.getLogger("WEScheduler.Policy")
@@ -103,7 +103,7 @@ class Policy(ABC):
             if not isinstance(cls.fixed_output_tags, tuple) or any(not isinstance(tag, str) or not tag for tag in cls.fixed_output_tags):
                 raise TypeError(f"{cls.__name__}.fixed_output_tags must be a tuple[str, ...] when provided.")
 
-    def __init__(self, config: _BasePolicyConfig):
+    def __init__(self, config: BasePolicyConfig):
         self.config = config
         self.enabled = config.enabled
         self.weight = config.weight

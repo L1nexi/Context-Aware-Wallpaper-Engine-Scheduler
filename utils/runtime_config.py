@@ -53,31 +53,31 @@ class ActivityMatcherConfig(BaseModel):
     case_sensitive: bool = False
 
 
-class _BasePolicyConfig(BaseModel):
+class BasePolicyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enabled: bool = True
     weight: float = Field(1.0, ge=0)
 
 
-class ActivityPolicyConfig(_BasePolicyConfig):
+class ActivityPolicyConfig(BasePolicyConfig):
     smoothing_window: float = Field(60.0, ge=1)
     matchers: list[ActivityMatcherConfig] = Field(default_factory=list)
 
 
-class TimePolicyConfig(_BasePolicyConfig):
+class TimePolicyConfig(BasePolicyConfig):
     auto: bool = True
     day_start_hour: float = Field(8.0, ge=0, lt=24)
     night_start_hour: float = Field(20.0, ge=0, lt=24)
 
 
-class SeasonPolicyConfig(_BasePolicyConfig):
+class SeasonPolicyConfig(BasePolicyConfig):
     spring_peak: int = 80
     summer_peak: int = 172
     autumn_peak: int = 265
     winter_peak: int = 355
 
 
-class WeatherPolicyConfig(_BasePolicyConfig):
+class WeatherPolicyConfig(BasePolicyConfig):
     api_key: str = ""
     lat: float | None = Field(default=None, ge=-90, le=90, allow_inf_nan=False)
     lon: float | None = Field(default=None, ge=-180, le=180, allow_inf_nan=False)

@@ -275,20 +275,16 @@ class WEScheduler:
     def _hot_reload(self, fingerprint: tuple[tuple[str, bool, int], ...]) -> None:
         previous_config = self.config_loader.config
         try:
-            policy_states: dict[str, dict] = {type(policy).__name__: policy.export_state() for policy in self.matcher.policies}
-            controller_state = self.actuator.controller.export_state()
+            matcher_state = self.matcher.export_state()
+            actuator_state = self.actuator.export_state()
 
             config = self.config_loader.load_verified_config()
             logger.info("Hot reload: config changed, rebuilding components.")
 
             next_runtime = self._build_runtime_components(config)
 
-            for policy in next_runtime.matcher.policies:
-                saved = policy_states.get(type(policy).__name__)
-                if saved:
-                    policy.import_state(saved)
-
-            next_runtime.actuator.controller.import_state(controller_state)
+            next_runtime.matcher.import_state(matcher_state)
+            next_runtime.actuator.import_state(actuator_state)
             self._install_runtime_components(next_runtime)
             self.last_reload_error = None
 

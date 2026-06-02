@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.context import Context
 from core.playlist import Playlists
@@ -211,3 +211,12 @@ class Matcher:
             for resolved_tag, resolved_weight in child_expansions.items():
                 expansions[resolved_tag] = expansions.get(resolved_tag, 0.0) + resolved_weight
         return result, expansions
+
+    def export_state(self) -> dict[str, dict[str, Any]]:
+        return {type(policy).__name__: policy.export_state() for policy in self.policies}
+
+    def import_state(self, state: dict[str, dict[str, Any]]) -> None:
+        for policy in self.policies:
+            saved = state.get(type(policy).__name__)
+            if saved:
+                policy.import_state(saved)

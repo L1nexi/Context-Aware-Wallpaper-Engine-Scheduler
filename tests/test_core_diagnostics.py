@@ -1109,24 +1109,13 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
         def write(self, *_args: object, **_kwargs: object) -> int:
             return 0
 
-    class StatefulPolicy:
-        def __init__(self, raise_on_import: bool = False):
-            self.raise_on_import = raise_on_import
-
-        def export_state(self) -> dict[str, str]:
-            return {"state": "old"}
-
-        def import_state(self, _state: object) -> None:
-            if self.raise_on_import:
-                raise RuntimeError("import failed")
-
     scheduler = WEScheduler("config", DummyHistory())
     old_executor = object()
     old_context_manager = object()
     old_matcher = mock.Mock()
-    old_matcher.policies = [StatefulPolicy()]
+    old_matcher.export_state.return_value = {"StatefulPolicy": {"state": "old"}}
     old_actuator = mock.Mock()
-    old_actuator.controller.export_state.return_value = {"controller": "old"}
+    old_actuator.export_state.return_value = {"controller": "old"}
 
     scheduler.executor = old_executor
     scheduler.context_manager = old_context_manager
@@ -1137,10 +1126,12 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
     scheduler.config_loader.config = previous_config
     scheduler.config_loader.load_verified_config.return_value = mock.Mock()
 
+    next_matcher = mock.Mock()
+    next_matcher.import_state.side_effect = RuntimeError("import failed")
     next_runtime = _RuntimeComponents(
         executor=object(),
         context_manager=object(),
-        matcher=mock.Mock(policies=[StatefulPolicy(raise_on_import=True)]),
+        matcher=next_matcher,
         actuator=mock.Mock(),
         playlist_configs={},
         we_config_prober=mock.Mock(),
