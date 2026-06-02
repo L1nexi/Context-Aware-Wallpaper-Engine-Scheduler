@@ -72,7 +72,6 @@ class WEScheduler:
 
         self.cached_playlists: Playlists = Playlists()
         self.last_tick_trace: TickTrace | None = None
-        self.last_reload_error: ConfigLoadError | None = None
         self.tick_id: int = 0
         self._config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
         self._manual_apply_pending: bool = False
@@ -84,7 +83,7 @@ class WEScheduler:
         logger.info("Loaded %d playlists.", len(config.playlists))
 
         self._install_runtime_components(self._build_runtime_components(config))
-        self._restore_persistent_state(PersistedState.load())
+        self._restore_persisted_state(PersistedState.load())
 
         logger.info("Scheduler initialized successfully.")
         self.initialized = True
@@ -159,8 +158,8 @@ class WEScheduler:
                     trace = self._run_tick()
                     self._commit_tick(trace)
 
-            except Exception as exc:
-                logger.error("Error in main loop: %s", exc)
+            except Exception:
+                logger.exception("Error in main loop")
 
             time.sleep(1)
 
@@ -245,9 +244,7 @@ class WEScheduler:
         for sensor_cls in SENSOR_REGISTRY:
             context_manager.register_sensor(sensor_cls.create(config))
 
-        policies: list[Policy] = [
-            cls(getattr(config.policies, cls.config_key)) for cls in POLICY_REGISTRY if getattr(config.policies, cls.config_key) is not None
-        ]
+        policies: list[Policy] = [cls(getattr(config.policies, cls.config_key)) for cls in POLICY_REGISTRY]
 
         matcher = Matcher(config.playlists, policies, config.tags)
         actuator = Actuator(
@@ -286,12 +283,10 @@ class WEScheduler:
             next_runtime.matcher.import_state(matcher_state)
             next_runtime.actuator.import_state(actuator_state)
             self._install_runtime_components(next_runtime)
-            self.last_reload_error = None
 
             logger.info("Hot reload complete. %d playlists loaded.", len(config.playlists))
         except ConfigLoadError as exc:
             self.config_loader.config = previous_config
-            self.last_reload_error = exc
             logger.warning("Hot reload rejected. Keeping previous runtime.\n%s", exc)
             if self.on_reload_error:
                 try:

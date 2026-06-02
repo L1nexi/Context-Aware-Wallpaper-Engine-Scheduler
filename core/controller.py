@@ -262,7 +262,8 @@ class SchedulingController:
         """Determine the scheduling decision for the current tick.
 
         Raises:
-            ValueError: If *mode* is ``NORMAL`` and *context* is ``None``.
+            ValueError: If mode is ``NORMAL`` and context is ``None``,
+                or if mode is unsupported.
         """
         if mode == DecisionMode.NORMAL:
             if context is None:
@@ -274,6 +275,7 @@ class SchedulingController:
             return Decisions.recovery(match.best_playlists, active_playlists)
         if mode == DecisionMode.PAUSE:
             return Decisions.pause(match.best_playlists)
+        raise ValueError(f"unsupported decision mode: {mode!r}")
 
     def _decide_normal(
         self,
@@ -322,11 +324,13 @@ class SchedulingController:
         return {
             "last_action_time": self.last_action_time,
             "semantic_continuity_score": self.semantic_continuity_score,
+            "startup_end": self.startup_end,
         }
 
     def import_state(self, state: dict[str, Any]) -> None:
         self.last_action_time = state.get("last_action_time", self.last_action_time)
         self.semantic_continuity_score = state.get("semantic_continuity_score", self.semantic_continuity_score)
+        self.startup_end = state.get("startup_end", self.startup_end)
 
 
 def weighted_jaccard(left: Playlists, right: Playlists) -> float:

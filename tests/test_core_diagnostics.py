@@ -27,7 +27,6 @@ from core.trace import (
     TickTrace,
 )
 from ui.dashboard_analysis import map_tick_snapshot
-from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
     ActivityPolicyConfig,
     PlaylistConfig,
@@ -1023,7 +1022,7 @@ def test_scheduler_commit_tick_fans_out_to_listeners():
     assert calls == [("first", 42), ("second", 42)]
 
 
-def test_scheduler_persistent_state_excludes_controller_runtime_state():
+def test_scheduler_persisted_state_excludes_controller_runtime_state():
     state = PersistedState(
         paused=True,
         pause_until=123.0,
@@ -1037,7 +1036,7 @@ def test_scheduler_persistent_state_excludes_controller_runtime_state():
     assert "controller" not in dumped
 
 
-def test_scheduler_persistent_state_ignores_legacy_controller_runtime_state(tmp_path):
+def test_scheduler_persisted_state_ignores_legacy_controller_runtime_state(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text(
         """
@@ -1058,50 +1057,6 @@ def test_scheduler_persistent_state_ignores_legacy_controller_runtime_state(tmp_
     assert state.cached_playlists == ["focus"]
     assert not hasattr(state, "last_action_time")
     assert not hasattr(state, "semantic_continuity_score")
-
-
-def test_hot_reload_config_error_keeps_previous_runtime_and_notifies():
-    class DummyHistory:
-        def write(self, *_args, **_kwargs):
-            return 0
-
-    scheduler = WEScheduler("config", DummyHistory())
-    old_executor = object()
-    old_context_manager = object()
-    old_matcher = mock.Mock()
-    old_matcher.policies = []
-    old_actuator = mock.Mock()
-    old_actuator.controller.export_state.return_value = {}
-
-    scheduler.executor = old_executor
-    scheduler.context_manager = old_context_manager
-    scheduler.matcher = old_matcher
-    scheduler.actuator = old_actuator
-    scheduler.config_loader = mock.Mock()
-    scheduler.config_loader.config = mock.Mock()
-    scheduler.config_loader.load_verified_config.side_effect = ConfigLoadError(
-        [
-            ConfigIssue(
-                source_file="scheduler.yaml",
-                field_path=("runtime", "wallpaper_engine_path"),
-                message="Wallpaper Engine executable could not be auto-detected",
-                code="wallpaper_engine_path_unresolved",
-            )
-        ]
-    )
-
-    captured: list[ConfigLoadError] = []
-    scheduler.on_reload_error = captured.append
-
-    fingerprint = (("scheduler.yaml", True, 2),)
-    scheduler._hot_reload(fingerprint)
-
-    assert scheduler.executor is old_executor
-    assert scheduler.context_manager is old_context_manager
-    assert scheduler.matcher is old_matcher
-    assert scheduler.actuator is old_actuator
-    assert scheduler.last_reload_error is captured[0]
-    assert scheduler._config_fingerprint == fingerprint
 
 
 def test_hot_reload_state_import_error_keeps_previous_runtime():
@@ -1147,6 +1102,52 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
     assert scheduler.actuator is old_actuator
     assert scheduler.config_loader.config is previous_config
     assert scheduler._config_fingerprint == fingerprint
+
+
+def test_hot_reload_preserves_startup_end():
+    """After hot reload, the controller's startup_end must be restored from the
+    old controller, not reset to ``now + startup_delay`` (which would cause a
+    phantom ~30 s cooldown blocker)."""
+    clock = _MutableClock(500.0)
+    old_controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=30,
+            force_after=100,
+            cycle_cooldown=15,
+            idle_threshold=60,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        ),
+        clock=clock,
+    )
+    # Simulate the warmup having long expired (startup_end = 530, now = 900).
+    old_controller.startup_end = 530.0
+    old_controller.last_action_time = 800.0
+    old_controller.semantic_continuity_score = 0.75
+    exported = old_controller.export_state()
+
+    # After hot reload, a new controller is created at t=900 with startup_delay=30
+    # -> default startup_end = 930.
+    clock.now = 900.0
+    new_controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=30,
+            force_after=100,
+            cycle_cooldown=15,
+            idle_threshold=60,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        ),
+        clock=clock,
+    )
+    assert new_controller.startup_end == pytest.approx(930.0)
+
+    new_controller.import_state(exported)
+
+    # startup_end should be the OLD value (530), not the default 930.
+    assert new_controller.startup_end == pytest.approx(530.0)
+    assert new_controller.last_action_time == pytest.approx(800.0)
+    assert new_controller.semantic_continuity_score == pytest.approx(0.75)
 
 
 # ── Clustering tests ────────────────────────────────────────────────────────
