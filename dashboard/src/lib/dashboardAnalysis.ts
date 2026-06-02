@@ -23,7 +23,6 @@ export type ActionReasonCode =
   | 'recovery_no_match'
 
 export type ControllerBlocker = 'cooldown' | 'fullscreen' | 'cpu' | 'idle'
-export type ControllerOperation = 'switch' | 'cycle'
 export type PolicyId = 'activity' | 'time' | 'season' | 'weather'
 
 export interface TagWeight {
@@ -135,7 +134,6 @@ export type PolicyDiagnostic =
   | WeatherPolicyDiagnostic
 
 export interface ControllerEvaluation {
-  operation: ControllerOperation
   allowed: boolean
   blockedBy: ControllerBlocker[]
   cooldownRemaining: number

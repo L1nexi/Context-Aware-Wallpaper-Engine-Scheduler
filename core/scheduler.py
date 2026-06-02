@@ -11,11 +11,6 @@ from core.action_history import ActionHistoryWriter
 from core.actuator import Actuator
 from core.context import ContextManager
 from core.controller import SchedulingController
-from core.diagnostics import (
-    ActionKind,
-    ActuationOutcome,
-    SchedulerTickTrace,
-)
 from core.event_logger import EventLogger, EventType
 from core.executor import WEExecutor
 from core.matcher import Matcher
@@ -24,13 +19,18 @@ from core.playlist_state import resolve_playlist_state
 from core.policies import POLICY_REGISTRY, Policy
 from core.sensors import SENSOR_REGISTRY
 from core.state import PersistedState
+from core.trace import (
+    Action,
+    ActionResult,
+    TickTrace,
+)
 from utils.config_errors import ConfigLoadError
 from utils.config_loader import ConfigLoader
 from utils.runtime_config import PlaylistConfig, SchedulerConfig
 from utils.we_config import WEConfigProber
 
 logger = logging.getLogger("WEScheduler.Core")
-type TickListener = Callable[[SchedulerTickTrace], None]
+type TickListener = Callable[[TickTrace], None]
 
 
 @dataclass(frozen=True)
@@ -72,7 +72,7 @@ class WEScheduler:
         self.we_config_prober: WEConfigProber | None = None
 
         self.cached_playlists: Playlists = Playlists([])
-        self.last_tick_trace: SchedulerTickTrace | None = None
+        self.last_tick_trace: TickTrace | None = None
         self.last_reload_error: ConfigLoadError | None = None
         self.tick_id: int = 0
         self._config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
@@ -178,7 +178,7 @@ class WEScheduler:
             except Exception:
                 logger.exception("on_auto_resume hook failed")
 
-    def _run_tick(self) -> SchedulerTickTrace:
+    def _run_tick(self) -> TickTrace:
         live_context = self.context_manager.refresh()
         context_snapshot = copy.deepcopy(live_context)
         match = self.matcher.evaluate(context_snapshot)
@@ -211,7 +211,7 @@ class WEScheduler:
             )
 
         self.tick_id += 1
-        return SchedulerTickTrace(
+        return TickTrace(
             tick_id=self.tick_id,
             ts=time.time(),
             paused=self.paused,
@@ -221,14 +221,14 @@ class WEScheduler:
             action=action,
         )
 
-    def apply_current_match_now(self) -> SchedulerTickTrace | None:
+    def apply_current_match_now(self) -> TickTrace | None:
         with self._runtime_lock:
             logger.info("Manual apply requested.")
             trace = self._run_manual_apply_tick()
             self._commit_tick(trace)
             return trace
 
-    def _run_manual_apply_tick(self) -> SchedulerTickTrace:
+    def _run_manual_apply_tick(self) -> TickTrace:
         live_context = self.context_manager.refresh()
         context_snapshot = copy.deepcopy(live_context)
         match = self.matcher.evaluate(context_snapshot)
@@ -239,7 +239,7 @@ class WEScheduler:
         )
 
         self.tick_id += 1
-        return SchedulerTickTrace(
+        return TickTrace(
             tick_id=self.tick_id,
             ts=time.time(),
             paused=self.paused,
@@ -249,7 +249,7 @@ class WEScheduler:
             action=action,
         )
 
-    def _commit_tick(self, trace: SchedulerTickTrace) -> None:
+    def _commit_tick(self, trace: TickTrace) -> None:
         self.last_tick_trace = trace
 
         should_save_state = False
@@ -267,8 +267,8 @@ class WEScheduler:
             except Exception:
                 logger.exception("tick listener failed")
 
-    def _resolve_cached_playlists_after(self, action: ActuationOutcome) -> Playlists:
-        if action.kind == ActionKind.SWITCH and action.executed:
+    def _resolve_cached_playlists_after(self, action: ActionResult) -> Playlists:
+        if action.action == Action.SWITCH and action.executed:
             return action.active_playlists_after
         if action.active_playlists_before:
             return action.active_playlists_before

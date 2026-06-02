@@ -7,19 +7,7 @@ import pytest
 from core.action_history import ActionHistoryWriter
 from core.actuator import Actuator
 from core.context import Context, WindowData
-from core.controller import SchedulingController, weighted_jaccard
-from core.diagnostics import (
-    ActionKind,
-    ActionReasonCode,
-    ActivityPolicyDetails,
-    ActivityPolicyEvaluation,
-    ActuationOutcome,
-    ControllerBlocker,
-    ControllerDecision,
-    ControllerEvaluation,
-    MatchEvaluation,
-    SchedulerTickTrace,
-)
+from core.controller import Intent, SchedulingController, weighted_jaccard
 from core.event_logger import EventType
 from core.matcher import Matcher
 from core.playlist import PlaylistInfo, Playlists
@@ -27,6 +15,18 @@ from core.playlist_state import resolve_playlist_state
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
 from core.scheduler import WEScheduler, _RuntimeComponents
 from core.state import PersistedState
+from core.trace import (
+    Action,
+    ActionReason,
+    ActionResult,
+    ActivityDetails,
+    ActivityEvaluation,
+    Blocker,
+    BlockerEvaluation,
+    Decision,
+    Match,
+    TickTrace,
+)
 from ui.dashboard_analysis import map_tick_snapshot
 from utils.config_errors import ConfigIssue, ConfigLoadError
 from utils.runtime_config import (
@@ -62,6 +62,14 @@ class _MutableClock:
 
     def __call__(self) -> float:
         return self.now
+
+
+def _allowed_gate() -> BlockerEvaluation:
+    return BlockerEvaluation()
+
+
+def _blocked_gate(blocker: Blocker = Blocker.IDLE) -> BlockerEvaluation:
+    return BlockerEvaluation(blocked_by=[blocker])
 
 
 def test_activity_policy_distinguishes_title_and_process_matchers():
@@ -131,7 +139,7 @@ def test_weather_policy_without_weather_is_inactive():
 def _decide_normal(
     controller: SchedulingController,
     context: Context,
-    match: MatchEvaluation,
+    match: Match,
     active_playlists: Playlists,
 ):
     return controller.decide_action(
@@ -144,7 +152,7 @@ def _decide_normal(
 
 def test_matcher_preserves_raw_resolved_and_fallback_vectors():
     stub_policy = mock.Mock()
-    stub_policy.evaluate.return_value = ActivityPolicyEvaluation(
+    stub_policy.evaluate.return_value = ActivityEvaluation(
         policy_id="stub",
         enabled=True,
         active=True,
@@ -154,7 +162,7 @@ def test_matcher_preserves_raw_resolved_and_fallback_vectors():
         effective_magnitude=1.0,
         direction={"stormy": 1.0},
         raw_contribution={"stormy": 1.0},
-        details=ActivityPolicyDetails(),
+        details=ActivityDetails(),
     )
 
     matcher = Matcher(
@@ -178,18 +186,18 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
     trace.ts = 1.0
     trace.paused = False
     trace.context = Context(window=WindowData(title="Docs", process="Code.exe"))
-    trace.match = MatchEvaluation(
+    trace.match = Match(
         best_playlists=Playlists(["focus"]),
         playlist_matches=[("focus", 0.9)],
         raw_context_vector={"focus": 1.0},
         resolved_context_vector={"focus": 1.0},
         policy_evaluations=[],
     )
-    trace.action = ActuationOutcome(
-        decision=ControllerDecision(
-            kind=ActionKind.HOLD,
-            reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
-            matched_playlists=Playlists(["focus"]),
+    trace.action = ActionResult(
+        decision=Decision(
+            action=Action.HOLD,
+            reason=ActionReason.HOLD_SAME_PLAYLIST,
+            matched=Playlists(["focus"]),
             evaluation=None,
         ),
         active_playlists_before=Playlists(["focus"]),
@@ -224,36 +232,34 @@ def test_controller_evaluation_reports_all_blockers():
     switch_decision = _decide_normal(
         controller,
         context,
-        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
         Playlists(["focus"]),
     )
     cycle_decision = _decide_normal(
         controller,
         context,
-        MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8)]),
+        Match(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8)]),
         Playlists(["focus"]),
     )
     switch_eval = switch_decision.evaluation
     cycle_eval = cycle_decision.evaluation
 
     assert switch_eval.allowed is False
-    assert switch_eval.operation == "switch"
     assert switch_eval.cooldown_remaining == pytest.approx(0.0)
     assert switch_eval.force_after_remaining == pytest.approx(95.0)
     assert set(switch_eval.blocked_by) == {
-        ControllerBlocker.CPU,
-        ControllerBlocker.FULLSCREEN,
-        ControllerBlocker.IDLE,
+        Blocker.CPU,
+        Blocker.FULLSCREEN,
+        Blocker.IDLE,
     }
 
     assert cycle_eval.allowed is False
-    assert cycle_eval.operation == "cycle"
     assert cycle_eval.cooldown_remaining == pytest.approx(10.0)
     assert set(cycle_eval.blocked_by) == {
-        ControllerBlocker.COOLDOWN,
-        ControllerBlocker.CPU,
-        ControllerBlocker.FULLSCREEN,
-        ControllerBlocker.IDLE,
+        Blocker.COOLDOWN,
+        Blocker.CPU,
+        Blocker.FULLSCREEN,
+        Blocker.IDLE,
     }
 
 
@@ -281,13 +287,13 @@ def test_controller_warmup_blocks_all_operations():
     switch_decision = _decide_normal(
         controller,
         context,
-        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
         Playlists(["focus"]),
     )
     cycle_decision = _decide_normal(
         controller,
         context,
-        MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8)]),
+        Match(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8)]),
         Playlists(["focus"]),
     )
 
@@ -296,18 +302,18 @@ def test_controller_warmup_blocks_all_operations():
 
     # Both blocked despite user being idle (idle=120 >= threshold=60)
     assert switch_eval.allowed is False
-    assert ControllerBlocker.COOLDOWN in switch_eval.blocked_by
-    assert ControllerBlocker.IDLE not in switch_eval.blocked_by
+    assert Blocker.COOLDOWN in switch_eval.blocked_by
+    assert Blocker.IDLE not in switch_eval.blocked_by
     assert switch_eval.cooldown_remaining == pytest.approx(25.0)
 
     assert cycle_eval.allowed is False
-    assert ControllerBlocker.COOLDOWN in cycle_eval.blocked_by
-    assert ControllerBlocker.IDLE not in cycle_eval.blocked_by
+    assert Blocker.COOLDOWN in cycle_eval.blocked_by
+    assert Blocker.IDLE not in cycle_eval.blocked_by
     assert cycle_eval.cooldown_remaining == pytest.approx(25.0)
 
     # Context gates still collected
-    assert ControllerBlocker.CPU in switch_eval.blocked_by
-    assert ControllerBlocker.FULLSCREEN in switch_eval.blocked_by
+    assert Blocker.CPU in switch_eval.blocked_by
+    assert Blocker.FULLSCREEN in switch_eval.blocked_by
 
 
 def test_controller_warmup_switch_reason_code():
@@ -329,11 +335,11 @@ def test_controller_warmup_switch_reason_code():
     decision = _decide_normal(
         controller,
         Context(idle=120.0, cpu=1.0),
-        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
         Playlists(["focus"]),
     )
 
-    assert decision.reason_code == ActionReasonCode.SWITCH_BLOCKED_COOLDOWN
+    assert decision.reason == ActionReason.SWITCH_BLOCKED_COOLDOWN
     assert decision.evaluation.cooldown_remaining == pytest.approx(25.0)
 
 
@@ -357,13 +363,13 @@ def test_controller_warmup_expires_normal_behavior():
     decision = _decide_normal(
         controller,
         Context(idle=80.0, cpu=1.0),
-        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
         Playlists(["focus"]),
     )
 
-    assert decision.kind == ActionKind.SWITCH
-    assert decision.reason_code == ActionReasonCode.SWITCH_ALLOWED
-    assert ControllerBlocker.COOLDOWN not in decision.evaluation.blocked_by
+    assert decision.action == Action.SWITCH
+    assert decision.reason == ActionReason.SWITCH_ALLOWED
+    assert Blocker.COOLDOWN not in decision.evaluation.blocked_by
     assert decision.evaluation.cooldown_remaining == pytest.approx(0.0)
 
 
@@ -388,10 +394,10 @@ def test_controller_switch_has_no_cooldown_gate():
     clock.now = 101.0
     evaluation = controller._evaluate_blockers(
         Context(idle=20.0, cpu=1.0),
-        operation="switch",
+        intent=Intent.SWITCH,
     )
 
-    assert ControllerBlocker.COOLDOWN not in evaluation.blocked_by
+    assert Blocker.COOLDOWN not in evaluation.blocked_by
     assert evaluation.cooldown_remaining == pytest.approx(0.0)
     assert evaluation.allowed is True
 
@@ -414,14 +420,13 @@ def test_controller_switch_force_after_overrides_idle():
     decision = _decide_normal(
         controller,
         Context(idle=5.0, cpu=1.0),
-        MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
         Playlists(["focus"]),
     )
     evaluation = decision.evaluation
 
-    assert decision.reason_code == ActionReasonCode.SWITCH_ALLOWED
+    assert decision.reason == ActionReason.SWITCH_ALLOWED
     assert evaluation.allowed is True
-    assert evaluation.operation == "switch"
     assert evaluation.blocked_by == []
     assert evaluation.force_after_remaining == pytest.approx(0.0)
 
@@ -447,17 +452,17 @@ def test_controller_partial_overlap_keeps_active_pool_for_reference_window():
         clock=clock,
     )
     active = Playlists(["A", "B"])
-    matched = MatchEvaluation(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.8)])
+    matched = Match(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.8)])
 
     for _ in range(119):
         decision = _decide_normal(controller, Context(idle=999.0), matched, active)
-        assert decision.kind != ActionKind.SWITCH
-        assert decision.reason_code != ActionReasonCode.SWITCH_ALLOWED
+        assert decision.action != Action.SWITCH
+        assert decision.reason != ActionReason.SWITCH_ALLOWED
 
     decision = _decide_normal(controller, Context(idle=999.0), matched, active)
 
-    assert decision.kind == ActionKind.SWITCH
-    assert decision.reason_code == ActionReasonCode.SWITCH_ALLOWED
+    assert decision.action == Action.SWITCH
+    assert decision.reason == ActionReason.SWITCH_ALLOWED
 
 
 def test_controller_partial_overlap_decays_continuity_by_time_only():
@@ -484,7 +489,7 @@ def test_controller_partial_overlap_decays_continuity_by_time_only():
     _decide_normal(
         controller,
         Context(idle=999.0),
-        MatchEvaluation(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.8)]),
+        Match(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.8)]),
         Playlists(["A", "B"]),
     )
 
@@ -508,12 +513,12 @@ def test_controller_no_match_resets_continuity_without_switching():
     decision = _decide_normal(
         controller,
         Context(idle=999.0),
-        MatchEvaluation(best_playlists=Playlists([])),
+        Match(best_playlists=Playlists([])),
         Playlists(["focus"]),
     )
 
-    assert decision.kind == ActionKind.HOLD
-    assert decision.reason_code == ActionReasonCode.NO_MATCH
+    assert decision.action == Action.HOLD
+    assert decision.reason == ActionReason.NO_MATCH
     assert controller.semantic_continuity_score == pytest.approx(0.0)
 
 
@@ -544,10 +549,10 @@ def test_controller_notify_executed_resets_continuity_for_switch():
     controller.semantic_continuity_score = 0.42
 
     controller.notify_executed(
-        ControllerDecision(
-            kind=ActionKind.SWITCH,
-            reason_code=ActionReasonCode.SWITCH_ALLOWED,
-            matched_playlists=Playlists(["rain"]),
+        Decision(
+            action=Action.SWITCH,
+            reason=ActionReason.SWITCH_ALLOWED,
+            matched=Playlists(["rain"]),
         )
     )
 
@@ -571,10 +576,10 @@ def test_controller_notify_executed_preserves_continuity_for_plain_cycle():
     controller.semantic_continuity_score = 0.42
 
     controller.notify_executed(
-        ControllerDecision(
-            kind=ActionKind.CYCLE,
-            reason_code=ActionReasonCode.CYCLE_ALLOWED,
-            matched_playlists=Playlists(["focus"]),
+        Decision(
+            action=Action.CYCLE,
+            reason=ActionReason.CYCLE_ALLOWED,
+            matched=Playlists(["focus"]),
         )
     )
 
@@ -598,10 +603,10 @@ def test_controller_notify_executed_resets_continuity_for_manual_cycle():
     controller.semantic_continuity_score = 0.42
 
     controller.notify_executed(
-        ControllerDecision(
-            kind=ActionKind.CYCLE,
-            reason_code=ActionReasonCode.MANUAL_APPLY_REQUESTED,
-            matched_playlists=Playlists(["focus"]),
+        Decision(
+            action=Action.CYCLE,
+            reason=ActionReason.MANUAL_APPLY_REQUESTED,
+            matched=Playlists(["focus"]),
         )
     )
 
@@ -613,43 +618,32 @@ def test_controller_notify_executed_resets_continuity_for_manual_cycle():
     ("match", "active_playlists", "switch_eval", "cycle_eval", "expected"),
     [
         (
-            MatchEvaluation(best_playlists=Playlists([])),
+            Match(best_playlists=Playlists([])),
             Playlists(["focus"]),
-            ControllerEvaluation(operation="switch", allowed=False),
-            ControllerEvaluation(operation="cycle", allowed=False),
-            ActionReasonCode.NO_MATCH,
+            _blocked_gate(),
+            _blocked_gate(),
+            ActionReason.NO_MATCH,
         ),
         (
-            MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8), ("focus", 0.6)]),
+            Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8), ("focus", 0.6)]),
             Playlists(["focus"]),
-            ControllerEvaluation(operation="switch", allowed=True),
-            ControllerEvaluation(operation="cycle", allowed=False),
-            ActionReasonCode.SWITCH_ALLOWED,
+            _allowed_gate(),
+            _blocked_gate(),
+            ActionReason.SWITCH_ALLOWED,
         ),
         (
-            MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
+            Match(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
             Playlists(["focus"]),
-            ControllerEvaluation(operation="switch", allowed=False),
-            ControllerEvaluation(operation="cycle", allowed=True),
-            ActionReasonCode.CYCLE_ALLOWED,
+            _blocked_gate(),
+            _allowed_gate(),
+            ActionReason.CYCLE_ALLOWED,
         ),
         (
-            MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
+            Match(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
             Playlists(["focus"]),
-            ControllerEvaluation(operation="switch", allowed=False),
-            ControllerEvaluation(
-                operation="cycle",
-                allowed=False,
-                blocked_by=[ControllerBlocker.CPU],
-            ),
-            ActionReasonCode.CYCLE_BLOCKED_CPU,
-        ),
-        (
-            MatchEvaluation(best_playlists=Playlists(["focus"]), playlist_matches=[("focus", 0.8), ("rain", 0.6)]),
-            Playlists(["focus"]),
-            ControllerEvaluation(operation="switch", allowed=False),
-            ControllerEvaluation(operation="cycle", allowed=False),
-            ActionReasonCode.HOLD_SAME_PLAYLIST,
+            _blocked_gate(),
+            _blocked_gate(Blocker.CPU),
+            ActionReason.CYCLE_BLOCKED_CPU,
         ),
     ],
 )
@@ -674,7 +668,7 @@ def test_controller_decide_reason_code(
 
     decision = _decide_normal(controller, Context(), match, active_playlists)
 
-    assert decision.reason_code == expected
+    assert decision.reason == expected
 
 
 def test_controller_recovery_uses_unmanaged_reason_without_gates():
@@ -692,12 +686,12 @@ def test_controller_recovery_uses_unmanaged_reason_without_gates():
 
     decision = controller.decide_action(
         "recovery",
-        match=MatchEvaluation(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        match=Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
         active_playlists=Playlists([]),
     )
 
-    assert decision.kind == ActionKind.SWITCH
-    assert decision.reason_code == ActionReasonCode.RECOVERY_UNMANAGED
+    assert decision.action == Action.SWITCH
+    assert decision.reason == ActionReason.RECOVERY_UNMANAGED
     assert decision.evaluation is None
     controller._evaluate_blockers.assert_not_called()
 
@@ -716,12 +710,12 @@ def test_controller_recovery_without_match_does_not_switch():
 
     decision = controller.decide_action(
         "recovery",
-        match=MatchEvaluation(best_playlists=Playlists([])),
+        match=Match(best_playlists=Playlists([])),
         active_playlists=Playlists([]),
     )
 
-    assert decision.kind == ActionKind.NONE
-    assert decision.reason_code == ActionReasonCode.RECOVERY_NO_MATCH
+    assert decision.action == Action.NONE
+    assert decision.reason == ActionReason.RECOVERY_NO_MATCH
 
 
 def test_controller_normal_requires_context():
@@ -739,7 +733,7 @@ def test_controller_normal_requires_context():
     with pytest.raises(ValueError, match="context is required"):
         controller.decide_action(
             "normal",
-            match=MatchEvaluation(best_playlists=Playlists(["rain"])),
+            match=Match(best_playlists=Playlists(["rain"])),
             active_playlists=Playlists([]),
         )
 
@@ -747,17 +741,16 @@ def test_controller_normal_requires_context():
 def test_actuator_switch_returns_executed_outcome():
     executor = mock.Mock()
     controller = mock.Mock()
-    controller.decide_action.return_value = ControllerDecision(
-        kind=ActionKind.SWITCH,
-        reason_code=ActionReasonCode.SWITCH_ALLOWED,
-        matched_playlists=Playlists(["rain"]),
-        evaluation=ControllerEvaluation(operation="switch", allowed=True),
+    controller.decide_action.return_value = Decision(
+        action=Action.SWITCH,
+        reason=ActionReason.SWITCH_ALLOWED,
+        matched=Playlists(["rain"]),
     )
     actuator = Actuator(executor, controller)
     outcome = actuator.act(
         "normal",
         context=Context(),
-        match=MatchEvaluation(
+        match=Match(
             best_playlists=Playlists(["rain"]),
             playlist_matches=[("rain", 0.9), ("focus", 0.5)],
             raw_context_vector={"rain": 1.0},
@@ -767,7 +760,7 @@ def test_actuator_switch_returns_executed_outcome():
         active_playlists=Playlists(["focus"]),
     )
 
-    assert outcome.kind == ActionKind.SWITCH
+    assert outcome.action == Action.SWITCH
     assert outcome.executed is True
     executor.open_playlist.assert_called_once_with("rain")
     controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
@@ -776,24 +769,24 @@ def test_actuator_switch_returns_executed_outcome():
 def test_scheduler_history_recorder_logs_switch_event():
     history = mock.Mock()
     recorder = ActionHistoryWriter(history)
-    outcome = ActuationOutcome(
-        decision=ControllerDecision(
-            kind=ActionKind.SWITCH,
-            reason_code=ActionReasonCode.SWITCH_ALLOWED,
-            matched_playlists=Playlists(["rain"]),
+    outcome = ActionResult(
+        decision=Decision(
+            action=Action.SWITCH,
+            reason=ActionReason.SWITCH_ALLOWED,
+            matched=Playlists(["rain"]),
         ),
         active_playlists_before=Playlists(["focus"]),
         active_playlists_after=Playlists(["rain"]),
         target_playlist="rain",
         executed=True,
     )
-    trace = SchedulerTickTrace(
+    trace = TickTrace(
         tick_id=1,
         ts=123.0,
         paused=False,
         pause_until=0.0,
         context=Context(),
-        match=MatchEvaluation(
+        match=Match(
             best_playlists=Playlists(["rain"]),
             playlist_matches=[("rain", 0.9), ("focus", 0.5)],
             raw_context_vector={"rain": 1.0},
@@ -819,18 +812,17 @@ def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
     executor = mock.Mock()
     controller = mock.Mock()
     matched_pool = Playlists(["A", "B"])
-    controller.decide_action.return_value = ControllerDecision(
-        kind=ActionKind.SWITCH,
-        reason_code=ActionReasonCode.SWITCH_ALLOWED,
-        matched_playlists=matched_pool,
-        evaluation=ControllerEvaluation(operation="switch", allowed=True),
+    controller.decide_action.return_value = Decision(
+        action=Action.SWITCH,
+        reason=ActionReason.SWITCH_ALLOWED,
+        matched=matched_pool,
     )
     actuator = Actuator(executor, controller)
 
     outcome = actuator.act(
         "normal",
         context=Context(),
-        match=MatchEvaluation(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
+        match=Match(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
         active_playlists=Playlists([]),
     )
 
@@ -845,18 +837,17 @@ def test_actuator_cycle_uses_open_playlist_without_next_wallpaper(monkeypatch):
     executor = mock.Mock()
     controller = mock.Mock()
     matched_pool = Playlists(["A", "B"])
-    controller.decide_action.return_value = ControllerDecision(
-        kind=ActionKind.CYCLE,
-        reason_code=ActionReasonCode.CYCLE_ALLOWED,
-        matched_playlists=matched_pool,
-        evaluation=ControllerEvaluation(operation="cycle", allowed=True),
+    controller.decide_action.return_value = Decision(
+        action=Action.CYCLE,
+        reason=ActionReason.CYCLE_ALLOWED,
+        matched=matched_pool,
     )
     actuator = Actuator(executor, controller)
 
     outcome = actuator.act(
         "normal",
         context=Context(),
-        match=MatchEvaluation(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
+        match=Match(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
         active_playlists=matched_pool,
     )
 
@@ -872,18 +863,17 @@ def test_actuator_cycle_selects_from_active_pool(monkeypatch):
     monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: [names[0]])
     executor = mock.Mock()
     controller = mock.Mock()
-    controller.decide_action.return_value = ControllerDecision(
-        kind=ActionKind.CYCLE,
-        reason_code=ActionReasonCode.CYCLE_ALLOWED,
-        matched_playlists=Playlists(["A", "C"]),
-        evaluation=ControllerEvaluation(operation="cycle", allowed=True),
+    controller.decide_action.return_value = Decision(
+        action=Action.CYCLE,
+        reason=ActionReason.CYCLE_ALLOWED,
+        matched=Playlists(["A", "C"]),
     )
     actuator = Actuator(executor, controller)
 
     outcome = actuator.act(
         "normal",
         context=Context(),
-        match=MatchEvaluation(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.89)]),
+        match=Match(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.89)]),
         active_playlists=Playlists(["B"]),
     )
 
@@ -897,16 +887,16 @@ def test_actuator_cycle_selects_from_active_pool(monkeypatch):
 def test_actuator_recovery_switch_bypasses_controller_gates():
     executor = mock.Mock()
     controller = mock.Mock()
-    controller.decide_action.return_value = ControllerDecision(
-        kind=ActionKind.SWITCH,
-        reason_code=ActionReasonCode.RECOVERY_UNMANAGED,
-        matched_playlists=Playlists(["rain"]),
+    controller.decide_action.return_value = Decision(
+        action=Action.SWITCH,
+        reason=ActionReason.RECOVERY_UNMANAGED,
+        matched=Playlists(["rain"]),
     )
     actuator = Actuator(executor, controller)
 
     outcome = actuator.act(
         "recovery",
-        match=MatchEvaluation(
+        match=Match(
             best_playlists=Playlists(["rain"]),
             playlist_matches=[("rain", 0.9), ("focus", 0.5)],
             raw_context_vector={"rain": 1.0},
@@ -914,8 +904,8 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
         active_playlists=Playlists([]),
     )
 
-    assert outcome.kind == ActionKind.SWITCH
-    assert outcome.reason_code == ActionReasonCode.RECOVERY_UNMANAGED
+    assert outcome.action == Action.SWITCH
+    assert outcome.reason == ActionReason.RECOVERY_UNMANAGED
     assert outcome.executed is True
     executor.open_playlist.assert_called_once_with("rain")
     controller.decide_action.assert_called_once_with(
@@ -1002,7 +992,7 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
 
     scheduler = WEScheduler("config", DummyHistory())
     scheduler.context_manager = mock.Mock(refresh=mock.Mock(return_value=Context(window=WindowData(title="", process=""), idle=0.0)))
-    scheduler.matcher = mock.Mock(evaluate=mock.Mock(return_value=MatchEvaluation(best_playlists=Playlists([]), playlist_matches=[])))
+    scheduler.matcher = mock.Mock(evaluate=mock.Mock(return_value=Match(best_playlists=Playlists([]), playlist_matches=[])))
     scheduler.executor = mock.Mock()
     scheduler.executor.is_we_running = mock.Mock(return_value=False)
     scheduler.executor.request_we_start = mock.Mock(return_value=True)
@@ -1010,11 +1000,11 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
     scheduler.cached_playlists = Playlists(["focus"])
     scheduler.paused = True
     scheduler.actuator = mock.Mock()
-    scheduler.actuator.act.return_value = ActuationOutcome(
-        decision=ControllerDecision(
-            kind=ActionKind.PAUSE,
-            reason_code=ActionReasonCode.SCHEDULER_PAUSED,
-            matched_playlists=Playlists([]),
+    scheduler.actuator.act.return_value = ActionResult(
+        decision=Decision(
+            action=Action.PAUSE,
+            reason=ActionReason.SCHEDULER_PAUSED,
+            matched=Playlists([]),
         ),
         active_playlists_before=Playlists(["focus"]),
         active_playlists_after=Playlists(["focus"]),
@@ -1040,7 +1030,7 @@ def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
     scheduler.context_manager = mock.Mock(refresh=mock.Mock(return_value=Context(window=WindowData(title="", process=""), idle=0.0)))
     scheduler.matcher = mock.Mock(
         evaluate=mock.Mock(
-            return_value=MatchEvaluation(
+            return_value=Match(
                 best_playlists=Playlists(["rain"]),
                 playlist_matches=[("rain", 0.9)],
             )
@@ -1050,11 +1040,11 @@ def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
     scheduler.cached_playlists = Playlists(["focus"])
     scheduler.paused = False
     scheduler.actuator = mock.Mock()
-    scheduler.actuator.act.return_value = ActuationOutcome(
-        decision=ControllerDecision(
-            kind=ActionKind.SWITCH,
-            reason_code=ActionReasonCode.RECOVERY_UNMANAGED,
-            matched_playlists=Playlists(["rain"]),
+    scheduler.actuator.act.return_value = ActionResult(
+        decision=Decision(
+            action=Action.SWITCH,
+            reason=ActionReason.RECOVERY_UNMANAGED,
+            matched=Playlists(["rain"]),
         ),
         active_playlists_before=Playlists([]),
         active_playlists_after=Playlists(["rain"]),
@@ -1077,18 +1067,18 @@ def test_scheduler_commit_tick_fans_out_to_listeners():
     calls: list[tuple[str, int]] = []
     scheduler.add_tick_listener(lambda trace: calls.append(("first", trace.tick_id)))
     scheduler.add_tick_listener(lambda trace: calls.append(("second", trace.tick_id)))
-    trace = SchedulerTickTrace(
+    trace = TickTrace(
         tick_id=42,
         ts=123.0,
         paused=False,
         pause_until=0.0,
         context=Context(),
-        match=MatchEvaluation(best_playlists=Playlists([])),
-        action=ActuationOutcome(
-            decision=ControllerDecision(
-                kind=ActionKind.HOLD,
-                reason_code=ActionReasonCode.NO_MATCH,
-                matched_playlists=Playlists([]),
+        match=Match(best_playlists=Playlists([])),
+        action=ActionResult(
+            decision=Decision(
+                action=Action.HOLD,
+                reason=ActionReason.NO_MATCH,
+                matched=Playlists([]),
             ),
             active_playlists_before=Playlists([]),
             active_playlists_after=Playlists([]),
@@ -1242,7 +1232,7 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
 def test_matcher_cluster_groups_playlists_within_gap_threshold():
     """When top playlists have similar scores (gap < 0.02), they cluster together."""
     stub_policy = mock.Mock()
-    stub_policy.evaluate.return_value = ActivityPolicyEvaluation(
+    stub_policy.evaluate.return_value = ActivityEvaluation(
         policy_id="stub",
         enabled=True,
         active=True,
@@ -1252,7 +1242,7 @@ def test_matcher_cluster_groups_playlists_within_gap_threshold():
         effective_magnitude=1.0,
         direction={"focus": 1.0, "chill": 0.5},
         raw_contribution={"focus": 1.0, "chill": 0.5},
-        details=ActivityPolicyDetails(),
+        details=ActivityDetails(),
     )
 
     # Create playlists with similar tag vectors so scores are close
@@ -1277,7 +1267,7 @@ def test_matcher_cluster_groups_playlists_within_gap_threshold():
 def test_matcher_cluster_breaks_on_large_gap():
     """When there's a large gap between 1st and 2nd, only the top playlist is selected."""
     stub_policy = mock.Mock()
-    stub_policy.evaluate.return_value = ActivityPolicyEvaluation(
+    stub_policy.evaluate.return_value = ActivityEvaluation(
         policy_id="stub",
         enabled=True,
         active=True,
@@ -1287,7 +1277,7 @@ def test_matcher_cluster_breaks_on_large_gap():
         effective_magnitude=1.0,
         direction={"focus": 1.0},
         raw_contribution={"focus": 1.0},
-        details=ActivityPolicyDetails(),
+        details=ActivityDetails(),
     )
 
     matcher = Matcher(
@@ -1307,7 +1297,7 @@ def test_matcher_cluster_breaks_on_large_gap():
 def test_matcher_cluster_empty_when_no_match():
     """When no playlist matches, best_playlists is empty."""
     stub_policy = mock.Mock()
-    stub_policy.evaluate.return_value = ActivityPolicyEvaluation(
+    stub_policy.evaluate.return_value = ActivityEvaluation(
         policy_id="stub",
         enabled=True,
         active=True,
@@ -1317,7 +1307,7 @@ def test_matcher_cluster_empty_when_no_match():
         effective_magnitude=1.0,
         direction={"nonexistent": 1.0},
         raw_contribution={"nonexistent": 1.0},
-        details=ActivityPolicyDetails(),
+        details=ActivityDetails(),
     )
 
     matcher = Matcher(
@@ -1336,7 +1326,7 @@ def test_matcher_cluster_empty_when_no_match():
 def test_matcher_cluster_respects_max_size():
     """best_playlists never exceeds MAX_CLUSTER_SIZE (4)."""
     stub_policy = mock.Mock()
-    stub_policy.evaluate.return_value = ActivityPolicyEvaluation(
+    stub_policy.evaluate.return_value = ActivityEvaluation(
         policy_id="stub",
         enabled=True,
         active=True,
@@ -1346,7 +1336,7 @@ def test_matcher_cluster_respects_max_size():
         effective_magnitude=1.0,
         direction={"focus": 1.0},
         raw_contribution={"focus": 1.0},
-        details=ActivityPolicyDetails(),
+        details=ActivityDetails(),
     )
 
     playlists = {f"P{i}": PlaylistConfig(color="#FF0000", tags={"focus": 1.0 - i * 0.001}) for i in range(6)}
@@ -1359,7 +1349,7 @@ def test_matcher_cluster_respects_max_size():
 
 def test_matcher_similarity_is_field_not_property():
     """similarity and similarity_gap are plain fields filled by Matcher, not computed properties."""
-    evaluation = MatchEvaluation(
+    evaluation = Match(
         best_playlists=Playlists(["A"]),
         playlist_matches=[("A", 0.9)],
     )
@@ -1376,7 +1366,7 @@ def test_matcher_similarity_is_field_not_property():
 def test_matcher_fills_similarity_and_similarity_gap():
     """Matcher computes and fills similarity and similarity_gap on evaluate()."""
     stub_policy = mock.Mock()
-    stub_policy.evaluate.return_value = ActivityPolicyEvaluation(
+    stub_policy.evaluate.return_value = ActivityEvaluation(
         policy_id="stub",
         enabled=True,
         active=True,
@@ -1386,7 +1376,7 @@ def test_matcher_fills_similarity_and_similarity_gap():
         effective_magnitude=1.0,
         direction={"focus": 1.0},
         raw_contribution={"focus": 1.0},
-        details=ActivityPolicyDetails(),
+        details=ActivityDetails(),
     )
 
     matcher = Matcher(
@@ -1409,7 +1399,7 @@ def test_matcher_fills_similarity_and_similarity_gap():
 def test_matcher_weighted_similarity():
     """Matcher weights similarity by item_count when available."""
     stub_policy = mock.Mock()
-    stub_policy.evaluate.return_value = ActivityPolicyEvaluation(
+    stub_policy.evaluate.return_value = ActivityEvaluation(
         policy_id="stub",
         enabled=True,
         active=True,
@@ -1419,7 +1409,7 @@ def test_matcher_weighted_similarity():
         effective_magnitude=1.0,
         direction={"focus": 1.0},
         raw_contribution={"focus": 1.0},
-        details=ActivityPolicyDetails(),
+        details=ActivityDetails(),
     )
 
     matcher = Matcher(

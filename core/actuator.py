@@ -3,31 +3,29 @@ from __future__ import annotations
 import logging
 
 from core.context import Context
-from core.controller import ControllerAction, SchedulingController
-from core.diagnostics import ActionKind as Kind
-from core.diagnostics import (
-    ActuationOutcome,
-    ControllerDecision,
-    MatchEvaluation,
-)
+from core.controller import DecisionMode, SchedulingController
 from core.executor import WEExecutor
 from core.playlist import Playlists
+from core.trace import (
+    Action,
+    ActionResult,
+    Decision,
+    Match,
+)
 
 logger = logging.getLogger("WEScheduler.Actuator")
 
-ActuatorAction = ControllerAction
 
-
-class Outcomes:
+class Result:
     @staticmethod
     def make(
-        decision: ControllerDecision,
+        decision: Decision,
         active_playlists_before: Playlists,
         active_playlists_after: Playlists | None = None,
         target_playlist: str | None = None,
         executed: bool = False,
-    ) -> ActuationOutcome:
-        return ActuationOutcome(
+    ) -> ActionResult:
+        return ActionResult(
             decision=decision,
             active_playlists_before=active_playlists_before,
             active_playlists_after=active_playlists_before if active_playlists_after is None else active_playlists_after,
@@ -47,14 +45,14 @@ class Actuator:
 
     def act(
         self,
-        action: ActuatorAction,
+        mode: DecisionMode,
         *,
-        match: MatchEvaluation,
+        match: Match,
         active_playlists: Playlists,
         context: Context | None = None,
-    ) -> ActuationOutcome:
+    ) -> ActionResult:
         decision = self.controller.decide_action(
-            action,
+            mode,
             match=match,
             active_playlists=active_playlists,
             context=context,
@@ -64,17 +62,17 @@ class Actuator:
     def _act_from_decision(
         self,
         active_playlists: Playlists,
-        decision: ControllerDecision,
-    ) -> ActuationOutcome:
+        decision: Decision,
+    ) -> ActionResult:
         target_playlists = Playlists([])
-        if decision.kind == Kind.SWITCH:
-            target_playlists = decision.matched_playlists
-        elif decision.kind == Kind.CYCLE:
+        if decision.action == Action.SWITCH:
+            target_playlists = decision.matched
+        elif decision.action == Action.CYCLE:
             target_playlists = active_playlists
 
         # No execution needed or no valid target
         if not target_playlists:
-            return Outcomes.make(decision, active_playlists)
+            return Result.make(decision, active_playlists)
 
         target_playlist = target_playlists.select_target()
         logger.info("Applying playlist pool '%s' via playlist '%s'", target_playlists, target_playlist)
@@ -83,6 +81,6 @@ class Actuator:
         active_playlists_after = active_playlists
         if executed:
             self.controller.notify_executed(decision)
-            if decision.kind == Kind.SWITCH:
-                active_playlists_after = decision.matched_playlists
-        return Outcomes.make(decision, active_playlists, active_playlists_after, target_playlist, executed)
+            if decision.action == Action.SWITCH:
+                active_playlists_after = decision.matched
+        return Result.make(decision, active_playlists, active_playlists_after, target_playlist, executed)

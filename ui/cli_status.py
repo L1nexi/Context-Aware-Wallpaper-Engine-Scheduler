@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import sys
 
-from core.diagnostics import SchedulerTickTrace
 from core.playlist import Playlists
+from core.trace import TickTrace
 
 
 class CliStatusReporter:
@@ -11,7 +11,7 @@ class CliStatusReporter:
         self.print_status = print_status
         self.last_status_line = ""
 
-    def on_tick(self, trace: SchedulerTickTrace) -> None:
+    def on_tick(self, trace: TickTrace) -> None:
         process_name = trace.context.window.process or "N/A"
         idle_time = trace.context.idle
         best_playlists = trace.match.best_playlists

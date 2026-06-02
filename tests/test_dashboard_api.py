@@ -10,20 +10,20 @@ import urllib.request
 import pytest
 
 from core.context import Context, WeatherData, WindowData
-from core.diagnostics import (
-    ActionKind,
-    ActionReasonCode,
-    ActivityPolicyDetails,
-    ActivityPolicyEvaluation,
-    ActuationOutcome,
-    ControllerDecision,
-    ControllerEvaluation,
-    MatchEvaluation,
-    SchedulerTickTrace,
-    WeatherPolicyDetails,
-    WeatherPolicyEvaluation,
-)
 from core.playlist import Playlists
+from core.trace import (
+    Action,
+    ActionReason,
+    ActionResult,
+    ActivityDetails,
+    ActivityEvaluation,
+    BlockerEvaluation,
+    Decision,
+    Match,
+    TickTrace,
+    WeatherDetails,
+    WeatherEvaluation,
+)
 from ui.dashboard import (
     DASHBOARD_STATIC_APP_DIR,
     DASHBOARD_STATIC_DIST_DIR,
@@ -112,16 +112,16 @@ def _make_trace(
     matched_playlist: str | None = None,
     target_playlist: str | None = None,
     executed: bool = False,
-    action_kind: ActionKind = ActionKind.HOLD,
-    reason_code: ActionReasonCode = ActionReasonCode.NO_MATCH,
-    evaluation: ControllerEvaluation | None = None,
+    action_kind: Action = Action.HOLD,
+    reason_code: ActionReason = ActionReason.NO_MATCH,
+    evaluation: BlockerEvaluation | None = None,
     weather: WeatherData | None = None,
     policy_evaluations: list | None = None,
-) -> SchedulerTickTrace:
+) -> TickTrace:
     current_time = time.localtime(1714800000)
     playlist_matches = [("focus", 0.91), ("rainy", 0.66)]
     best_playlists = Playlists([matched_playlist]) if matched_playlist else Playlists([])
-    return SchedulerTickTrace(
+    return TickTrace(
         tick_id=tick_id,
         ts=1714800000.0 + tick_id,
         paused=paused,
@@ -134,7 +134,7 @@ def _make_trace(
             weather=weather,
             time=current_time,
         ),
-        match=MatchEvaluation(
+        match=Match(
             best_playlists=best_playlists,
             playlist_matches=playlist_matches,
             raw_context_vector={"focus": 0.8, "rain": 0.4},
@@ -143,11 +143,11 @@ def _make_trace(
             policy_evaluations=policy_evaluations or [],
             max_policy_magnitude=1.2,
         ),
-        action=ActuationOutcome(
-            decision=ControllerDecision(
-                kind=action_kind,
-                reason_code=reason_code,
-                matched_playlists=best_playlists,
+        action=ActionResult(
+            decision=Decision(
+                action=action_kind,
+                reason=reason_code,
+                matched=best_playlists,
                 evaluation=evaluation,
             ),
             active_playlists_before=Playlists([active_playlist_before]) if active_playlist_before else Playlists([]),
@@ -182,9 +182,7 @@ def test_analysis_store_read_window_returns_recent(analysis_store):
 
 
 def test_build_tick_snapshot_maps_analysis_fields():
-    evaluation = ControllerEvaluation(
-        operation="switch",
-        allowed=False,
+    evaluation = BlockerEvaluation(
         blocked_by=[],
         cooldown_remaining=15.0,
         idle_seconds=12.5,
@@ -194,7 +192,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
         fullscreen=False,
         force_after_remaining=120.0,
     )
-    activity_policy = ActivityPolicyEvaluation(
+    activity_policy = ActivityEvaluation(
         policy_id="activity",
         enabled=True,
         active=True,
@@ -206,7 +204,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
         raw_contribution={"focus": 0.5},
         resolved_contribution={"focus": 0.5},
         dominant_tag="focus",
-        details=ActivityPolicyDetails(
+        details=ActivityDetails(
             match_source="title",
             matched_rule="code",
             matched_tag="focus",
@@ -215,7 +213,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
             ema_active=True,
         ),
     )
-    weather_policy = WeatherPolicyEvaluation(
+    weather_policy = WeatherEvaluation(
         policy_id="weather",
         enabled=True,
         active=True,
@@ -227,7 +225,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
         raw_contribution={"rain": 0.4},
         resolved_contribution={"rain": 0.4},
         dominant_tag="rain",
-        details=WeatherPolicyDetails(
+        details=WeatherDetails(
             weather_id=501,
             weather_main="Rain",
             available=True,
@@ -240,8 +238,8 @@ def test_build_tick_snapshot_maps_analysis_fields():
         active_playlist_after="idle",
         matched_playlist="focus",
         executed=False,
-        action_kind=ActionKind.HOLD,
-        reason_code=ActionReasonCode.SWITCH_BLOCKED_NOT_IDLE,
+        action_kind=Action.HOLD,
+        reason_code=ActionReason.SWITCH_BLOCKED_NOT_IDLE,
         evaluation=evaluation,
         weather=WeatherData(
             id=501,
@@ -285,7 +283,6 @@ def test_build_tick_snapshot_maps_analysis_fields():
         "display": "Rainy Mood",
         "color": "#4A90D9",
     }
-    assert snapshot["act"]["controller"]["evaluation"]["operation"] == "switch"
     assert snapshot["act"]["decision"]["reasonCode"] == "switch_blocked_not_idle"
     assert snapshot["act"]["decision"]["activePlaylistsBefore"] == [
         {"name": "idle", "display": "idle", "color": "#2E5F8A"},
@@ -307,8 +304,8 @@ def test_build_tick_snapshot_maps_target_playlist():
         matched_playlist="focus",
         target_playlist="focus",
         executed=True,
-        action_kind=ActionKind.SWITCH,
-        reason_code=ActionReasonCode.SWITCH_ALLOWED,
+        action_kind=Action.SWITCH,
+        reason_code=ActionReason.SWITCH_ALLOWED,
     )
 
     snapshot = build_tick_snapshot(trace)
@@ -328,8 +325,8 @@ def test_build_tick_snapshot_maps_paused_tick():
         active_playlist_after="focus",
         matched_playlist="rainy",
         executed=False,
-        action_kind=ActionKind.PAUSE,
-        reason_code=ActionReasonCode.SCHEDULER_PAUSED,
+        action_kind=Action.PAUSE,
+        reason_code=ActionReason.SCHEDULER_PAUSED,
         evaluation=None,
         weather=None,
     )
@@ -362,8 +359,8 @@ def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
         active_playlist_after="unknown_active",
         matched_playlist="unknown_match",
         executed=False,
-        action_kind=ActionKind.HOLD,
-        reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
+        action_kind=Action.HOLD,
+        reason_code=ActionReason.HOLD_SAME_PLAYLIST,
         evaluation=None,
         weather=None,
     )
@@ -414,8 +411,8 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
             active_playlist_after="test_pl",
             matched_playlist="missing_playlist",
             executed=False,
-            action_kind=ActionKind.HOLD,
-            reason_code=ActionReasonCode.HOLD_SAME_PLAYLIST,
+            action_kind=Action.HOLD,
+            reason_code=ActionReason.HOLD_SAME_PLAYLIST,
         )
     )
 

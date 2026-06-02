@@ -10,19 +10,19 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 from core.context import WeatherData
-from core.diagnostics import (
-    ActionKind,
-    ActionReasonCode,
-    ActivityPolicyEvaluation,
-    ControllerBlocker,
-    ControllerEvaluation,
-    PolicyEvaluation,
-    SchedulerTickTrace,
-    SeasonPolicyEvaluation,
-    TimePolicyEvaluation,
-    WeatherPolicyEvaluation,
-)
 from core.playlist import Playlists
+from core.trace import (
+    Action,
+    ActionReason,
+    ActivityEvaluation,
+    Blocker,
+    BlockerEvaluation,
+    PolicyEvaluation,
+    SeasonEvaluation,
+    TickTrace,
+    TimeEvaluation,
+    WeatherEvaluation,
+)
 
 
 def _round_float(value: float | None, digits: int = 4) -> float | None:
@@ -152,9 +152,8 @@ PolicyDiagnosticDto = ActivityPolicyDiagnosticDto | TimePolicyDiagnosticDto | Se
 
 
 class ControllerEvaluationDto(ApiDto):
-    operation: str
     allowed: bool
-    blocked_by: list[ControllerBlocker]
+    blocked_by: list[Blocker]
     cooldown_remaining: float
     idle_seconds: float
     idle_threshold: float
@@ -175,8 +174,8 @@ class PlaylistRefDto(ApiDto):
 
 
 class ActionDecisionDto(ApiDto):
-    kind: ActionKind
-    reason_code: ActionReasonCode
+    kind: Action
+    reason_code: ActionReason
     executed: bool
     active_playlists_before: list[PlaylistRefDto]
     active_playlists_after: list[PlaylistRefDto]
@@ -218,8 +217,8 @@ class TickSummaryDto(ApiDto):
     similarity_gap: float
     active_playlists: list[PlaylistRefDto]
     matched_playlists: list[PlaylistRefDto]
-    action_kind: ActionKind
-    reason_code: ActionReasonCode
+    action_kind: Action
+    reason_code: ActionReason
     paused: bool
     executed: bool
     has_event: bool
@@ -240,7 +239,7 @@ class TickWindowResponseDto(ApiDto):
 @dataclass(frozen=True)
 class AnalysisTraceWindow:
     live_tick_id: int | None
-    traces: list[SchedulerTickTrace]
+    traces: list[TickTrace]
 
 
 def _playlist_ref_from_name(playlist: str) -> PlaylistRefDto:
@@ -268,10 +267,10 @@ def _playlist_ref(playlist: str | None) -> PlaylistRefDto | None:
 class AnalysisStore:
     def __init__(self, tick_history: int = 1200):
         self._lock = threading.Lock()
-        self._ticks: deque[SchedulerTickTrace] = deque(maxlen=tick_history)
+        self._ticks: deque[TickTrace] = deque(maxlen=tick_history)
         self._live_tick_id: int | None = None
 
-    def update(self, trace: SchedulerTickTrace) -> None:
+    def update(self, trace: TickTrace) -> None:
         with self._lock:
             self._ticks.append(trace)
             self._live_tick_id = trace.tick_id
@@ -340,7 +339,7 @@ def _policy_base_dto(policy: PolicyEvaluation) -> BasePolicyDiagnosticDto:
 def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
     base_dto = _policy_base_dto(policy)
     base_kwargs = base_dto.model_dump()
-    if isinstance(policy, ActivityPolicyEvaluation):
+    if isinstance(policy, ActivityEvaluation):
         return ActivityPolicyDiagnosticDto(
             **base_kwargs,
             details=ActivityPolicyDetailsDto(
@@ -352,7 +351,7 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
                 ema_active=policy.details.ema_active,
             ),
         )
-    if isinstance(policy, TimePolicyEvaluation):
+    if isinstance(policy, TimeEvaluation):
         return TimePolicyDiagnosticDto(
             **base_kwargs,
             details=TimePolicyDetailsDto(
@@ -364,7 +363,7 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
                 peaks={key: _round_float(value) for key, value in sorted(policy.details.peaks.items())},
             ),
         )
-    if isinstance(policy, SeasonPolicyEvaluation):
+    if isinstance(policy, SeasonEvaluation):
         return SeasonPolicyDiagnosticDto(
             **base_kwargs,
             details=SeasonPolicyDetailsDto(
@@ -372,7 +371,7 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
                 peaks=dict(sorted(policy.details.peaks.items())),
             ),
         )
-    if isinstance(policy, WeatherPolicyEvaluation):
+    if isinstance(policy, WeatherEvaluation):
         return WeatherPolicyDiagnosticDto(
             **base_kwargs,
             details=WeatherPolicyDetailsDto(
@@ -386,12 +385,11 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
 
 
 def _controller_evaluation(
-    evaluation: ControllerEvaluation | None,
+    evaluation: BlockerEvaluation | None,
 ) -> ControllerEvaluationDto | None:
     if evaluation is None:
         return None
     return ControllerEvaluationDto(
-        operation=evaluation.operation,
         allowed=evaluation.allowed,
         blocked_by=list(evaluation.blocked_by),
         cooldown_remaining=_round_float(evaluation.cooldown_remaining),
@@ -404,13 +402,13 @@ def _controller_evaluation(
     )
 
 
-def map_tick_snapshot(trace: SchedulerTickTrace) -> TickSnapshotDto:
+def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
     matched_playlist_refs = _playlist_refs(trace.match.best_playlists)
-    action_matched_playlist_refs = _playlist_refs(trace.action.decision.matched_playlists)
+    action_matched_playlist_refs = _playlist_refs(trace.action.decision.matched)
     active_playlists_after_refs = _playlist_refs(trace.action.active_playlists_after)
     active_playlists_before_refs = _playlist_refs(trace.action.active_playlists_before)
     target_playlist_ref = _playlist_ref(trace.action.target_playlist)
-    has_event = trace.action.kind in {ActionKind.SWITCH, ActionKind.CYCLE}
+    has_event = trace.action.action in {Action.SWITCH, Action.CYCLE}
 
     return TickSnapshotDto(
         summary=TickSummaryDto(
@@ -420,8 +418,8 @@ def map_tick_snapshot(trace: SchedulerTickTrace) -> TickSnapshotDto:
             similarity_gap=_round_float(trace.match.similarity_gap),
             active_playlists=active_playlists_after_refs,
             matched_playlists=matched_playlist_refs,
-            action_kind=trace.action.kind,
-            reason_code=trace.action.reason_code,
+            action_kind=trace.action.action,
+            reason_code=trace.action.reason,
             paused=trace.paused,
             executed=trace.action.executed,
             has_event=has_event,
@@ -455,8 +453,8 @@ def map_tick_snapshot(trace: SchedulerTickTrace) -> TickSnapshotDto:
             ],
             controller=ControllerDiagnosticDto(evaluation=_controller_evaluation(trace.action.evaluation)),
             decision=ActionDecisionDto(
-                kind=trace.action.kind,
-                reason_code=trace.action.reason_code,
+                kind=trace.action.action,
+                reason_code=trace.action.reason,
                 executed=trace.action.executed,
                 active_playlists_before=active_playlists_before_refs,
                 active_playlists_after=active_playlists_after_refs,
@@ -467,7 +465,7 @@ def map_tick_snapshot(trace: SchedulerTickTrace) -> TickSnapshotDto:
     )
 
 
-def build_tick_snapshot(trace: SchedulerTickTrace) -> dict[str, Any]:
+def build_tick_snapshot(trace: TickTrace) -> dict[str, Any]:
     snapshot = map_tick_snapshot(trace)
     return snapshot.model_dump(mode="json", by_alias=True)
 

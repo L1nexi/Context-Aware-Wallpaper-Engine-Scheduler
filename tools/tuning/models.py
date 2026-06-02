@@ -8,10 +8,10 @@ from itertools import product
 from types import MappingProxyType
 
 from core.context import Context, WeatherData
-from core.diagnostics import ActivityPolicyDetails, ActivityPolicyEvaluation, MatchEvaluation
 from core.matcher import Matcher
 from core.playlist import Playlists
 from core.policies import Policy, SeasonPolicy, TimePolicy, WeatherPolicy
+from core.trace import ActivityDetails, ActivityEvaluation, Match
 from utils.runtime_config import ActivityPolicyConfig, SchedulerConfig
 
 _EVAL_YEAR = 2025
@@ -89,7 +89,7 @@ class RankingRow:
 class ScenarioProfileResult:
     scenario: Scenario
     profile: MatchProfile
-    match: MatchEvaluation
+    match: Match
     rankings: list[RankingRow]
 
     @property
@@ -224,24 +224,24 @@ def weather(name: str | None) -> WeatherInput | None:
 
 class DirectActivityPolicy(Policy):
     config_key = "activity"
-    evaluation_cls = ActivityPolicyEvaluation
+    evaluation_cls = ActivityEvaluation
 
     def __init__(self, config: ActivityPolicyConfig, signal: ActivitySignal | None):
         super().__init__(config)
         self.signal = signal
 
-    def evaluate(self, context: Context) -> ActivityPolicyEvaluation:
+    def evaluate(self, context: Context) -> ActivityEvaluation:
         signal = self.signal
         if signal is None:
             return self._make_evaluation(
-                details=ActivityPolicyDetails(ema_active=False),
+                details=ActivityDetails(ema_active=False),
                 raw_direction=None,
                 salience=0.0,
                 intensity=0.0,
             )
 
         return self._make_evaluation(
-            details=ActivityPolicyDetails(ema_active=signal.intensity > 0),
+            details=ActivityDetails(ema_active=signal.intensity > 0),
             raw_direction=dict(signal.direction),
             salience=signal.salience,
             intensity=signal.intensity,

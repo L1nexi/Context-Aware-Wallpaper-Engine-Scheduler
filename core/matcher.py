@@ -5,8 +5,8 @@ import math
 from typing import TYPE_CHECKING
 
 from core.context import Context
-from core.diagnostics import MatchEvaluation, PolicyEvaluation
 from core.playlist import Playlists
+from core.trace import Match, PolicyEvaluation
 from utils.runtime_config import PlaylistConfig, TagSpec
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ class Matcher:
             else:
                 logger.warning("Playlist '%s' has no valid tags or zero weights.", playlist_name)
 
-    def evaluate(self, context: Context) -> MatchEvaluation:
+    def evaluate(self, context: Context) -> Match:
         raw_context_vector: dict[str, float] = {}
         resolved_context_vector: dict[str, float] = {}
         fallback_expansions: dict[str, dict[str, float]] = {}
@@ -136,7 +136,7 @@ class Matcher:
             else:
                 similarity_gap = playlist_matches[0][1]
 
-        return MatchEvaluation(
+        return Match(
             best_playlists=best_playlists,
             playlist_matches=playlist_matches,
             raw_context_vector=raw_context_vector,

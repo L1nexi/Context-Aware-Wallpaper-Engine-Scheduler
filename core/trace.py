@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from core.context import Context
 
 
-class ActionKind(StrEnum):
+class Action(StrEnum):
     NONE = "none"
     SWITCH = "switch"
     CYCLE = "cycle"
@@ -18,7 +18,7 @@ class ActionKind(StrEnum):
     PAUSE = "pause"
 
 
-class ActionReasonCode(StrEnum):
+class ActionReason(StrEnum):
     """Primary decision summary for one tick.
 
     Exactly one reason is chosen for a decision. When multiple blockers are
@@ -44,7 +44,7 @@ class ActionReasonCode(StrEnum):
     RECOVERY_NO_MATCH = "recovery_no_match"
 
 
-class ControllerBlocker(StrEnum):
+class Blocker(StrEnum):
     COOLDOWN = "cooldown"
     FULLSCREEN = "fullscreen"
     CPU = "cpu"
@@ -52,7 +52,7 @@ class ControllerBlocker(StrEnum):
 
 
 @dataclass
-class ActivityPolicyDetails:
+class ActivityDetails:
     match_source: Literal["title", "process", "none"] = "none"
     matched_rule: str | None = None
     matched_tag: str | None = None
@@ -62,7 +62,7 @@ class ActivityPolicyDetails:
 
 
 @dataclass
-class TimePolicyDetails:
+class TimeDetails:
     auto: bool = False
     hour: float = 0.0
     virtual_hour: float = 0.0
@@ -72,13 +72,13 @@ class TimePolicyDetails:
 
 
 @dataclass
-class SeasonPolicyDetails:
+class SeasonDetails:
     day_of_year: int = 0
     peaks: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
-class WeatherPolicyDetails:
+class WeatherDetails:
     weather_id: int | None = None
     weather_main: str | None = None
     available: bool = False
@@ -86,7 +86,7 @@ class WeatherPolicyDetails:
 
 
 @dataclass
-class BasePolicyEvaluation:
+class BaseEvaluation:
     policy_id: str
     enabled: bool
     active: bool
@@ -101,30 +101,30 @@ class BasePolicyEvaluation:
 
 
 @dataclass
-class ActivityPolicyEvaluation(BasePolicyEvaluation):
-    details: ActivityPolicyDetails = field(default_factory=ActivityPolicyDetails)
+class ActivityEvaluation(BaseEvaluation):
+    details: ActivityDetails = field(default_factory=ActivityDetails)
 
 
 @dataclass
-class TimePolicyEvaluation(BasePolicyEvaluation):
-    details: TimePolicyDetails = field(default_factory=TimePolicyDetails)
+class TimeEvaluation(BaseEvaluation):
+    details: TimeDetails = field(default_factory=TimeDetails)
 
 
 @dataclass
-class SeasonPolicyEvaluation(BasePolicyEvaluation):
-    details: SeasonPolicyDetails = field(default_factory=SeasonPolicyDetails)
+class SeasonEvaluation(BaseEvaluation):
+    details: SeasonDetails = field(default_factory=SeasonDetails)
 
 
 @dataclass
-class WeatherPolicyEvaluation(BasePolicyEvaluation):
-    details: WeatherPolicyDetails = field(default_factory=WeatherPolicyDetails)
+class WeatherEvaluation(BaseEvaluation):
+    details: WeatherDetails = field(default_factory=WeatherDetails)
 
 
-type PolicyEvaluation = ActivityPolicyEvaluation | TimePolicyEvaluation | SeasonPolicyEvaluation | WeatherPolicyEvaluation
+type PolicyEvaluation = ActivityEvaluation | TimeEvaluation | SeasonEvaluation | WeatherEvaluation
 
 
 @dataclass
-class MatchEvaluation:
+class Match:
     best_playlists: Playlists
     playlist_matches: list[tuple[str, float]] = field(default_factory=list)
     raw_context_vector: dict[str, float] = field(default_factory=dict)
@@ -136,14 +136,9 @@ class MatchEvaluation:
     similarity_gap: float = 0.0
 
 
-type ControllerOperation = Literal["switch", "cycle"]
-
-
 @dataclass
-class ControllerEvaluation:
-    operation: ControllerOperation
-    allowed: bool
-    blocked_by: list[ControllerBlocker] = field(default_factory=list)
+class BlockerEvaluation:
+    blocked_by: list[Blocker] = field(default_factory=list)
     cooldown_remaining: float = 0.0
     idle_seconds: float = 0.0
     idle_threshold: float = 0.0
@@ -152,48 +147,52 @@ class ControllerEvaluation:
     fullscreen: bool = False
     force_after_remaining: float | None = None
 
+    @property
+    def allowed(self) -> bool:
+        return len(self.blocked_by) == 0
+
 
 @dataclass
-class ControllerDecision:
+class Decision:
     """Final controller decision for one tick.
 
-    `reason_code` is the prioritized single-cause summary for UI/status use,
+    `reason` is the prioritized single-cause summary for UI/status use,
     while the paired evaluation retains the complete blocker facts.
     """
 
-    kind: ActionKind
-    reason_code: ActionReasonCode
-    matched_playlists: Playlists
-    evaluation: ControllerEvaluation | None = None
+    action: Action
+    reason: ActionReason
+    matched: Playlists
+    evaluation: BlockerEvaluation | None = None
 
 
 @dataclass
-class ActuationOutcome:
-    decision: ControllerDecision
+class ActionResult:
+    decision: Decision
     active_playlists_before: Playlists
     active_playlists_after: Playlists
     target_playlist: str | None = None
     executed: bool = False
 
     @property
-    def kind(self) -> ActionKind:
-        return self.decision.kind
+    def action(self) -> Action:
+        return self.decision.action
 
     @property
-    def reason_code(self) -> ActionReasonCode:
-        return self.decision.reason_code
+    def reason(self) -> ActionReason:
+        return self.decision.reason
 
     @property
-    def evaluation(self) -> ControllerEvaluation | None:
+    def evaluation(self) -> BlockerEvaluation | None:
         return self.decision.evaluation
 
 
 @dataclass
-class SchedulerTickTrace:
+class TickTrace:
     tick_id: int
     ts: float
     paused: bool
     pause_until: float
     context: Context
-    match: MatchEvaluation
-    action: ActuationOutcome
+    match: Match
+    action: ActionResult

@@ -9,16 +9,16 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from core.context import Context
-from core.diagnostics import (
-    ActivityPolicyDetails,
-    ActivityPolicyEvaluation,
-    BasePolicyEvaluation,
-    SeasonPolicyDetails,
-    SeasonPolicyEvaluation,
-    TimePolicyDetails,
-    TimePolicyEvaluation,
-    WeatherPolicyDetails,
-    WeatherPolicyEvaluation,
+from core.trace import (
+    ActivityDetails,
+    ActivityEvaluation,
+    BaseEvaluation,
+    SeasonDetails,
+    SeasonEvaluation,
+    TimeDetails,
+    TimeEvaluation,
+    WeatherDetails,
+    WeatherEvaluation,
 )
 from utils.runtime_config import (
     ActivityPolicyConfig,
@@ -85,7 +85,7 @@ class Policy(ABC):
     # Config key matching the attribute name on PoliciesConfig.
     # Each concrete subclass must define this as a class-level string.
     config_key: ClassVar[str]
-    evaluation_cls: ClassVar[type[BasePolicyEvaluation]]
+    evaluation_cls: ClassVar[type[BaseEvaluation]]
     fixed_output_tags: ClassVar[tuple[str, ...] | None] = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -115,7 +115,7 @@ class Policy(ABC):
         raw_direction: dict[str, float] | None,
         salience: float,
         intensity: float,
-    ) -> BasePolicyEvaluation:
+    ) -> BaseEvaluation:
         raw_direction = raw_direction or {}
         active = False
         direction: dict[str, float] = {}
@@ -146,7 +146,7 @@ class Policy(ABC):
         )
 
     @abstractmethod
-    def evaluate(self, context: Context) -> BasePolicyEvaluation: ...
+    def evaluate(self, context: Context) -> BaseEvaluation: ...
 
     def export_state(self) -> dict[str, Any]:
         return {}
@@ -157,7 +157,7 @@ class Policy(ABC):
 
 class ActivityPolicy(Policy):
     config_key = "activity"
-    evaluation_cls = ActivityPolicyEvaluation
+    evaluation_cls = ActivityEvaluation
 
     def __init__(self, config: ActivityPolicyConfig):
         super().__init__(config)
@@ -188,10 +188,10 @@ class ActivityPolicy(Policy):
         self._dir_ema: dict[str, float] = {}
         self._mag_ema: float = 0.0
 
-    def evaluate(self, context: Context) -> ActivityPolicyEvaluation:
+    def evaluate(self, context: Context) -> ActivityEvaluation:
         if not self.enabled:
             return self._make_evaluation(
-                details=ActivityPolicyDetails(
+                details=ActivityDetails(
                     window_title=context.window.title,
                     process=context.window.process,
                 ),
@@ -228,8 +228,8 @@ class ActivityPolicy(Policy):
     def _get_instant_signal(
         self,
         context: Context,
-    ) -> tuple[dict[str, float], ActivityPolicyDetails]:
-        details = ActivityPolicyDetails(
+    ) -> tuple[dict[str, float], ActivityDetails]:
+        details = ActivityDetails(
             window_title=context.window.title,
             process=context.window.process,
         )
@@ -312,7 +312,7 @@ class ActivityPolicy(Policy):
 
 class TimePolicy(Policy):
     config_key = "time"
-    evaluation_cls = TimePolicyEvaluation
+    evaluation_cls = TimeEvaluation
     fixed_output_tags = ("dawn", "day", "sunset", "night")
 
     def __init__(self, config: TimePolicyConfig):
@@ -370,13 +370,13 @@ class TimePolicy(Policy):
             self._recompute_peaks(ds, ns)
             logger.debug("TimePolicy peaks updated: day_start=%.2f night_start=%.2f", ds, ns)
 
-    def evaluate(self, context: Context) -> TimePolicyEvaluation:
+    def evaluate(self, context: Context) -> TimeEvaluation:
         current_time = context.time
         if self.auto:
             self._update_from_context(context)
         hour = current_time.tm_hour + current_time.tm_min / 60.0
         t_virtual = self._warp_time(hour, self._peaks)
-        details = TimePolicyDetails(
+        details = TimeDetails(
             auto=self.auto,
             hour=round(hour, 4),
             virtual_hour=round(t_virtual, 4),
@@ -410,7 +410,7 @@ class TimePolicy(Policy):
 
 class SeasonPolicy(Policy):
     config_key = "season"
-    evaluation_cls = SeasonPolicyEvaluation
+    evaluation_cls = SeasonEvaluation
     fixed_output_tags = ("spring", "summer", "autumn", "winter")
 
     def __init__(self, config: SeasonPolicyConfig):
@@ -423,9 +423,9 @@ class SeasonPolicy(Policy):
         }
         self._H = 365 / len(self._peaks)
 
-    def evaluate(self, context: Context) -> SeasonPolicyEvaluation:
+    def evaluate(self, context: Context) -> SeasonEvaluation:
         day_of_year = context.time.tm_yday
-        details = SeasonPolicyDetails(
+        details = SeasonDetails(
             day_of_year=day_of_year,
             peaks=self._peaks.copy(),
         )
@@ -535,14 +535,14 @@ class WeatherPolicy(Policy):
     }
 
     config_key = "weather"
-    evaluation_cls = WeatherPolicyEvaluation
+    evaluation_cls = WeatherEvaluation
 
     def __init__(self, config: WeatherPolicyConfig):
         super().__init__(config)
 
-    def evaluate(self, context: Context) -> WeatherPolicyEvaluation:
+    def evaluate(self, context: Context) -> WeatherEvaluation:
         weather = context.weather
-        details = WeatherPolicyDetails(
+        details = WeatherDetails(
             weather_id=weather.id if weather is not None else None,
             weather_main=weather.main if weather is not None else None,
             available=weather is not None,

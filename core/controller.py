@@ -4,19 +4,19 @@ import logging
 import math
 import time
 from collections.abc import Callable
-from typing import Any, Literal
+from enum import StrEnum
+from typing import Any
 
 from core.context import Context
-from core.diagnostics import ActionKind as Kind
-from core.diagnostics import ActionReasonCode as Reason
-from core.diagnostics import ControllerBlocker as Blocker
-from core.diagnostics import (
-    ControllerDecision,
-    ControllerEvaluation,
-    ControllerOperation,
-    MatchEvaluation,
-)
 from core.playlist import Playlists
+from core.trace import (
+    Action,
+    ActionReason,
+    Blocker,
+    BlockerEvaluation,
+    Decision,
+    Match,
+)
 from utils.runtime_config import SchedulingConfig
 
 logger = logging.getLogger("WEScheduler.Controller")
@@ -36,7 +36,17 @@ CONTINUITY_THRESHOLD = math.nextafter(
     math.inf,
 )
 
-type ControllerAction = Literal["normal", "manual", "recovery", "pause"]
+
+class DecisionMode(StrEnum):
+    NORMAL = "normal"
+    MANUAL = "manual"
+    RECOVERY = "recovery"
+    PAUSE = "pause"
+
+
+class Intent(StrEnum):
+    SWITCH = "switch"
+    CYCLE = "cycle"
 
 
 class CpuGate:
@@ -64,74 +74,74 @@ class FullscreenGate:
 
 def _blocked_reason(
     blockers: list[Blocker],
-    operation: ControllerOperation,
-) -> Reason:
+    intent: Intent,
+) -> ActionReason:
     for blocker in _REASON_PRIORITY:
         if blocker not in blockers:
             continue
-        if operation == "switch":
+        if intent == Intent.SWITCH:
             mapping = {
-                Blocker.COOLDOWN: Reason.SWITCH_BLOCKED_COOLDOWN,
-                Blocker.FULLSCREEN: Reason.SWITCH_BLOCKED_FULLSCREEN,
-                Blocker.CPU: Reason.SWITCH_BLOCKED_CPU,
-                Blocker.IDLE: Reason.SWITCH_BLOCKED_NOT_IDLE,
+                Blocker.COOLDOWN: ActionReason.SWITCH_BLOCKED_COOLDOWN,
+                Blocker.FULLSCREEN: ActionReason.SWITCH_BLOCKED_FULLSCREEN,
+                Blocker.CPU: ActionReason.SWITCH_BLOCKED_CPU,
+                Blocker.IDLE: ActionReason.SWITCH_BLOCKED_NOT_IDLE,
             }
         else:
             mapping = {
-                Blocker.COOLDOWN: Reason.CYCLE_BLOCKED_COOLDOWN,
-                Blocker.FULLSCREEN: Reason.CYCLE_BLOCKED_FULLSCREEN,
-                Blocker.CPU: Reason.CYCLE_BLOCKED_CPU,
-                Blocker.IDLE: Reason.CYCLE_BLOCKED_NOT_IDLE,
+                Blocker.COOLDOWN: ActionReason.CYCLE_BLOCKED_COOLDOWN,
+                Blocker.FULLSCREEN: ActionReason.CYCLE_BLOCKED_FULLSCREEN,
+                Blocker.CPU: ActionReason.CYCLE_BLOCKED_CPU,
+                Blocker.IDLE: ActionReason.CYCLE_BLOCKED_NOT_IDLE,
             }
         return mapping[blocker]
-    return Reason.HOLD_SAME_PLAYLIST
+    return ActionReason.HOLD_SAME_PLAYLIST
 
 
 class Decisions:
     @staticmethod
     def make(
-        kind: Kind,
-        reason: Reason,
+        action: Action,
+        reason: ActionReason,
         matched: Playlists,
-        evaluation: ControllerEvaluation | None = None,
-    ) -> ControllerDecision:
-        return ControllerDecision(
-            kind=kind,
-            reason_code=reason,
-            matched_playlists=matched,
+        evaluation: BlockerEvaluation | None = None,
+    ) -> Decision:
+        return Decision(
+            action=action,
+            reason=reason,
+            matched=matched,
             evaluation=evaluation,
         )
 
     @classmethod
-    def no_match(cls, active: Playlists) -> ControllerDecision:
+    def no_match(cls, active: Playlists) -> Decision:
         return cls.make(
-            Kind.HOLD if active else Kind.NONE,
-            Reason.NO_MATCH,
+            Action.HOLD if active else Action.NONE,
+            ActionReason.NO_MATCH,
             Playlists([]),
         )
 
     @classmethod
     def allowed(
         cls,
-        operation: ControllerOperation,
+        intent: Intent,
         matched: Playlists,
-        evaluation: ControllerEvaluation,
-    ) -> ControllerDecision:
-        if operation == "switch":
-            return cls.make(Kind.SWITCH, Reason.SWITCH_ALLOWED, matched, evaluation)
+        evaluation: BlockerEvaluation,
+    ) -> Decision:
+        if intent == Intent.SWITCH:
+            return cls.make(Action.SWITCH, ActionReason.SWITCH_ALLOWED, matched, evaluation)
         else:
-            return cls.make(Kind.CYCLE, Reason.CYCLE_ALLOWED, matched, evaluation)
+            return cls.make(Action.CYCLE, ActionReason.CYCLE_ALLOWED, matched, evaluation)
 
     @classmethod
     def blocked(
         cls,
-        operation: ControllerOperation,
+        intent: Intent,
         matched: Playlists,
-        evaluation: ControllerEvaluation,
-    ) -> ControllerDecision:
+        evaluation: BlockerEvaluation,
+    ) -> Decision:
         return cls.make(
-            Kind.HOLD,
-            _blocked_reason(evaluation.blocked_by, operation),
+            Action.HOLD,
+            _blocked_reason(evaluation.blocked_by, intent),
             matched,
             evaluation,
         )
@@ -139,41 +149,41 @@ class Decisions:
     @classmethod
     def hold(
         cls,
-        reason: Reason,
+        reason: ActionReason,
         matched: Playlists,
-        evaluation: ControllerEvaluation | None = None,
-    ) -> ControllerDecision:
-        return cls.make(Kind.HOLD, reason, matched, evaluation)
+        evaluation: BlockerEvaluation | None = None,
+    ) -> Decision:
+        return cls.make(Action.HOLD, reason, matched, evaluation)
 
     @classmethod
-    def manual_apply(cls, matched: Playlists, active: Playlists) -> ControllerDecision:
+    def manual_apply(cls, matched: Playlists, active: Playlists) -> Decision:
         if not matched:
             return cls.no_match(active)
         if matched != active:
-            return cls.make(Kind.SWITCH, Reason.MANUAL_APPLY_REQUESTED, matched)
+            return cls.make(Action.SWITCH, ActionReason.MANUAL_APPLY_REQUESTED, matched)
         if active:
-            return cls.make(Kind.CYCLE, Reason.MANUAL_APPLY_REQUESTED, matched)
-        return cls.hold(Reason.HOLD_SAME_PLAYLIST, matched)
+            return cls.make(Action.CYCLE, ActionReason.MANUAL_APPLY_REQUESTED, matched)
+        return cls.hold(ActionReason.HOLD_SAME_PLAYLIST, matched)
 
     @classmethod
     def recovery(
         cls,
         matched: Playlists,
         active: Playlists,
-    ) -> ControllerDecision:
+    ) -> Decision:
         if not matched:
             return cls.make(
-                Kind.HOLD if active else Kind.NONE,
-                Reason.RECOVERY_NO_MATCH,
+                Action.HOLD if active else Action.NONE,
+                ActionReason.RECOVERY_NO_MATCH,
                 Playlists([]),
             )
-        return cls.make(Kind.SWITCH, Reason.RECOVERY_UNMANAGED, matched)
+        return cls.make(Action.SWITCH, ActionReason.RECOVERY_UNMANAGED, matched)
 
     @classmethod
-    def pause(cls, matched: Playlists) -> ControllerDecision:
+    def pause(cls, matched: Playlists) -> Decision:
         return cls.make(
-            Kind.PAUSE,
-            Reason.SCHEDULER_PAUSED,
+            Action.PAUSE,
+            ActionReason.SCHEDULER_PAUSED,
             matched,
         )
 
@@ -201,8 +211,8 @@ class SchedulingController:
     def _evaluate_blockers(
         self,
         context: Context,
-        operation: ControllerOperation,
-    ) -> ControllerEvaluation:
+        intent: Intent,
+    ) -> BlockerEvaluation:
         current_time = self._clock()
 
         blocked_by: list[Blocker] = []
@@ -214,7 +224,7 @@ class SchedulingController:
         time_since_last = current_time - self.last_action_time
         force_after_remaining = max(0.0, self.force_after - time_since_last)
 
-        if operation == "switch":
+        if intent == Intent.SWITCH:
             cooldown_remaining = 0.0
         else:
             cooldown_remaining = max(0.0, self.cycle_cooldown - time_since_last)
@@ -223,7 +233,7 @@ class SchedulingController:
             blocked_by.append(Blocker.COOLDOWN)
 
         idle_seconds = context.idle
-        if operation == "switch":
+        if intent == Intent.SWITCH:
             idle_ready = idle_seconds >= self.idle_threshold
             force_ready = time_since_last >= self.force_after
             if not idle_ready and not force_ready:
@@ -231,9 +241,7 @@ class SchedulingController:
         elif idle_seconds < self.idle_threshold:
             blocked_by.append(Blocker.IDLE)
 
-        return ControllerEvaluation(
-            operation=operation,
-            allowed=not blocked_by,
+        return BlockerEvaluation(
             blocked_by=blocked_by,
             cooldown_remaining=warmup_remaining if warmup_remaining > 0 else cooldown_remaining,
             idle_seconds=idle_seconds,
@@ -246,28 +254,28 @@ class SchedulingController:
 
     def decide_action(
         self,
-        action: ControllerAction,
-        match: MatchEvaluation,
+        mode: DecisionMode,
+        match: Match,
         active_playlists: Playlists,
         context: Context | None = None,
-    ) -> ControllerDecision:
-        if action == "normal":
+    ) -> Decision:
+        if mode == DecisionMode.NORMAL:
             if context is None:
                 raise ValueError("context is required for normal scheduling decisions")
             return self._decide_normal(context, match, active_playlists)
-        if action == "manual":
+        if mode == DecisionMode.MANUAL:
             return Decisions.manual_apply(match.best_playlists, active_playlists)
-        if action == "recovery":
+        if mode == DecisionMode.RECOVERY:
             return Decisions.recovery(match.best_playlists, active_playlists)
-        if action == "pause":
+        if mode == DecisionMode.PAUSE:
             return Decisions.pause(match.best_playlists)
 
     def _decide_normal(
         self,
         context: Context,
-        match: MatchEvaluation,
+        match: Match,
         active_playlists: Playlists,
-    ) -> ControllerDecision:
+    ) -> Decision:
         matched = match.best_playlists
 
         if not matched:
@@ -276,20 +284,20 @@ class SchedulingController:
 
         if matched == active_playlists:
             self.semantic_continuity_score = 1.0
-            operation: ControllerOperation = "cycle"
+            intent = Intent.CYCLE
         else:
             overlap_score = weighted_jaccard(matched, active_playlists)
             # TODO 采用更合理的可缩放函数。目前的衰减值 0.99^120 ≈ 0.3。可以考虑用更明确的函数（如指数衰减）来控制
             self.semantic_continuity_score *= CONTINUITY_DECAY_PER_TICK
 
             is_continuous = self.semantic_continuity_score * overlap_score > CONTINUITY_THRESHOLD
-            operation = "cycle" if is_continuous else "switch"
+            intent = Intent.CYCLE if is_continuous else Intent.SWITCH
 
-        evaluation = self._evaluate_blockers(context, operation)
+        evaluation = self._evaluate_blockers(context, intent)
         if evaluation.allowed:
-            return Decisions.allowed(operation, matched, evaluation)
+            return Decisions.allowed(intent, matched, evaluation)
         else:
-            return Decisions.blocked(operation, matched, evaluation)
+            return Decisions.blocked(intent, matched, evaluation)
 
     def _evaluate_gates(self, context: Context) -> list[Blocker]:
         blocked_by: list[Blocker] = []
@@ -299,9 +307,9 @@ class SchedulingController:
                 blocked_by.append(blocker)
         return blocked_by
 
-    def notify_executed(self, decision: ControllerDecision) -> None:
+    def notify_executed(self, decision: Decision) -> None:
         self.last_action_time = self._clock()
-        plain_cycle = decision.kind == Kind.CYCLE and decision.reason_code == Reason.CYCLE_ALLOWED
+        plain_cycle = decision.action == Action.CYCLE and decision.reason == ActionReason.CYCLE_ALLOWED
         if not plain_cycle:
             self.semantic_continuity_score = 1.0
 
