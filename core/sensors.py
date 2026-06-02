@@ -95,13 +95,13 @@ class IdleSensor(Sensor):
 
 
 class CpuSensor(Sensor):
+    key = "cpu"
+
     def __init__(self, window: int = 10) -> None:
         self._samples: deque[float] = deque(maxlen=window)
         # Prime psutil's internal baseline so the first collect() measurement
         # covers a real ~1 s interval rather than returning 0.0.
         psutil.cpu_percent()
-
-    key = "cpu"
 
     @classmethod
     def create(cls, config: SchedulerConfig) -> CpuSensor | None:
@@ -114,6 +114,8 @@ class CpuSensor(Sensor):
 
 
 class FullscreenSensor(Sensor):
+    key = "fullscreen"
+
     _FULLSCREEN_STATES = frozenset(
         {
             2,  # QUNS_BUSY — full-screen app running or Presentation Settings applied
@@ -129,8 +131,6 @@ class FullscreenSensor(Sensor):
             return state.value in self._FULLSCREEN_STATES
         except Exception:
             return False
-
-    key = "fullscreen"
 
     @classmethod
     def create(cls, config: SchedulerConfig) -> FullscreenSensor | None:
@@ -186,13 +186,15 @@ class WeatherSensor(Sensor):
             sunrise=cached.sunrise,
             sunset=cached.sunset,
             fetched_at=cached.fetched_at,
-            stale=self._is_stale(now),
+            stale=self._is_stale(now, cached),
         )
 
-    def _is_stale(self, now: float) -> bool:
-        if self._cached is None or self._cached.fetched_at <= 0:
+    def _is_stale(self, now: float, cached: WeatherData | None = None) -> bool:
+        if cached is None:
+            cached = self._cached
+        if cached is None or cached.fetched_at <= 0:
             return False
-        return (now - self._cached.fetched_at) > (self.interval + self.timeout)
+        return (now - cached.fetched_at) > (self.interval + self.timeout)
 
     def _fetch_async(self) -> None:
         """Background fetch — updates ``_cached`` on success, never blocks tick loop."""

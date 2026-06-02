@@ -159,8 +159,8 @@ class WEScheduler:
                     trace = self._run_tick()
                     self._commit_tick(trace)
 
-            except Exception as exc:
-                logger.error("Error in main loop: %s", exc)
+            except Exception:
+                logger.exception("Error in main loop")
 
             time.sleep(1)
 
@@ -245,9 +245,7 @@ class WEScheduler:
         for sensor_cls in SENSOR_REGISTRY:
             context_manager.register_sensor(sensor_cls.create(config))
 
-        policies: list[Policy] = [
-            cls(getattr(config.policies, cls.config_key)) for cls in POLICY_REGISTRY if getattr(config.policies, cls.config_key) is not None
-        ]
+        policies: list[Policy] = [cls(getattr(config.policies, cls.config_key)) for cls in POLICY_REGISTRY]
 
         matcher = Matcher(config.playlists, policies, config.tags)
         actuator = Actuator(

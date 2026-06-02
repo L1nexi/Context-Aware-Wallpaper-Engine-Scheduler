@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 import re
-import time as _time
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, ClassVar
@@ -362,8 +362,8 @@ class TimePolicy(Policy):
         weather = context.weather
         if weather is None or not weather.sunrise or not weather.sunset:
             return
-        sunrise = _time.localtime(weather.sunrise)
-        sunset = _time.localtime(weather.sunset)
+        sunrise = time.localtime(weather.sunrise)
+        sunset = time.localtime(weather.sunset)
         ds = sunrise.tm_hour + sunrise.tm_min / 60.0
         ns = sunset.tm_hour + sunset.tm_min / 60.0
         if abs(ds - self._day_start) > 1 / 60 or abs(ns - self._night_start) > 1 / 60:

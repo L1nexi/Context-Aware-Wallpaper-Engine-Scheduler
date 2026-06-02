@@ -1149,6 +1149,52 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
     assert scheduler._config_fingerprint == fingerprint
 
 
+def test_hot_reload_preserves_startup_end():
+    """After hot reload, the controller's startup_end must be restored from the
+    old controller, not reset to ``now + startup_delay`` (which would cause a
+    phantom ~30 s cooldown blocker)."""
+    clock = _MutableClock(500.0)
+    old_controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=30,
+            force_after=100,
+            cycle_cooldown=15,
+            idle_threshold=60,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        ),
+        clock=clock,
+    )
+    # Simulate the warmup having long expired (startup_end = 530, now = 900).
+    old_controller.startup_end = 530.0
+    old_controller.last_action_time = 800.0
+    old_controller.semantic_continuity_score = 0.75
+    exported = old_controller.export_state()
+
+    # After hot reload, a new controller is created at t=900 with startup_delay=30
+    # -> default startup_end = 930.
+    clock.now = 900.0
+    new_controller = SchedulingController(
+        SchedulingConfig(
+            startup_delay=30,
+            force_after=100,
+            cycle_cooldown=15,
+            idle_threshold=60,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        ),
+        clock=clock,
+    )
+    assert new_controller.startup_end == pytest.approx(930.0)
+
+    new_controller.import_state(exported)
+
+    # startup_end should be the OLD value (530), not the default 930.
+    assert new_controller.startup_end == pytest.approx(530.0)
+    assert new_controller.last_action_time == pytest.approx(800.0)
+    assert new_controller.semantic_continuity_score == pytest.approx(0.75)
+
+
 # ── Clustering tests ────────────────────────────────────────────────────────
 
 
