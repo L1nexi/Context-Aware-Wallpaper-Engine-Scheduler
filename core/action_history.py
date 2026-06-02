@@ -48,7 +48,7 @@ class ActionHistoryWriter:
             self._history.write(
                 EventType.ACTUATION_FAILED,
                 {
-                    "operation": result.action.value,
+                    "action": result.action.value,
                     "reason_code": result.reason.value,
                     "matched_playlists": result.decision.matched.names(),
                     "active_playlists_before": result.active_playlists_before.names(),

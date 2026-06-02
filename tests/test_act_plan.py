@@ -114,7 +114,7 @@ def test_factual_unmanaged_returns_empty():
         paused=False,
         manual_requested=False,
     )
-    assert plan.active_playlists == Playlists([])
+    assert plan.active_playlists == Playlists()
 
 
 def test_factual_unknown_returns_cached():

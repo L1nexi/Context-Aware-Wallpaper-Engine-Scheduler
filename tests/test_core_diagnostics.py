@@ -512,7 +512,7 @@ def test_controller_no_match_resets_continuity_without_switching():
     decision = _decide_normal(
         controller,
         Context(idle=999.0),
-        Match(best_playlists=Playlists([])),
+        Match(best_playlists=Playlists()),
         Playlists(["focus"]),
     )
 
@@ -617,7 +617,7 @@ def test_controller_notify_executed_resets_continuity_for_manual_cycle():
     ("match", "active_playlists", "switch_eval", "cycle_eval", "expected"),
     [
         (
-            Match(best_playlists=Playlists([])),
+            Match(best_playlists=Playlists()),
             Playlists(["focus"]),
             _blocked_gate(),
             _blocked_gate(),
@@ -686,7 +686,7 @@ def test_controller_recovery_uses_unmanaged_reason_without_gates():
     decision = controller.decide_action(
         "recovery",
         match=Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
-        active_playlists=Playlists([]),
+        active_playlists=Playlists(),
     )
 
     assert decision.action == Action.SWITCH
@@ -709,8 +709,8 @@ def test_controller_recovery_without_match_does_not_switch():
 
     decision = controller.decide_action(
         "recovery",
-        match=Match(best_playlists=Playlists([])),
-        active_playlists=Playlists([]),
+        match=Match(best_playlists=Playlists()),
+        active_playlists=Playlists(),
     )
 
     assert decision.action == Action.NONE
@@ -733,7 +733,7 @@ def test_controller_normal_requires_context():
         controller.decide_action(
             "normal",
             match=Match(best_playlists=Playlists(["rain"])),
-            active_playlists=Playlists([]),
+            active_playlists=Playlists(),
         )
 
 
@@ -822,7 +822,7 @@ def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
         "normal",
         context=Context(),
         match=Match(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
-        active_playlists=Playlists([]),
+        active_playlists=Playlists(),
     )
 
     assert outcome.executed is True
@@ -901,7 +901,7 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
             playlist_matches=[("rain", 0.9), ("focus", 0.5)],
             raw_context_vector={"rain": 1.0},
         ),
-        active_playlists=Playlists([]),
+        active_playlists=Playlists(),
         context=ctx,
     )
 
@@ -912,7 +912,7 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
     controller.decide_action.assert_called_once_with(
         "recovery",
         mock.ANY,
-        Playlists([]),
+        Playlists(),
         ctx,
     )
     controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
@@ -925,7 +925,7 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
 
     scheduler = WEScheduler("config", DummyHistory())
     scheduler.context_manager = mock.Mock(refresh=mock.Mock(return_value=Context(window=WindowData(title="", process=""), idle=0.0)))
-    scheduler.matcher = mock.Mock(evaluate=mock.Mock(return_value=Match(best_playlists=Playlists([]), playlist_matches=[])))
+    scheduler.matcher = mock.Mock(evaluate=mock.Mock(return_value=Match(best_playlists=Playlists(), playlist_matches=[])))
     scheduler.executor = mock.Mock()
     scheduler.executor.is_we_running = mock.Mock(return_value=False)
     scheduler.executor.request_we_start = mock.Mock(return_value=True)
@@ -937,7 +937,7 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
         decision=Decision(
             action=Action.PAUSE,
             reason=ActionReason.SCHEDULER_PAUSED,
-            matched=Playlists([]),
+            matched=Playlists(),
         ),
         active_playlists_before=Playlists(["focus"]),
         active_playlists_after=Playlists(["focus"]),
@@ -979,7 +979,7 @@ def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
             reason=ActionReason.RECOVERY_UNMANAGED,
             matched=Playlists(["rain"]),
         ),
-        active_playlists_before=Playlists([]),
+        active_playlists_before=Playlists(),
         active_playlists_after=Playlists(["rain"]),
         executed=True,
     )
@@ -1005,15 +1005,15 @@ def test_scheduler_commit_tick_fans_out_to_listeners():
         paused=False,
         pause_until=0.0,
         context=Context(),
-        match=Match(best_playlists=Playlists([])),
+        match=Match(best_playlists=Playlists()),
         action=ActionResult(
             decision=Decision(
                 action=Action.HOLD,
                 reason=ActionReason.NO_MATCH,
-                matched=Playlists([]),
+                matched=Playlists(),
             ),
-            active_playlists_before=Playlists([]),
-            active_playlists_after=Playlists([]),
+            active_playlists_before=Playlists(),
+            active_playlists_after=Playlists(),
             executed=False,
         ),
     )
@@ -1251,7 +1251,7 @@ def test_matcher_cluster_empty_when_no_match():
 
     evaluation = matcher.match(Context())
 
-    assert evaluation.best_playlists == Playlists([])
+    assert evaluation.best_playlists == Playlists()
     assert evaluation.similarity == 0.0
 
 

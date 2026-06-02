@@ -117,7 +117,7 @@ class Decisions:
         return cls.make(
             Action.HOLD if active else Action.NONE,
             ActionReason.NO_MATCH,
-            Playlists([]),
+            Playlists(),
         )
 
     @classmethod
@@ -175,7 +175,7 @@ class Decisions:
             return cls.make(
                 Action.HOLD if active else Action.NONE,
                 ActionReason.RECOVERY_NO_MATCH,
-                Playlists([]),
+                Playlists(),
             )
         return cls.make(Action.SWITCH, ActionReason.RECOVERY_UNMANAGED, matched)
 

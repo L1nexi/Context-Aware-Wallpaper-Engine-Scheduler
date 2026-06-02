@@ -70,7 +70,7 @@ class WEScheduler:
         self.actuator: Actuator | None = None
         self.we_config_prober: WEConfigProber | None = None
 
-        self.cached_playlists: Playlists = Playlists([])
+        self.cached_playlists: Playlists = Playlists()
         self.last_tick_trace: TickTrace | None = None
         self.last_reload_error: ConfigLoadError | None = None
         self.tick_id: int = 0

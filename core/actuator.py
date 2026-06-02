@@ -58,7 +58,7 @@ class Actuator:
         active_playlists: Playlists,
         decision: Decision,
     ) -> ActionResult:
-        target_playlists = Playlists([])
+        target_playlists = Playlists()
         if decision.action == Action.SWITCH:
             target_playlists = decision.matched
         elif decision.action == Action.CYCLE:

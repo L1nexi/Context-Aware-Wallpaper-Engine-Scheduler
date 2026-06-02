@@ -265,7 +265,7 @@ def evaluate_scenario(
     playlist_matches = rank_for_profile(config, match.resolved_context_vector, profile)
     match.playlist_matches = playlist_matches
     best_name = playlist_matches[0][0] if playlist_matches and playlist_matches[0][1] > 0.001 else None
-    match.best_playlists = Playlists([best_name]) if best_name else Playlists([])
+    match.best_playlists = Playlists([best_name]) if best_name else Playlists()
     match.similarity = playlist_matches[0][1] if best_name else 0.0
     match.similarity_gap = (playlist_matches[0][1] - playlist_matches[1][1]) if len(playlist_matches) >= 2 else match.similarity
     rankings = [

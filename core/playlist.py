@@ -17,12 +17,8 @@ class PlaylistInfo:
 class Playlists:
     _configs: ClassVar[dict[str, PlaylistInfo]] = {}
 
-    def __init__(self, names: list[str]):
-        unique_names: list[str] = []
-        for name in names:
-            if name not in unique_names:
-                unique_names.append(name)
-        self._names = unique_names
+    def __init__(self, names: list[str] | None = None):
+        self._names = list(dict.fromkeys(names or []))
 
     @classmethod
     def configure(cls, configs: dict[str, PlaylistConfig]) -> None:

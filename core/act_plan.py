@@ -27,12 +27,12 @@ def plan_actuation(
         return ActPlan(DecisionMode.PAUSE, cached_playlists)
 
     if factual.status == Status.NO_PLAYLIST:
-        return ActPlan(DecisionMode.RECOVERY, Playlists([]))
+        return ActPlan(DecisionMode.RECOVERY, Playlists())
 
     if factual.status == Status.PLAYLIST:
         playlist = factual.playlist
         if not Playlists.is_managed(playlist):
-            return ActPlan(DecisionMode.RECOVERY, Playlists([]))
+            return ActPlan(DecisionMode.RECOVERY, Playlists())
         if playlist in cached_playlists:
             return ActPlan(DecisionMode.NORMAL, cached_playlists)
         return ActPlan(DecisionMode.NORMAL, Playlists([playlist]))

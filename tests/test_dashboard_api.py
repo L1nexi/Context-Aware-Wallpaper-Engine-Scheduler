@@ -120,7 +120,7 @@ def _make_trace(
 ) -> TickTrace:
     current_time = time.localtime(1714800000)
     playlist_matches = [("focus", 0.91), ("rainy", 0.66)]
-    best_playlists = Playlists([matched_playlist]) if matched_playlist else Playlists([])
+    best_playlists = Playlists([matched_playlist]) if matched_playlist else Playlists()
     return TickTrace(
         tick_id=tick_id,
         ts=1714800000.0 + tick_id,
@@ -150,8 +150,8 @@ def _make_trace(
                 matched=best_playlists,
                 evaluation=evaluation,
             ),
-            active_playlists_before=Playlists([active_playlist_before]) if active_playlist_before else Playlists([]),
-            active_playlists_after=Playlists([active_playlist_after]) if active_playlist_after else Playlists([]),
+            active_playlists_before=Playlists([active_playlist_before]) if active_playlist_before else Playlists(),
+            active_playlists_after=Playlists([active_playlist_after]) if active_playlist_after else Playlists(),
             target_playlist=target_playlist,
             executed=executed,
         ),

@@ -68,7 +68,7 @@ class TestPlaylistsInstance:
 
     def test_bool_reflects_non_empty_names(self):
         assert bool(Playlists(["a"])) is True
-        assert bool(Playlists([])) is False
+        assert bool(Playlists()) is False
 
     def test_managed(self):
         p = Playlists.managed()

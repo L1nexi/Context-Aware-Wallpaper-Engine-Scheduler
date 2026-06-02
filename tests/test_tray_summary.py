@@ -22,7 +22,7 @@ def _configure_playlists():
 class FakeScheduler:
     def __init__(self) -> None:
         self.paused = False
-        self.cached_playlists = Playlists([])
+        self.cached_playlists = Playlists()
         self.last_tick_trace = None
         self.on_auto_resume = None
         self.apply_current_match_now = mock.Mock()

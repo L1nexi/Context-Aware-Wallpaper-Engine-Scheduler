@@ -406,7 +406,7 @@ class SchedulingController:
             return ControllerDecision(
                 kind=ActionKind.HOLD if active_playlists.names() else ActionKind.NONE,
                 reason_code=ActionReasonCode.NO_MATCH,
-                matched_playlists=Playlists([]),
+                matched_playlists=Playlists(),
             )
 
         if matched != active_playlists:
@@ -450,7 +450,7 @@ class SchedulingController:
 
 - [ ] **Step 2: Update `decide_manual_action` similarly**
 
-Same pattern: wrap `match.best_playlists` in `Playlists()`, use `.names()` for emptiness checks, return `Playlists([])` for empty.
+Same pattern: wrap `match.best_playlists` in `Playlists()`, use `.names()` for emptiness checks, return `Playlists()` for empty.
 
 - [ ] **Step 3: Run tests**
 
