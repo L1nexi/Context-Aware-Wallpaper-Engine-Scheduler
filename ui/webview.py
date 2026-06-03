@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 
-from utils.i18n import t
+from ui.i18n import t
 
 logger = logging.getLogger("WEScheduler.WebView")
 
@@ -17,7 +17,7 @@ ICON_BIG = 1
 def _resolve_icon_path() -> str:
     if getattr(sys, "frozen", False):
         return os.path.join(sys._MEIPASS, "AppIcon.ico")
-    from utils.app_context import get_app_root
+    from app.context import get_app_root
 
     return os.path.join(get_app_root(), "AppIcon.ico")
 

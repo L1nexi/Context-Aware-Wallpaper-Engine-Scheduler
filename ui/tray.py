@@ -7,11 +7,11 @@ from tkinter import ttk
 
 import pystray
 
-from core.playlist import Playlists
-from core.scheduler import WEScheduler
-from utils.app_context import get_app_root
-from utils.i18n import t
-from utils.icon_generator import IconGenerator
+from app.context import get_app_root
+from core.models.playlist import Playlists
+from core.runtime.scheduler import WEScheduler
+from ui.i18n import t
+from ui.icon_generator import IconGenerator
 
 logger = logging.getLogger("WEScheduler.Tray")
 

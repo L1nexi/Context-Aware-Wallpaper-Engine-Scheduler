@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from core.event_logger import EventLogger, EventType
-from utils.history_logger import HistoryLogger
+from app.history_logger import HistoryLogger
+from core.models.event import EventLogger, EventType
 
 
 @pytest.fixture
@@ -53,7 +53,7 @@ def test_ensure_file_switches_on_month_change(monkeypatch, tmp_path):
 
     fake = FakeNow()
     monkeypatch.setattr(
-        "utils.history_logger.datetime",
+        "app.history_logger.datetime",
         type("FakeDT", (object,), {"now": staticmethod(fake), "timezone": tz, "timedelta": timedelta}),
     )
 

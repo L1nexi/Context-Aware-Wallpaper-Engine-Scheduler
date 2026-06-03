@@ -9,9 +9,10 @@ import urllib.request
 
 import pytest
 
-from core.context import Context, WeatherData, WindowData
-from core.playlist import Playlists
-from core.trace import (
+from configurations.runtime_models import PlaylistConfig
+from core.models.context import Context, WeatherData, WindowData
+from core.models.playlist import Playlists
+from core.models.trace import (
     Action,
     ActionReason,
     ActionResult,
@@ -32,7 +33,6 @@ from ui.dashboard import (
     _resolve_static_root,
 )
 from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
-from utils.runtime_config import PlaylistConfig
 
 
 @pytest.fixture(autouse=True)
@@ -469,11 +469,11 @@ def test_dashboard_http_server_binds_requested_port(analysis_store):
 
 
 def test_parse_args_accepts_dashboard_api_port(monkeypatch):
-    import main
+    from app.main import _parse_args
 
     monkeypatch.setattr("sys.argv", ["main.py", "--dashboard-api-port", "38417"])
 
-    args = main._parse_args()
+    args = _parse_args()
 
     assert args.dashboard_api_port == 38417
 

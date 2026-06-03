@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from core.act_plan import plan_actuation
-from core.controller import DecisionMode
-from core.playlist import PlaylistInfo, Playlists
-from utils.we_config import FactualPlaylistState, FactualPlaylistStatus
+from core.models.playlist import PlaylistInfo, Playlists
+from core.runtime.act_plan import plan_actuation
+from core.runtime.controller import DecisionMode
+from core.runtime.we_config import FactualPlaylistState, FactualPlaylistStatus
 
 
 @pytest.fixture(autouse=True)

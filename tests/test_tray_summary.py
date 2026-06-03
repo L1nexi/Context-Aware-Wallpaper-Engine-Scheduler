@@ -5,7 +5,7 @@ from unittest import mock
 
 import pytest
 
-from core.playlist import PlaylistInfo, Playlists
+from core.models.playlist import PlaylistInfo, Playlists
 from ui.tray import TrayIcon
 
 
@@ -57,7 +57,7 @@ def _trace(
 
 
 def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
-    monkeypatch.setattr("utils.i18n.current_lang", "en")
+    monkeypatch.setattr("ui.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.state.cached_playlists = Playlists(["focus"])
     scheduler.state.last_tick_trace = _trace(
@@ -74,7 +74,7 @@ def test_tray_summary_shows_active_match_and_enabled_apply(monkeypatch):
 
 
 def test_tray_summary_disables_apply_when_no_match(monkeypatch):
-    monkeypatch.setattr("utils.i18n.current_lang", "en")
+    monkeypatch.setattr("ui.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.state.cached_playlists = Playlists(["focus"])
     scheduler.state.last_tick_trace = _trace(
@@ -90,7 +90,7 @@ def test_tray_summary_disables_apply_when_no_match(monkeypatch):
 
 
 def test_tray_summary_reports_outside_configured_playlists(monkeypatch):
-    monkeypatch.setattr("utils.i18n.current_lang", "en")
+    monkeypatch.setattr("ui.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.state.last_tick_trace = _trace(
         active_playlists_after=[],
@@ -103,7 +103,7 @@ def test_tray_summary_reports_outside_configured_playlists(monkeypatch):
 
 
 def test_tray_summary_falls_back_to_cached_active_playlist(monkeypatch):
-    monkeypatch.setattr("utils.i18n.current_lang", "en")
+    monkeypatch.setattr("ui.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.state.cached_playlists = Playlists(["focus"])
     scheduler.state.last_tick_trace = _trace(
@@ -117,7 +117,7 @@ def test_tray_summary_falls_back_to_cached_active_playlist(monkeypatch):
 
 
 def test_tray_summary_uses_cached_active_playlist_while_paused(monkeypatch):
-    monkeypatch.setattr("utils.i18n.current_lang", "en")
+    monkeypatch.setattr("ui.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     scheduler.state.paused = True
     scheduler.state.cached_playlists = Playlists(["focus"])
@@ -132,7 +132,7 @@ def test_tray_summary_uses_cached_active_playlist_while_paused(monkeypatch):
 
 
 def test_tray_apply_handler_keeps_calling_manual_apply(monkeypatch):
-    monkeypatch.setattr("utils.i18n.current_lang", "en")
+    monkeypatch.setattr("ui.i18n.current_lang", "en")
     scheduler = FakeScheduler()
     tray = TrayIcon(scheduler)
 

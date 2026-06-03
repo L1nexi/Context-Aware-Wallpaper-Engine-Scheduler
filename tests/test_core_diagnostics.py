@@ -5,18 +5,18 @@ from unittest import mock
 
 import pytest
 
-from core.action_history import ActionHistoryWriter
-from core.actuator import Actuator
-from core.context import Context, WindowData
-from core.controller import DecisionMode, Intent, SchedulingController, weighted_jaccard
-from core.event_logger import EventType
-from core.matcher import Matcher
-from core.playlist import PlaylistInfo, Playlists
-from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
-from core.scheduler import WEScheduler
-from core.scheduler_runtime import SchedulerRuntime, _BuiltRuntime
-from core.state import PersistedState
-from core.trace import (
+from configurations.runtime_models import (
+    ActivityPolicyConfig,
+    PlaylistConfig,
+    SchedulingConfig,
+    TagSpec,
+    TimePolicyConfig,
+    WeatherPolicyConfig,
+)
+from core.models.context import Context, WindowData
+from core.models.event import EventType
+from core.models.playlist import PlaylistInfo, Playlists
+from core.models.trace import (
     Action,
     ActionReason,
     ActionResult,
@@ -28,16 +28,16 @@ from core.trace import (
     Match,
     TickTrace,
 )
+from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
+from core.runtime.actuator import Actuator
+from core.runtime.controller import DecisionMode, Intent, SchedulingController, weighted_jaccard
+from core.runtime.engine import Engine, _BuiltEngine
+from core.runtime.matcher import Matcher
+from core.runtime.scheduler import WEScheduler
+from core.runtime.we_config import FactualPlaylistState, FactualPlaylistStatus
+from core.state.action_history import ActionHistoryWriter
+from core.state.persisted import PersistedState
 from ui.dashboard_analysis import map_tick_snapshot
-from utils.runtime_config import (
-    ActivityPolicyConfig,
-    PlaylistConfig,
-    SchedulingConfig,
-    TagSpec,
-    TimePolicyConfig,
-    WeatherPolicyConfig,
-)
-from utils.we_config import FactualPlaylistState, FactualPlaylistStatus
 
 
 @pytest.fixture(autouse=True)
@@ -808,7 +808,7 @@ def test_scheduler_history_recorder_logs_switch_event():
 
 
 def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
-    monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
+    monkeypatch.setattr("core.models.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
     executor = mock.Mock()
     controller = mock.Mock()
     matched_pool = Playlists(["A", "B"])
@@ -833,7 +833,7 @@ def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
 
 
 def test_actuator_cycle_uses_open_playlist_without_next_wallpaper(monkeypatch):
-    monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
+    monkeypatch.setattr("core.models.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
     executor = mock.Mock()
     controller = mock.Mock()
     matched_pool = Playlists(["A", "B"])
@@ -860,7 +860,7 @@ def test_actuator_cycle_uses_open_playlist_without_next_wallpaper(monkeypatch):
 
 
 def test_actuator_cycle_selects_from_active_pool(monkeypatch):
-    monkeypatch.setattr("core.playlist.random.choices", lambda names, weights=None, k=1: [names[0]])
+    monkeypatch.setattr("core.models.playlist.random.choices", lambda names, weights=None, k=1: [names[0]])
     executor = mock.Mock()
     controller = mock.Mock()
     controller.decide_action.return_value = Decision(
@@ -925,20 +925,20 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
             return 0
 
     scheduler = WEScheduler("config", DummyHistory())
-    runtime = SchedulerRuntime("config")
-    runtime.context_manager = mock.Mock()
-    runtime.context_manager.sense.return_value = Context(window=WindowData(title="", process=""), idle=0.0)
-    runtime.matcher = mock.Mock()
-    runtime.matcher.match.return_value = Match(best_playlists=Playlists(), playlist_matches=[])
-    runtime.executor = mock.Mock()
-    runtime.executor.is_we_running = mock.Mock(return_value=False)
-    runtime.executor.request_we_start = mock.Mock(return_value=True)
-    runtime.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN)))
-    scheduler.runtime = runtime
+    engine = Engine("config")
+    engine.context_manager = mock.Mock()
+    engine.context_manager.sense.return_value = Context(window=WindowData(title="", process=""), idle=0.0)
+    engine.matcher = mock.Mock()
+    engine.matcher.match.return_value = Match(best_playlists=Playlists(), playlist_matches=[])
+    engine.executor = mock.Mock()
+    engine.executor.is_we_running = mock.Mock(return_value=False)
+    engine.executor.request_we_start = mock.Mock(return_value=True)
+    engine.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN)))
+    scheduler.engine = engine
     scheduler.state.cached_playlists = Playlists(["focus"])
     scheduler.state.paused = True
-    runtime.actuator = mock.Mock()
-    runtime.actuator.act.return_value = ActionResult(
+    engine.actuator = mock.Mock()
+    engine.actuator.act.return_value = ActionResult(
         decision=Decision(
             action=Action.PAUSE,
             reason=ActionReason.SCHEDULER_PAUSED,
@@ -952,11 +952,11 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
     trace = scheduler._run_tick()
 
     assert trace.paused is True
-    runtime.we_config_prober.probe_playlist.assert_called_once()
-    runtime.actuator.act.assert_called_once()
-    assert runtime.actuator.act.call_args.args[0] == DecisionMode.PAUSE
-    runtime.executor.is_we_running.assert_not_called()
-    runtime.executor.request_we_start.assert_not_called()
+    engine.we_config_prober.probe_playlist.assert_called_once()
+    engine.actuator.act.assert_called_once()
+    assert engine.actuator.act.call_args.args[0] == DecisionMode.PAUSE
+    engine.executor.is_we_running.assert_not_called()
+    engine.executor.request_we_start.assert_not_called()
 
 
 def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
@@ -965,20 +965,20 @@ def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
             return 0
 
     scheduler = WEScheduler("config", DummyHistory())
-    runtime = SchedulerRuntime("config")
-    runtime.context_manager = mock.Mock()
-    runtime.context_manager.sense.return_value = Context(window=WindowData(title="", process=""), idle=0.0)
-    runtime.matcher = mock.Mock()
-    runtime.matcher.match.return_value = Match(
+    engine = Engine("config")
+    engine.context_manager = mock.Mock()
+    engine.context_manager.sense.return_value = Context(window=WindowData(title="", process=""), idle=0.0)
+    engine.matcher = mock.Mock()
+    engine.matcher.match.return_value = Match(
         best_playlists=Playlists(["rain"]),
         playlist_matches=[("rain", 0.9)],
     )
-    runtime.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST)))
-    scheduler.runtime = runtime
+    engine.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST)))
+    scheduler.engine = engine
     scheduler.state.cached_playlists = Playlists(["focus"])
     scheduler.state.paused = False
-    runtime.actuator = mock.Mock()
-    runtime.actuator.act.return_value = ActionResult(
+    engine.actuator = mock.Mock()
+    engine.actuator.act.return_value = ActionResult(
         decision=Decision(
             action=Action.SWITCH,
             reason=ActionReason.RECOVERY_UNMANAGED,
@@ -991,9 +991,9 @@ def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
 
     scheduler._run_tick()
 
-    runtime.actuator.act.assert_called_once()
-    assert len(runtime.actuator.act.call_args.args) == 4
-    assert runtime.actuator.act.call_args.args[0] == DecisionMode.RECOVERY
+    engine.actuator.act.assert_called_once()
+    assert len(engine.actuator.act.call_args.args) == 4
+    assert engine.actuator.act.call_args.args[0] == DecisionMode.RECOVERY
 
 
 def test_scheduler_commit_tick_fans_out_to_listeners():
@@ -1077,7 +1077,7 @@ def test_scheduler_persisted_state_missing_file_returns_default_without_warning(
 
 def test_hot_reload_state_import_error_keeps_previous_runtime():
     config_loader = mock.Mock()
-    runtime = SchedulerRuntime("config")
+    runtime = Engine("config")
     runtime.config_loader = config_loader
     old_executor = object()
     old_context_manager = object()
@@ -1096,7 +1096,7 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
 
     next_matcher = mock.Mock()
     next_matcher.import_state.side_effect = RuntimeError("import failed")
-    next_runtime = _BuiltRuntime(
+    next_runtime = _BuiltEngine(
         executor=object(),
         context_manager=object(),
         matcher=next_matcher,

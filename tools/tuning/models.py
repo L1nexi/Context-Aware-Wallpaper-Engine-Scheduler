@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import math
+import os
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from itertools import product
 from types import MappingProxyType
 
-from core.context import Context, WeatherData
-from core.matcher import Matcher
-from core.playlist import Playlists
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+
+from configurations.runtime_models import ActivityPolicyConfig, SchedulerConfig
+from core.models.context import Context, WeatherData
+from core.models.playlist import Playlists
+from core.models.trace import ActivityDetails, ActivityEvaluation, Match
 from core.policies import Policy, SeasonPolicy, TimePolicy, WeatherPolicy
-from core.trace import ActivityDetails, ActivityEvaluation, Match
-from utils.runtime_config import ActivityPolicyConfig, SchedulerConfig
+from core.runtime.matcher import Matcher
 
 _EVAL_YEAR = 2025
 _EPSILON = 1e-6

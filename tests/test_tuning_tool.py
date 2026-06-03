@@ -5,9 +5,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from core.matcher import Matcher
-from core.playlist import Playlists
+from configurations.loader import ConfigLoader
+from configurations.runtime_models import ActivityPolicyConfig
+from core.models.playlist import Playlists
 from core.policies import SeasonPolicy, TimePolicy, WeatherPolicy
+from core.runtime.matcher import Matcher
 from tools.tuning.heatmaps import (
     HeatmapFigure,
     HeatmapSampling,
@@ -27,13 +29,11 @@ from tools.tuning.models import (
 )
 from tools.tuning.sweep import evaluate_parameter_sweep, sorted_sweep_rows
 from tools.tuning.tune import run_tuning
-from utils.config_loader import ConfigLoader
-from utils.runtime_config import ActivityPolicyConfig
 
 
 @pytest.fixture(autouse=True)
 def mock_probe_item_counts(monkeypatch):
-    monkeypatch.setattr("utils.we_config.WEConfigProber.probe_item_counts", lambda self: {})
+    monkeypatch.setattr("core.runtime.we_config.WEConfigProber.probe_item_counts", lambda self: {})
 
 
 TAG_NAMES = [

@@ -1,9 +1,9 @@
 # tests/test_scheduler_pipeline.py
 from __future__ import annotations
 
-from core.playlist import Playlists
-from core.scheduler_state import SchedulerState
-from core.trace import Action, ActionReason, ActionResult, Decision
+from core.models.playlist import Playlists
+from core.models.trace import Action, ActionReason, ActionResult, Decision
+from core.state.scheduler import SchedulerState
 
 
 def test_manual_apply_request_is_consumed_once():

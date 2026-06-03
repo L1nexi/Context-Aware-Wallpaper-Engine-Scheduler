@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from collections import Counter, defaultdict
@@ -8,27 +9,25 @@ from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-from tools.tuning.heatmaps import (  # noqa: E402
+from configurations.loader import ConfigLoader
+from tools.tuning.heatmaps import (
     HeatmapSampling,
     generate_default_heatmaps,
 )
-from tools.tuning.models import (  # noqa: E402
+from tools.tuning.models import (
     MatchProfile,
     Scenario,
     ScenarioProfileResult,
     evaluate_scenario,
 )
-from tools.tuning.sweep import (  # noqa: E402
+from tools.tuning.sweep import (
     SweepReport,
     SweepRow,
     evaluate_parameter_sweep,
     sorted_sweep_rows,
 )
-from utils.config_loader import ConfigLoader  # noqa: E402
 
 AMBIGUOUS_FAILURE_GAP = 0.05
 CONFIDENT_FAILURE_GAP = 0.15

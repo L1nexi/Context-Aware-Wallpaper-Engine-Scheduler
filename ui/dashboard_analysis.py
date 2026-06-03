@@ -9,9 +9,9 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from core.context import WeatherData
-from core.playlist import Playlists
-from core.trace import (
+from core.models.context import WeatherData
+from core.models.playlist import Playlists
+from core.models.trace import (
     Action,
     ActionReason,
     ActivityEvaluation,

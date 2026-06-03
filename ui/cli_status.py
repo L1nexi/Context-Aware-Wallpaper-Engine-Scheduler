@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import sys
 
-from core.playlist import Playlists
-from core.trace import TickTrace
+from core.models.playlist import Playlists
+from core.models.trace import TickTrace
 
 
 class CliStatusReporter:

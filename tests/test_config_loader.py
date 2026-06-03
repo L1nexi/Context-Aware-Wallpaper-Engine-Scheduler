@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 import yaml
 
+from configurations.errors import ConfigLoadError
+from configurations.loader import ConfigLoader
+from configurations.runtime_models import PLAYLIST_AUTO_COLOR_PALETTE
 from core.policies import get_policy_fixed_output_tags
-from utils.config_errors import ConfigLoadError
-from utils.config_loader import ConfigLoader
-from utils.runtime_config import PLAYLIST_AUTO_COLOR_PALETTE
 
 
 @pytest.fixture(autouse=True)
@@ -22,8 +22,8 @@ def mock_resolved_wallpaper_engine_path(monkeypatch, tmp_path):
             return path if Path(path).is_file() else None
         return str(fake_exe)
 
-    monkeypatch.setattr("utils.config_documents.resolve_wallpaper_engine_path", _resolve)
-    monkeypatch.setattr("utils.we_config.WEConfigProber.probe_item_counts", lambda self: {})
+    monkeypatch.setattr("configurations.documents.resolve_wallpaper_engine_path", _resolve)
+    monkeypatch.setattr("core.runtime.we_config.WEConfigProber.probe_item_counts", lambda self: {})
     return str(fake_exe)
 
 
@@ -339,7 +339,7 @@ def test_load_configured_wallpaper_engine_path_reads_scheduler_yaml():
 
 
 def test_config_loader_rejects_unresolved_auto_detect(monkeypatch):
-    monkeypatch.setattr("utils.config_documents.resolve_wallpaper_engine_path", lambda _path: None)
+    monkeypatch.setattr("configurations.documents.resolve_wallpaper_engine_path", lambda _path: None)
     config_dir = _write_config_dir()
 
     with pytest.raises(ConfigLoadError) as exc_info:

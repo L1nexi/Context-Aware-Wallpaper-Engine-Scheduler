@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from utils.config_tools import (
+from configurations.tools import (
     ConfigSummary,
     ConfigValidationResult,
     PlaylistScanResult,
@@ -9,7 +9,7 @@ from utils.config_tools import (
     scan_wallpaper_engine_playlists,
     validate_config,
 )
-from utils.i18n import t
+from ui.i18n import t
 
 
 def run_config_tools_tui(config_dir: str) -> int:

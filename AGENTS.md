@@ -8,10 +8,15 @@
 
 本仓库是 Windows-only Python 桌面应用：托盘宿主进程、本地 HTTP API，以及 Vue 3 Diagnostics 前端。
 
-- `main.py` 是组合根，负责托盘模式、scheduler、history logger 与 dashboard API 接线。
-- `core/` 放调度核心：sensor、policy、matcher、controller、actuator、executor 与 diagnostics 模型。
-- `ui/` 放托盘 UI、Bottle API、pywebview 窗口和 Diagnostics DTO 转换。
-- `utils/` 放配置加载、校验、日志、i18n、历史记录和 Wallpaper Engine 路径工具。
+- `main.py` 是启动 shim，负责 DPI 初始化并委托 `app/main.py`。
+- `app/` 放应用入口、应用路径、日志和历史记录。
+- `configurations/` 放配置加载、校验和配置模型。
+- `core/models/` 放数据模型。
+- `core/state/` 放运行时状态。
+- `core/runtime/` 放 Scheduler 的运行时组件。
+- `core/policies/` 放 Policy 基类及具体实现。
+- `core/sensors/` 放 Sensor 基类及具体实现。
+- `ui/` 放托盘 UI、Bottle API、pywebview 窗口、Diagnostics DTO 转换、i18n 和图标生成。
 - `dashboard/` 是 Vue 3 + Vite + TypeScript 前端工作区，当前主线只聚焦 Diagnostics。
 - `config/` 是本机真实运行配置，可用于真实运行与手工验证；不要当作 disposable fixture 覆盖或清空。
 - `config.example/` 是发布与示例配置；`tests/` 放 pytest 测试。

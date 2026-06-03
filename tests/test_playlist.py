@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from core.playlist import PlaylistInfo, Playlists
-from utils.runtime_config import PlaylistConfig
+from configurations.runtime_models import PlaylistConfig
+from core.models.playlist import PlaylistInfo, Playlists
 
 
 @pytest.fixture(autouse=True)
@@ -92,7 +92,7 @@ class TestPlaylistsInstance:
             captured["k"] = k
             return ["a"]
 
-        monkeypatch.setattr("core.playlist.random.choices", fake_choices)
+        monkeypatch.setattr("core.models.playlist.random.choices", fake_choices)
 
         Playlists(["a", "c"]).select_target()
 

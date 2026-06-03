@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import os
 import re
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+
+from configurations.runtime_models import SchedulerConfig
 from tools.tuning.models import (
     ActivitySignal,
     MatchProfile,
@@ -15,7 +20,6 @@ from tools.tuning.models import (
     focus,
     weather,
 )
-from utils.runtime_config import SchedulerConfig
 
 type HeatmapMode = Literal["wx-hour", "act-hour", "wx-act", "wx-doy", "act-doy", "hour-doy"]
 type HeatmapType = Literal["winner"]

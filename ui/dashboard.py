@@ -10,11 +10,11 @@ from wsgiref.simple_server import WSGIServer, make_server
 
 import bottle
 
+from app.context import get_app_root
 from ui.dashboard_analysis import (
     AnalysisStore,
     build_tick_window_response,
 )
-from utils.app_context import get_app_root
 
 logger = logging.getLogger("WEScheduler.Dashboard")
 

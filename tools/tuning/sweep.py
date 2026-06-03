@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import os
+import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from itertools import product
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+
+from configurations.runtime_models import SchedulerConfig
 from tools.tuning.models import (
     MatchProfile,
     Scenario,
     ScenarioProfileResult,
     evaluate_scenario,
 )
-from utils.runtime_config import SchedulerConfig
 
 DEFAULT_GAMMA_PLAYLIST: tuple[float, ...] = (0.8, 0.9, 1.0, 1.1, 1.2, 1.3)
 DEFAULT_GAMMA_CONTEXT: tuple[float, ...] = (0.8, 0.9, 1.0, 1.1, 1.2, 1.3)
