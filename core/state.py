@@ -25,8 +25,17 @@ class PersistedState(BaseModel):
         try:
             with open(path, encoding="utf-8") as f:
                 return cls.model_validate(json.load(f))
+        except FileNotFoundError:
+            logger.info("state.json not found, starting with default state.")
+            return cls()
+        except json.JSONDecodeError:
+            logger.warning("Invalid state.json", exc_info=True)
+            return cls()
+        except OSError:
+            logger.warning("Failed to read state.json", exc_info=True)
+            return cls()
         except Exception:
-            logger.warning("Failed to load state.json", exc_info=True)
+            logger.warning("Invalid state.json", exc_info=True)
             return cls()
 
     def save(self, path: str = _STATE_FILE) -> None:
