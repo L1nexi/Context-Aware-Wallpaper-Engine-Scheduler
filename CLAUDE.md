@@ -119,4 +119,4 @@ pytest 配置以 `pytest.ini` 为准，必须在仓库根目录运行。`testpat
 - 真实运行配置读 `config/`；测试或样例用 `config.example/` 或测试 fixture，不要无提示改写真实配置
 - 不要新增 include 或隐藏配置层
 - Diagnostics 消费基于 `TickTrace` 的 `GET /api/analysis/window` DTO，不要恢复旧 dashboard summary 契约
-- `docs/archived/done/` 是当前仍引用的规格；`docs/archived/deprecated/` 只作历史记录
+- `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格

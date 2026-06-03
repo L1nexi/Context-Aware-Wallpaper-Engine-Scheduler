@@ -203,7 +203,7 @@ Sensors -> Context -> Policies -> Matcher -> Controller -> Actuator -> WEExecuto
                                       HistoryLogger.write() -> history-{YYYY}-{MM}.jsonl
 ```
 
-产品方向见 `docs/PRODUCT_DIRECTION.md`，配置契约见 `docs/frontend/CONFIGURATION_SPEC.md`。
+文档索引见 `docs/README.md`。产品方向归档见 `docs/archived/done/PRODUCT_DIRECTION.md`，配置系统完成规格见 `docs/archived/done/doc_configuration/CONFIGURATION_SPEC.md`。
 
 ## 运行时文件
 

@@ -15,7 +15,7 @@
 - `dashboard/` 是 Vue 3 + Vite + TypeScript 前端工作区，当前主线只聚焦 Diagnostics。
 - `config/` 是本机真实运行配置，可用于真实运行与手工验证；不要当作 disposable fixture 覆盖或清空。
 - `config.example/` 是发布与示例配置；`tests/` 放 pytest 测试。
-- `docs/archived/done/` 是当前仍引用的规格；`docs/archived/deprecated/` 只作历史记录。
+- `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格
 
 ## 构建、测试与本地开发命令
 
