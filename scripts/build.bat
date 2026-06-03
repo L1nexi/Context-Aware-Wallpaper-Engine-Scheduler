@@ -31,7 +31,7 @@ if exist dist rmdir /s /q dist
 
 echo [4/5] Running PyInstaller...
 pyinstaller --noconsole --onefile --name "WEScheduler" ^
-    --icon "AppIcon.ico" ^
+    --icon "packaging\AppIcon.ico" ^
     --add-data "%DASHBOARD_DIST_DIR%;%DASHBOARD_DIST_DIR%" ^
     --hidden-import=pystray ^
     --hidden-import=PIL ^
@@ -52,7 +52,7 @@ if %errorlevel% neq 0 (
 
 echo [5/5] Preparing distribution folder...
 copy README.md dist\README.md
-copy "Config Tools.bat" "dist\Config Tools.bat"
+copy "packaging\Config Tools.bat" "dist\Config Tools.bat"
 xcopy "config.example" "dist\config" /S /E /I /Y
 
 echo ==========================================

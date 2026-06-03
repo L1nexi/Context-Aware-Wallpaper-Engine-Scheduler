@@ -13,7 +13,7 @@
 - **系统托盘**：运行/暂停状态图标，支持按时段暂停（预设 30m–1w / 自定义 / 无限期），并提供一次性的当前上下文手动调度。
 - **国际化**：托盘 UI 和 Diagnostics 根据系统语言自动切换中文 / 英文。
 - **Diagnostics**：Vue 3 SPA 展示近期 tick 的 Sense / Think / Act 诊断、匹配结果、controller 门控和动作结果。
-- **文本配置工具**：`Config Tools.bat` / `WEScheduler.exe config` 提供校验、Wallpaper Engine 路径检测和播放列表扫描。
+- **文本配置工具**：`packaging/Config Tools.bat` / `WEScheduler.exe config` 提供校验、Wallpaper Engine 路径检测和播放列表扫描。
 - **热重载**：编辑 `config/` 下的 YAML 文件后自动 validate-before-swap；失败时保留上一份有效运行配置。
 
 ## 快速开始
