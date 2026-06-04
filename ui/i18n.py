@@ -212,6 +212,23 @@ current_lang: str = _detect_lang()
 
 logger.debug("Detected language = %s", current_lang)
 
+_VALID_LANGS: set[str] = set(_TRANSLATIONS)
+
+
+def set_language(lang: str | None) -> None:
+    """Override the current language.``None`` keeps the auto-detected value.
+
+    A non-null value set the global ``current_lang``.
+    Raises: ValueError if the language is not supported.
+    """
+    global current_lang
+    if lang is None:
+        return
+    if lang not in _VALID_LANGS:
+        raise ValueError(f"Unsupported language {lang!r}; expected one of {sorted(_VALID_LANGS)}")
+    current_lang = lang
+    logger.info("Language overridden to: %s", lang)
+
 
 def t(key: str, **kwargs) -> str:
     """

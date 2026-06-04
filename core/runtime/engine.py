@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from configurations.errors import ConfigLoadError
 from configurations.loader import ConfigLoader
-from configurations.runtime_models import PlaylistConfig, SchedulerConfig
+from configurations.runtime_models import SchedulerConfig
 from core.models.context import Context, ContextManager
 from core.models.playlist import Playlists
 from core.models.trace import ActionResult, Match
@@ -17,6 +17,7 @@ from core.runtime.executor import WEExecutor
 from core.runtime.matcher import Matcher
 from core.runtime.we_config import FactualPlaylistState, WEConfigProber
 from core.sensors import SENSOR_REGISTRY
+from ui.i18n import set_language
 
 logger = logging.getLogger("WEScheduler.Runtime")
 
@@ -27,7 +28,7 @@ class _BuiltEngine:
     context_manager: ContextManager
     matcher: Matcher
     actuator: Actuator
-    playlist_configs: dict[str, PlaylistConfig]
+    config: SchedulerConfig
     we_config_prober: WEConfigProber
 
 
@@ -102,7 +103,7 @@ class Engine:
             context_manager=context_manager,
             matcher=matcher,
             actuator=actuator,
-            playlist_configs=config.playlists,
+            config=config,
             we_config_prober=WEConfigProber(config.wallpaper_engine_path),
         )
 
@@ -112,7 +113,8 @@ class Engine:
         self.matcher = runtime.matcher
         self.actuator = runtime.actuator
         self.we_config_prober = runtime.we_config_prober
-        Playlists.configure(runtime.playlist_configs)
+        Playlists.configure(runtime.config.playlists)
+        set_language(runtime.config.language)
 
     def _hot_reload(self, fingerprint: tuple[tuple[str, bool, int], ...]) -> None:
         previous_config = self.config_loader.config

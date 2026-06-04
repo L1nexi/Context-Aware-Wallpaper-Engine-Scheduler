@@ -1101,7 +1101,7 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
         context_manager=object(),
         matcher=next_matcher,
         actuator=mock.Mock(),
-        playlist_configs={},
+        config=mock.Mock(playlists={}, language=None),
         we_config_prober=mock.Mock(),
     )
     runtime._build_components = mock.Mock(return_value=next_runtime)

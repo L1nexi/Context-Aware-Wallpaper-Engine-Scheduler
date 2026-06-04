@@ -376,6 +376,7 @@ class ConfigFiles:
         issues: list[ConfigIssue] = []
         issues.extend(self.playlists.collect_issues())
         issues.extend(self._collect_runtime_we_path_issues())
+        issues.extend(self._collect_runtime_language_issues())
         issues.extend(self._collect_tag_reference_issues())
         return issues
 
@@ -417,6 +418,23 @@ class ConfigFiles:
                     code="wallpaper_engine_path_unresolved",
                 )
             ]
+
+    def _collect_runtime_language_issues(self) -> list[ConfigIssue]:
+        _VALID_LANGS = {"zh", "en"}
+
+        configured = self.scheduler.runtime.language
+        if configured is None:
+            return []
+        if configured not in _VALID_LANGS:
+            return [
+                ConfigIssue(
+                    source_file="scheduler.yaml",
+                    field_path=("runtime", "language"),
+                    message=f"language must be one of {sorted(_VALID_LANGS)}, got {configured!r}",
+                    code="invalid_language",
+                )
+            ]
+        return []
 
     def _collect_tag_reference_issues(self) -> list[ConfigIssue]:
         issues: list[ConfigIssue] = []
