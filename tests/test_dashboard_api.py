@@ -283,7 +283,7 @@ def test_build_tick_snapshot_maps_analysis_fields():
         "display": "Rainy Mood",
         "color": "#4A90D9",
     }
-    assert snapshot["act"]["decision"]["reasonCode"] == "switch_blocked_not_idle"
+    assert snapshot["act"]["decision"]["reason"] == "switch_blocked_not_idle"
     assert snapshot["act"]["decision"]["activePlaylistsBefore"] == [
         {"name": "idle", "display": "idle", "color": "#2E5F8A"},
     ]
@@ -333,7 +333,7 @@ def test_build_tick_snapshot_maps_paused_tick():
 
     snapshot = build_tick_snapshot(trace)
 
-    assert snapshot["summary"]["actionKind"] == "pause"
+    assert snapshot["summary"]["action"] == "pause"
     assert snapshot["summary"]["paused"] is True
     assert snapshot["summary"]["hasEvent"] is False
     assert snapshot["summary"]["activePlaylists"] == [

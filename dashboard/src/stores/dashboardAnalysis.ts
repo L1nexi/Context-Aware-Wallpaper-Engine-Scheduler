@@ -7,6 +7,8 @@ import {
   type TickSnapshot,
 } from '@/lib/dashboardAnalysis'
 
+const DASHBOARD_ANALYSIS_ERROR_POLL_INTERVAL_MS = 5000
+
 type DashboardMode = 'live' | 'snapshot'
 type WorkspaceState = 'loading' | 'error' | 'empty' | 'live'
 
@@ -43,6 +45,7 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
   const hasLoadedOnce = ref(false)
 
   let refreshTimer: ReturnType<typeof setInterval> | null = null
+  let currentInterval = DASHBOARD_ANALYSIS_POLL_INTERVAL_MS
   let requestInFlight = false
   let snapshotLiveBaselineTickId: number | null = null
 
@@ -141,6 +144,17 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
     } finally {
       loading.value = false
       requestInFlight = false
+
+      const nextInterval = error.value !== null
+        ? DASHBOARD_ANALYSIS_ERROR_POLL_INTERVAL_MS
+        : DASHBOARD_ANALYSIS_POLL_INTERVAL_MS
+      if (refreshTimer !== null && nextInterval !== currentInterval) {
+        currentInterval = nextInterval
+        clearInterval(refreshTimer)
+        refreshTimer = setInterval(() => {
+          void refresh()
+        }, currentInterval)
+      }
     }
   }
 
@@ -219,10 +233,11 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
       return
     }
 
+    currentInterval = DASHBOARD_ANALYSIS_POLL_INTERVAL_MS
     void refresh()
     refreshTimer = setInterval(() => {
       void refresh()
-    }, DASHBOARD_ANALYSIS_POLL_INTERVAL_MS)
+    }, currentInterval)
   }
 
   function stopPolling(): void {
@@ -230,6 +245,8 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
       clearInterval(refreshTimer)
       refreshTimer = null
     }
+
+    currentInterval = DASHBOARD_ANALYSIS_POLL_INTERVAL_MS
   }
 
   function retry(): void {
