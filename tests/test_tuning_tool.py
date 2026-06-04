@@ -33,6 +33,11 @@ from tools.tuning.tune import run_tuning
 def mock_probe_item_counts(monkeypatch):
     monkeypatch.setattr("core.runtime.we_config.WEConfigProber.probe_item_counts", lambda self: {})
 
+    class _FakeResponse:
+        status_code = 200
+
+    monkeypatch.setattr("configurations.documents.requests.get", lambda *a, **kw: _FakeResponse())
+
 
 TAG_NAMES = [
     "focus",
@@ -111,7 +116,7 @@ def _write_config_dir(tmp_path: Path) -> Path:
             "weather": {
                 "enabled": True,
                 "weight": 1.5,
-                "api_key": "",
+                "api_key": "test-dummy-key",
                 "lat": 0.0,
                 "lon": 0.0,
                 "fetch_interval": 600,

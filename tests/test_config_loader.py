@@ -114,7 +114,7 @@ def _base_documents() -> dict[str, dict]:
                 "winter_peak": 355,
             },
             "weather": {
-                "enabled": True,
+                "enabled": False,
                 "weight": 1.5,
                 "api_key": "",
                 "lat": 31.2,
@@ -351,3 +351,62 @@ def test_config_loader_rejects_unresolved_auto_detect(monkeypatch):
     assert issue.field_path == ("runtime", "wallpaper_engine_path")
     assert issue.code == "wallpaper_engine_path_unresolved"
     assert "could not be auto-detected" in issue.message
+
+
+def _weather_enabled_documents(**weather_overrides) -> dict[str, dict]:
+    documents = _base_documents()
+    documents["context.yaml"]["weather"] = {
+        "enabled": True,
+        "weight": 1.5,
+        "api_key": "test-key-123",
+        "lat": 31.2,
+        "lon": 121.5,
+        "fetch_interval": 600,
+        "request_timeout": 10,
+        "warmup_timeout": 3,
+        **weather_overrides,
+    }
+    return documents
+
+
+class TestWeatherConfigValidation:
+    def test_invalid_api_key_rejected_on_401(self, monkeypatch):
+        import requests as req
+
+        class FakeResponse:
+            status_code = 401
+
+            def raise_for_status(self):
+                raise req.HTTPError()
+
+        monkeypatch.setattr(
+            "configurations.documents.requests.get",
+            lambda *a, **kw: FakeResponse(),
+        )
+
+        documents = _weather_enabled_documents()
+        config_dir = _write_config_dir(overrides={"context.yaml": documents["context.yaml"]})
+
+        with pytest.raises(ConfigLoadError) as exc_info:
+            ConfigLoader(str(config_dir)).load_verified_config()
+
+        issue = exc_info.value.issues[0]
+        assert issue.code == "weather_api_key_invalid"
+        assert "401" in issue.message
+
+    def test_invalid_api_key_rejected_on_403(self, monkeypatch):
+        class FakeResponse:
+            status_code = 403
+
+        monkeypatch.setattr(
+            "configurations.documents.requests.get",
+            lambda *a, **kw: FakeResponse(),
+        )
+
+        documents = _weather_enabled_documents()
+        config_dir = _write_config_dir(overrides={"context.yaml": documents["context.yaml"]})
+
+        with pytest.raises(ConfigLoadError) as exc_info:
+            ConfigLoader(str(config_dir)).load_verified_config()
+
+        assert exc_info.value.issues[0].code == "weather_api_key_invalid"

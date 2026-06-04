@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
+import requests
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from pydantic_core import PydanticCustomError
 
@@ -378,6 +379,7 @@ class ConfigFiles:
         issues.extend(self._collect_runtime_we_path_issues())
         issues.extend(self._collect_runtime_language_issues())
         issues.extend(self._collect_tag_reference_issues())
+        issues.extend(self._collect_weather_config_issues())
         return issues
 
     def _collect_runtime_we_path_issues(self) -> list[ConfigIssue]:
@@ -501,6 +503,66 @@ class ConfigFiles:
                 _validate_declared_tag(tag_name, declared_tags, source_file, (policy_name, tag_name), issues)
 
         return issues
+
+    def _collect_weather_config_issues(self) -> list[ConfigIssue]:
+        weather = self.context.weather
+        if not weather.enabled:
+            return []
+
+        issues: list[ConfigIssue] = []
+
+        if not weather.api_key.strip():
+            issues.append(
+                ConfigIssue(
+                    source_file="context.yaml",
+                    field_path=("weather", "api_key"),
+                    message="API key 为空。填入 OpenWeatherMap API key 或禁用天气策略",
+                    code="weather_api_key_empty",
+                )
+            )
+
+        if weather.lat is None:
+            issues.append(
+                ConfigIssue(
+                    source_file="context.yaml",
+                    field_path=("weather", "lat"),
+                    message="lat 未设置。填入所在地纬度",
+                    code="weather_coordinate_missing",
+                )
+            )
+
+        if weather.lon is None:
+            issues.append(
+                ConfigIssue(
+                    source_file="context.yaml",
+                    field_path=("weather", "lon"),
+                    message="lon 未设置。填入所在地经度",
+                    code="weather_coordinate_missing",
+                )
+            )
+
+        if issues:
+            return issues
+
+        try:
+            resp = requests.get(
+                "https://api.openweathermap.org/data/2.5/weather",
+                params={"lat": weather.lat, "lon": weather.lon, "appid": weather.api_key.strip(), "units": "metric"},
+                timeout=5.0,
+            )
+            if resp.status_code in (401, 403):
+                return [
+                    ConfigIssue(
+                        source_file="context.yaml",
+                        field_path=("weather", "api_key"),
+                        message=f"OpenWeatherMap API key 无效（HTTP {resp.status_code}）；请检查 API key 是否正确",
+                        code="weather_api_key_invalid",
+                    )
+                ]
+        except requests.RequestException:
+            pass
+
+        return []
 
     def to_verified_scheduler_config(self) -> SchedulerConfig:
         issues = self.collect_issues()
