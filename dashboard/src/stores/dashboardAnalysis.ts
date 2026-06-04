@@ -61,8 +61,8 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
   const activeTick = computed<TickSnapshot | null>(() => {
     const preferredTickId =
       mode.value === 'live'
-        ? hoverTickId.value ?? selectedTickId.value ?? liveTickId.value
-        : selectedTickId.value ?? lockedTickId.value
+        ? (hoverTickId.value ?? selectedTickId.value ?? liveTickId.value)
+        : (selectedTickId.value ?? lockedTickId.value)
 
     return (
       findTickById(activeWindow.value, preferredTickId) ??
@@ -135,9 +135,7 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
       if (isLocked.value) {
         const baseline = snapshotLiveBaselineTickId ?? lockedTickId.value
         newTicksSinceLocked.value =
-          baseline === null || nextLiveTickId === null
-            ? 0
-            : Math.max(0, nextLiveTickId - baseline)
+          baseline === null || nextLiveTickId === null ? 0 : Math.max(0, nextLiveTickId - baseline)
       } else {
         newTicksSinceLocked.value = 0
       }
@@ -152,9 +150,10 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
       loading.value = false
       requestInFlight = false
 
-      const nextInterval = error.value !== null
-        ? DASHBOARD_ANALYSIS_ERROR_POLL_INTERVAL_MS
-        : DASHBOARD_ANALYSIS_POLL_INTERVAL_MS
+      const nextInterval =
+        error.value !== null
+          ? DASHBOARD_ANALYSIS_ERROR_POLL_INTERVAL_MS
+          : DASHBOARD_ANALYSIS_POLL_INTERVAL_MS
       if (refreshTimer !== null && nextInterval !== currentInterval) {
         currentInterval = nextInterval
         clearInterval(refreshTimer)
@@ -227,10 +226,7 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
       return
     }
 
-    const nextIndex = Math.min(
-      Math.max(currentIndex + delta, 0),
-      snapshotWindow.value.length - 1,
-    )
+    const nextIndex = Math.min(Math.max(currentIndex + delta, 0), snapshotWindow.value.length - 1)
 
     selectedTickId.value = snapshotWindow.value[nextIndex]?.summary.tickId ?? currentTickId
   }

@@ -88,9 +88,7 @@ const weatherStatus = computed(() => {
             <dt class="text-xs text-muted-foreground">{{ t('dashboard_weather_id') }}</dt>
             <dd class="mt-1 font-medium data-mono">
               {{
-                tick.sense.weather.id === null
-                  ? t('dashboard_none')
-                  : String(tick.sense.weather.id)
+                tick.sense.weather.id === null ? t('dashboard_none') : String(tick.sense.weather.id)
               }}
             </dd>
           </div>

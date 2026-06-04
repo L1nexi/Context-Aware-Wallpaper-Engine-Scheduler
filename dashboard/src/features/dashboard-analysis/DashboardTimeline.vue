@@ -4,6 +4,7 @@ import VChart from 'vue-echarts'
 
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/composables/useI18n'
+import { useColorMode } from '@vueuse/core'
 import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
 import { formatShortTime, formatTimestamp, formatWeight } from './formatting'
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 }>()
 
 const { t, lang } = useI18n()
+const colorMode = useColorMode()
 
 const chartRef = ref<InstanceType<typeof VChart> | null>(null)
 const timelineFrameRef = ref<HTMLElement | null>(null)
@@ -58,8 +60,9 @@ const currentTick = computed(() => {
   )
 })
 
-const option = computed(() =>
-  buildTimelineOption(
+const option = computed(() => {
+  void colorMode.value
+  return buildTimelineOption(
     props.ticks,
     lang.value,
     {
@@ -69,13 +72,11 @@ const option = computed(() =>
       gap: t('gap'),
     },
     t,
-  ),
-)
+  )
+})
 
 const statusLabel = computed(() =>
-  props.mode === 'snapshot'
-    ? t('dashboard_snapshot_status')
-    : t('dashboard_live_following_status'),
+  props.mode === 'snapshot' ? t('dashboard_snapshot_status') : t('dashboard_live_following_status'),
 )
 
 const selectedTimestamp = computed(() =>
@@ -99,8 +100,7 @@ const hoverTooltipStyle = computed(() => {
   }
 
   const chartWidth = chartRef.value?.getWidth() ?? 0
-  const horizontalOffset =
-    chartWidth > 0 && hoverTooltip.value.x > chartWidth - 280 ? -238 : 14
+  const horizontalOffset = chartWidth > 0 && hoverTooltip.value.x > chartWidth - 280 ? -238 : 14
 
   return {
     left: `${hoverTooltip.value.x + horizontalOffset}px`,
@@ -126,10 +126,10 @@ function resolveHoverPointStyle(
     return {}
   }
 
-  const point = chartRef.value?.convertToPixel(
-    { xAxisIndex: 0, yAxisIndex },
-    [hoverTooltip.value.index, value],
-  )
+  const point = chartRef.value?.convertToPixel({ xAxisIndex: 0, yAxisIndex }, [
+    hoverTooltip.value.index,
+    value,
+  ])
 
   if (!Array.isArray(point) || point.length < 2) {
     return {}
@@ -177,12 +177,7 @@ function bindChartHandlers(): void {
       return
     }
 
-    const index = resolveTimelineIndexFromPixel(
-      event.offsetX,
-      event.offsetY,
-      props.ticks,
-      chart,
-    )
+    const index = resolveTimelineIndexFromPixel(event.offsetX, event.offsetY, props.ticks, chart)
     if (index === null) {
       hoverTooltip.value = null
       chart.dispatchAction({ type: 'hideTip' })
@@ -206,12 +201,7 @@ function bindChartHandlers(): void {
       return
     }
 
-    const index = resolveTimelineIndexFromPixel(
-      event.offsetX,
-      event.offsetY,
-      props.ticks,
-      chart,
-    )
+    const index = resolveTimelineIndexFromPixel(event.offsetX, event.offsetY, props.ticks, chart)
     if (index === null) {
       return
     }
@@ -351,23 +341,35 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="flex flex-wrap gap-2 text-xs text-muted-foreground">
-      <span class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5">
+      <span
+        class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5"
+      >
         <span class="size-2.5 rounded-full bg-primary" />
         {{ t('dashboard_timeline_active_track') }}
       </span>
-      <span class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5">
+      <span
+        class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5"
+      >
         <span class="size-2.5 rounded-full bg-[var(--color-chart-2)]" />
         {{ t('dashboard_timeline_matched_track') }}
       </span>
-      <span class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5">
+      <span
+        class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5"
+      >
         <span class="size-2.5 rotate-45 bg-primary" />
         {{ t('dashboard_timeline_switch_marker') }}
       </span>
-      <span class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5">
-        <span class="size-0 border-x-[5px] border-b-[9px] border-x-transparent border-b-[var(--color-chart-3)]" />
+      <span
+        class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5"
+      >
+        <span
+          class="size-0 border-x-[5px] border-b-[9px] border-x-transparent border-b-[var(--color-chart-3)]"
+        />
         {{ t('dashboard_timeline_recovery_marker') }}
       </span>
-      <span class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5">
+      <span
+        class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1.5"
+      >
         <span class="size-2.5 rounded-full bg-muted-foreground/65" />
         {{ t('paused') }}
       </span>

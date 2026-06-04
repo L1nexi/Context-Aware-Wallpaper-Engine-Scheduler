@@ -4,7 +4,11 @@ import { computed } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import type { ActionDecision, BlockerEvaluation } from '@/lib/dashboardAnalysis'
 
-import { getActionReasonLabel, getControllerSummary, getRelevantControllerFacts } from './presenters'
+import {
+  getActionReasonLabel,
+  getControllerSummary,
+  getRelevantControllerFacts,
+} from './presenters'
 
 const props = defineProps<{
   evaluation: BlockerEvaluation | null

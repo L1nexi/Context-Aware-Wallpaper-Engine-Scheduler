@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
+import { useColorMode } from '@vueuse/core'
+import { Monitor, Moon, Sun } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 
 import { Button } from '@/components/ui/button'
@@ -13,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useDashboardAnalysisStore } from '@/stores/dashboardAnalysis'
 
 const { t } = useI18n()
+const colorMode = useColorMode()
 const dashboardAnalysisStore = useDashboardAnalysisStore()
 
 const {
@@ -48,13 +51,21 @@ const statusBadgeClass = computed(() =>
   ),
 )
 
-const headerHint = computed(() => {
-  if (isDisconnected.value) {
-    return t('dashboard_disconnect_notice')
+const themeIcon = computed(() => {
+  switch (colorMode.value) {
+    case 'light':
+      return Sun
+    case 'dark':
+      return Moon
+    default:
+      return Monitor
   }
-
-  return mode.value === 'snapshot' ? t('dashboard_snapshot_header_hint') : t('dashboard_live_hint')
 })
+
+function cycleTheme(): void {
+  colorMode.value =
+    colorMode.value === 'light' ? 'dark' : colorMode.value === 'dark' ? 'auto' : 'light'
+}
 </script>
 
 <template>
@@ -80,9 +91,10 @@ const headerHint = computed(() => {
       </div>
     </div>
 
-    <p class="hidden max-w-xl text-right text-sm text-muted-foreground md:block">
-      {{ headerHint }}
-    </p>
+    <Button variant="ghost" size="icon" @click="cycleTheme">
+      <component :is="themeIcon" class="size-4" />
+      <span class="sr-only">{{ t(`theme_${colorMode}`) }}</span>
+    </Button>
   </WorkbenchHeader>
 
   <WorkbenchMain>

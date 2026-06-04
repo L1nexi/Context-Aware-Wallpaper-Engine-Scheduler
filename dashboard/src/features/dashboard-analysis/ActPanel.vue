@@ -30,10 +30,11 @@ const activePlaylistBeforeLabel = computed(() =>
 const activePlaylistAfterLabel = computed(() =>
   formatPlaylistRefs(props.tick.act.decision.activePlaylistsAfter, t),
 )
-const targetPlaylistLabel = computed(() =>
-  props.tick.act.decision.targetPlaylist?.display ??
-  props.tick.act.decision.targetPlaylist?.name ??
-  t('dashboard_none'),
+const targetPlaylistLabel = computed(
+  () =>
+    props.tick.act.decision.targetPlaylist?.display ??
+    props.tick.act.decision.targetPlaylist?.name ??
+    t('dashboard_none'),
 )
 const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
 </script>

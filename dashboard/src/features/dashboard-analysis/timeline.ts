@@ -445,15 +445,30 @@ export function buildTimelineOption(
         xAxisIndex: 1,
         yAxisIndex: 2,
         silent: true,
+        clip: true,
         z: 1,
         renderItem(params, api) {
           const start = api.value(0) as number
           const end = api.value(1) as number
           const rowIndex = api.value(2) as number
-          const [startX = 0, startY = 0] = (api.coord?.([start - 0.45, rowIndex]) ?? []) as number[]
-          const [endX = startX] = (api.coord?.([end + 0.45, rowIndex]) ?? []) as number[]
+          const coord = (api.coord?.([start - 0.45, rowIndex]) ?? []) as number[]
+          let startX = coord[0] ?? 0
+          const startY = coord[1] ?? 0
+          let endX = (api.coord?.([end + 0.45, rowIndex]) ?? [startX])[0] ?? startX
           const [, rawRowHeight = 0] = (api.size?.([0, 1]) ?? []) as number[]
           const rowHeight = rawRowHeight * 0.54
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coordSys exposes {x,y,width,height} at runtime for cartesian2d
+          const area = params.coordSys as any as {
+            x: number
+            y: number
+            width: number
+            height: number
+          }
+          if (area) {
+            startX = Math.max(startX, area.x)
+            endX = Math.min(endX, area.x + area.width)
+          }
 
           return {
             type: 'rect',
@@ -479,15 +494,30 @@ export function buildTimelineOption(
         xAxisIndex: 1,
         yAxisIndex: 2,
         silent: true,
+        clip: true,
         z: 1,
         renderItem(params, api) {
           const start = api.value(0) as number
           const end = api.value(1) as number
           const rowIndex = api.value(2) as number
-          const [startX = 0, startY = 0] = (api.coord?.([start - 0.45, rowIndex]) ?? []) as number[]
-          const [endX = startX] = (api.coord?.([end + 0.45, rowIndex]) ?? []) as number[]
+          const coord = (api.coord?.([start - 0.45, rowIndex]) ?? []) as number[]
+          let startX = coord[0] ?? 0
+          const startY = coord[1] ?? 0
+          let endX = (api.coord?.([end + 0.45, rowIndex]) ?? [startX])[0] ?? startX
           const [, rawRowHeight = 0] = (api.size?.([0, 1]) ?? []) as number[]
           const rowHeight = rawRowHeight * 0.54
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coordSys exposes {x,y,width,height} at runtime for cartesian2d
+          const area = params.coordSys as any as {
+            x: number
+            y: number
+            width: number
+            height: number
+          }
+          if (area) {
+            startX = Math.max(startX, area.x)
+            endX = Math.min(endX, area.x + area.width)
+          }
 
           return {
             type: 'rect',

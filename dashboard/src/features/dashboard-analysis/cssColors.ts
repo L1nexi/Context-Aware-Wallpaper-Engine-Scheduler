@@ -59,9 +59,7 @@ export function getCssColor(variableName: string, fallback: string): string {
     return fallback
   }
 
-  const rawValue = getComputedStyle(document.documentElement)
-    .getPropertyValue(variableName)
-    .trim()
+  const rawValue = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim()
 
   return resolveCssColorValue(rawValue, fallback)
 }

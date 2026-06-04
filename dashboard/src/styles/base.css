@@ -8,10 +8,10 @@
   html {
     min-height: 100%;
     font-feature-settings:
-      "cv02" 1,
-      "cv03" 1,
-      "cv04" 1,
-      "cv11" 1;
+      'cv02' 1,
+      'cv03' 1,
+      'cv04' 1,
+      'cv11' 1;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

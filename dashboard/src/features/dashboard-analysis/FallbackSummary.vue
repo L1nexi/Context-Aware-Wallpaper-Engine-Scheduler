@@ -16,9 +16,7 @@ const entries = computed(() => Object.entries(props.expansions))
 </script>
 
 <template>
-  <details
-    class="rounded-2xl border border-border/70 bg-background/70 px-4 py-4 shadow-sm"
-  >
+  <details class="rounded-2xl border border-border/70 bg-background/70 px-4 py-4 shadow-sm">
     <summary class="cursor-pointer list-none">
       <div class="flex items-start justify-between gap-4">
         <div>

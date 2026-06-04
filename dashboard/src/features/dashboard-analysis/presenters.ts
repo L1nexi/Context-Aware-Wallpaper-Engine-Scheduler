@@ -19,24 +19,16 @@ export interface SummaryField {
   value: string
 }
 
-function formatPlaylistRef(
-  playlist: PlaylistRef | null | undefined,
-  t: Translate,
-): string {
+function formatPlaylistRef(playlist: PlaylistRef | null | undefined, t: Translate): string {
   return playlist?.display ?? playlist?.name ?? t('dashboard_none')
 }
 
-export function formatPlaylistRefs(
-  playlists: PlaylistRef[] | undefined,
-  t: Translate,
-): string {
+export function formatPlaylistRefs(playlists: PlaylistRef[] | undefined, t: Translate): string {
   if (!playlists || playlists.length === 0) return t('dashboard_none')
   return playlists.map((p) => p.display ?? p.name).join(', ')
 }
 
-export function getFirstPlaylistRef(
-  playlists: PlaylistRef[] | undefined,
-): PlaylistRef | null {
+export function getFirstPlaylistRef(playlists: PlaylistRef[] | undefined): PlaylistRef | null {
   return playlists?.[0] ?? null
 }
 
@@ -57,10 +49,7 @@ export function getPolicyTitle(policyId: PolicyId, t: Translate): string {
   return t(`policy_${policyId}`)
 }
 
-export function getPolicySummary(
-  policy: Evaluation,
-  t: Translate,
-): string {
+export function getPolicySummary(policy: Evaluation, t: Translate): string {
   switch (policy.policyId) {
     case 'activity':
       if (policy.details.matchedTag && policy.details.matchedRule) {
@@ -107,9 +96,7 @@ export function getDefaultExpandedPolicyIds(policies: Evaluation[]): Set<PolicyI
   return new Set(sorted.slice(0, 1).map((policy) => policy.policyId))
 }
 
-export function getPoliciesSortedByMagnitude(
-  policies: Evaluation[],
-): Evaluation[] {
+export function getPoliciesSortedByMagnitude(policies: Evaluation[]): Evaluation[] {
   return [...policies].sort((left, right) => {
     return right.effectiveMagnitude - left.effectiveMagnitude
   })
@@ -177,9 +164,7 @@ export function getRelevantControllerFacts(
   if (evaluation.blockedBy.length > 0) {
     fields.push({
       label: t('dashboard_controller_blockers'),
-      value: evaluation.blockedBy
-        .map((blocker) => t(`dashboard_blocker_${blocker}`))
-        .join(', '),
+      value: evaluation.blockedBy.map((blocker) => t(`dashboard_blocker_${blocker}`)).join(', '),
     })
   }
 

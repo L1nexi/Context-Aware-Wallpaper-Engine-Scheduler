@@ -16,9 +16,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",
-    "@tanstack/vue-table": "^8.21.3",
     "@tanstack/vue-virtual": "^3.13.24",
-    "@vee-validate/zod": "^4.15.1",
     "@vueuse/core": "^14.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -28,12 +26,9 @@
     "reka-ui": "^2.9.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.4",
-    "vee-validate": "^4.15.1",
     "vue": "^3.5.32",
     "vue-echarts": "^8.0.1",
-    "vue-router": "^5.0.4",
-    "vue-sonner": "^2.0.9",
-    "zod": "^3.25.76"
+    "vue-router": "^5.0.4"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",

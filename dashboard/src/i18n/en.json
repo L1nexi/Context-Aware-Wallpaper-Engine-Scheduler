@@ -171,5 +171,8 @@
   "policy_weight_scale_tip": "Global priority multiplier for this policy's signal",
   "time_auto": "Auto",
   "time_day_start": "Day Start Hour",
-  "time_night_start": "Night Start Hour"
+  "time_night_start": "Night Start Hour",
+  "theme_light": "Light",
+  "theme_dark": "Dark",
+  "theme_system": "System"
 }

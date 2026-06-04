@@ -74,7 +74,7 @@
   "dashboard_policy_active": "活跃",
   "dashboard_policy_inactive": "未活跃",
   "dashboard_salience_intensity": "显著度 / 强度",
-  "dashboard_policy_direction": "Direction",
+  "dashboard_policy_direction": "方向",
   "dashboard_policy_raw_contribution": "原始贡献",
   "dashboard_policy_details": "类型化细节",
   "dashboard_policy_peaks": "峰值",
@@ -171,5 +171,8 @@
   "policy_weight_scale_tip": "该策略信号的全局优先级乘数",
   "time_auto": "自动",
   "time_day_start": "白天开始时间",
-  "time_night_start": "夜晚开始时间"
+  "time_night_start": "夜晚开始时间",
+  "theme_light": "浅色",
+  "theme_dark": "深色",
+  "theme_system": "跟随系统"
 }

@@ -17,9 +17,7 @@ const { t } = useI18n()
 const sortedPolicies = computed(() => getPoliciesSortedByMagnitude(props.tick.think.policies))
 const expandedPolicyIds = computed(() => getDefaultExpandedPolicyIds(sortedPolicies.value))
 
-const hasFallbacks = computed(
-  () => Object.keys(props.tick.think.fallbackExpansions).length > 0,
-)
+const hasFallbacks = computed(() => Object.keys(props.tick.think.fallbackExpansions).length > 0)
 </script>
 
 <template>
@@ -38,7 +36,7 @@ const hasFallbacks = computed(
       <VectorList
         :title="t('dashboard_vector_resolved')"
         :items="tick.think.resolvedContextVector"
-        :limit="3"
+        :limit="5"
       />
 
       <details class="rounded-2xl border border-border/70 bg-muted/35 px-4 py-4">
@@ -48,20 +46,12 @@ const hasFallbacks = computed(
 
         <div class="mt-4 grid gap-4">
           <VectorList
-            :title="t('dashboard_vector_resolved')"
-            :items="tick.think.resolvedContextVector"
-            :limit="tick.think.resolvedContextVector.length"
-          />
-          <VectorList
             :title="t('dashboard_vector_raw')"
             :items="tick.think.rawContextVector"
             :limit="tick.think.rawContextVector.length"
           />
 
-          <FallbackSummary
-            v-if="hasFallbacks"
-            :expansions="tick.think.fallbackExpansions"
-          />
+          <FallbackSummary v-if="hasFallbacks" :expansions="tick.think.fallbackExpansions" />
         </div>
       </details>
 
