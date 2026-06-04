@@ -2,12 +2,12 @@
 import { computed } from 'vue'
 
 import { useI18n } from '@/composables/useI18n'
-import type { ActionDecision, ControllerEvaluation } from '@/lib/dashboardAnalysis'
+import type { ActionDecision, BlockerEvaluation } from '@/lib/dashboardAnalysis'
 
 import { getActionReasonLabel, getControllerSummary, getRelevantControllerFacts } from './presenters'
 
 const props = defineProps<{
-  evaluation: ControllerEvaluation | null
+  evaluation: BlockerEvaluation | null
   decision: ActionDecision
 }>()
 
@@ -70,7 +70,7 @@ const rawFacts = computed(() => {
       <span
         class="inline-flex items-center rounded-full border border-border/70 bg-muted/70 px-3 py-1 text-xs font-medium text-muted-foreground"
       >
-        {{ getActionReasonLabel(decision.reasonCode, t) }}
+        {{ getActionReasonLabel(decision.reason, t) }}
       </span>
     </div>
 

@@ -5,7 +5,7 @@ import { useI18n } from '@/composables/useI18n'
 import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
 import FallbackSummary from './FallbackSummary.vue'
-import PolicyDiagnosticCard from './PolicyDiagnosticCard.vue'
+import PolicyEvaluationCard from './PolicyEvaluationCard.vue'
 import VectorList from './VectorList.vue'
 import { getDefaultExpandedPolicyIds, getPoliciesSortedByMagnitude } from './presenters'
 
@@ -66,7 +66,7 @@ const hasFallbacks = computed(
       </details>
 
       <div class="space-y-4">
-        <PolicyDiagnosticCard
+        <PolicyEvaluationCard
           v-for="policy in sortedPolicies"
           :key="policy.policyId"
           :policy="policy"

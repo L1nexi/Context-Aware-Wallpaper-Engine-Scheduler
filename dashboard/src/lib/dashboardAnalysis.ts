@@ -1,9 +1,9 @@
 export const DASHBOARD_ANALYSIS_WINDOW_COUNT = 900
 export const DASHBOARD_ANALYSIS_POLL_INTERVAL_MS = 1000
 
-export type ActionKind = 'none' | 'switch' | 'cycle' | 'hold' | 'pause'
+export type Action = 'none' | 'switch' | 'cycle' | 'hold' | 'pause'
 
-export type ActionReasonCode =
+export type ActionReason =
   | 'no_match'
   | 'hold_same_playlist'
   | 'hold_semantic_continuity'
@@ -22,7 +22,7 @@ export type ActionReasonCode =
   | 'recovery_unmanaged'
   | 'recovery_no_match'
 
-export type ControllerBlocker = 'cooldown' | 'fullscreen' | 'cpu' | 'idle'
+export type Blocker = 'cooldown' | 'fullscreen' | 'cpu' | 'idle'
 export type PolicyId = 'activity' | 'time' | 'season' | 'weather'
 
 export interface TagWeight {
@@ -63,7 +63,7 @@ export interface ClockSnapshot {
   dayOfYear: number
 }
 
-export interface ActivityPolicyDetails {
+export interface ActivityDetails {
   matchSource: 'title' | 'process' | 'none'
   matchedRule: string | null
   matchedTag: string | null
@@ -72,7 +72,7 @@ export interface ActivityPolicyDetails {
   emaActive: boolean
 }
 
-export interface TimePolicyDetails {
+export interface TimeDetails {
   auto: boolean
   hour: number
   virtualHour: number
@@ -81,19 +81,19 @@ export interface TimePolicyDetails {
   peaks: Record<string, number>
 }
 
-export interface SeasonPolicyDetails {
+export interface SeasonDetails {
   dayOfYear: number
   peaks: Record<string, number>
 }
 
-export interface WeatherPolicyDetails {
+export interface WeatherDetails {
   weatherId: number | null
   weatherMain: string | null
   available: boolean
   mapped: boolean
 }
 
-export interface BasePolicyDiagnostic {
+export interface BaseEvaluation {
   policyId: PolicyId
   enabled: boolean
   active: boolean
@@ -107,35 +107,31 @@ export interface BasePolicyDiagnostic {
   dominantTag: string | null
 }
 
-export interface ActivityPolicyDiagnostic extends BasePolicyDiagnostic {
+export interface ActivityEvaluation extends BaseEvaluation {
   policyId: 'activity'
-  details: ActivityPolicyDetails
+  details: ActivityDetails
 }
 
-export interface TimePolicyDiagnostic extends BasePolicyDiagnostic {
+export interface TimeEvaluation extends BaseEvaluation {
   policyId: 'time'
-  details: TimePolicyDetails
+  details: TimeDetails
 }
 
-export interface SeasonPolicyDiagnostic extends BasePolicyDiagnostic {
+export interface SeasonEvaluation extends BaseEvaluation {
   policyId: 'season'
-  details: SeasonPolicyDetails
+  details: SeasonDetails
 }
 
-export interface WeatherPolicyDiagnostic extends BasePolicyDiagnostic {
+export interface WeatherEvaluation extends BaseEvaluation {
   policyId: 'weather'
-  details: WeatherPolicyDetails
+  details: WeatherDetails
 }
 
-export type PolicyDiagnostic =
-  | ActivityPolicyDiagnostic
-  | TimePolicyDiagnostic
-  | SeasonPolicyDiagnostic
-  | WeatherPolicyDiagnostic
+export type Evaluation = ActivityEvaluation | TimeEvaluation | SeasonEvaluation | WeatherEvaluation
 
-export interface ControllerEvaluation {
+export interface BlockerEvaluation {
   allowed: boolean
-  blockedBy: ControllerBlocker[]
+  blockedBy: Blocker[]
   cooldownRemaining: number
   idleSeconds: number
   idleThreshold: number
@@ -145,8 +141,8 @@ export interface ControllerEvaluation {
   forceAfterRemaining: number | null
 }
 
-export interface ControllerDiagnostic {
-  evaluation: ControllerEvaluation | null
+export interface Controller {
+  evaluation: BlockerEvaluation | null
 }
 
 export interface PlaylistRef {
@@ -156,8 +152,8 @@ export interface PlaylistRef {
 }
 
 export interface ActionDecision {
-  kind: ActionKind
-  reasonCode: ActionReasonCode
+  action: Action
+  reason: ActionReason
   executed: boolean
   activePlaylistsBefore: PlaylistRef[]
   activePlaylistsAfter: PlaylistRef[]
@@ -183,12 +179,12 @@ export interface ThinkSnapshot {
   rawContextVector: TagWeight[]
   resolvedContextVector: TagWeight[]
   fallbackExpansions: Record<string, ResolvedTagWeight[]>
-  policies: PolicyDiagnostic[]
+  policies: Evaluation[]
 }
 
 export interface ActSnapshot {
   topMatches: TopMatch[]
-  controller: ControllerDiagnostic
+  controller: Controller
   decision: ActionDecision
 }
 
@@ -199,8 +195,8 @@ export interface TickSummary {
   similarityGap: number
   activePlaylists: PlaylistRef[]
   matchedPlaylists: PlaylistRef[]
-  actionKind: ActionKind
-  reasonCode: ActionReasonCode
+  action: Action
+  reason: ActionReason
   paused: boolean
   executed: boolean
   hasEvent: boolean

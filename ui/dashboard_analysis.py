@@ -88,7 +88,7 @@ class ClockSnapshotDto(ApiDto):
     day_of_year: int
 
 
-class ActivityPolicyDetailsDto(ApiDto):
+class ActivityDetailsDto(ApiDto):
     match_source: str
     matched_rule: str | None
     matched_tag: str | None
@@ -97,7 +97,7 @@ class ActivityPolicyDetailsDto(ApiDto):
     ema_active: bool
 
 
-class TimePolicyDetailsDto(ApiDto):
+class TimeDetailsDto(ApiDto):
     auto: bool
     hour: float
     virtual_hour: float
@@ -106,19 +106,19 @@ class TimePolicyDetailsDto(ApiDto):
     peaks: dict[str, float]
 
 
-class SeasonPolicyDetailsDto(ApiDto):
+class SeasonDetailsDto(ApiDto):
     day_of_year: int
     peaks: dict[str, int]
 
 
-class WeatherPolicyDetailsDto(ApiDto):
+class WeatherDetailsDto(ApiDto):
     weather_id: int | None
     weather_main: str | None
     available: bool
     mapped: bool
 
 
-class BasePolicyDiagnosticDto(ApiDto):
+class BaseEvaluationDto(ApiDto):
     policy_id: str
     enabled: bool
     active: bool
@@ -132,26 +132,26 @@ class BasePolicyDiagnosticDto(ApiDto):
     dominant_tag: str | None
 
 
-class ActivityPolicyDiagnosticDto(BasePolicyDiagnosticDto):
-    details: ActivityPolicyDetailsDto
+class ActivityEvaluationDto(BaseEvaluationDto):
+    details: ActivityDetailsDto
 
 
-class TimePolicyDiagnosticDto(BasePolicyDiagnosticDto):
-    details: TimePolicyDetailsDto
+class TimeEvaluationDto(BaseEvaluationDto):
+    details: TimeDetailsDto
 
 
-class SeasonPolicyDiagnosticDto(BasePolicyDiagnosticDto):
-    details: SeasonPolicyDetailsDto
+class SeasonEvaluationDto(BaseEvaluationDto):
+    details: SeasonDetailsDto
 
 
-class WeatherPolicyDiagnosticDto(BasePolicyDiagnosticDto):
-    details: WeatherPolicyDetailsDto
+class WeatherEvaluationDto(BaseEvaluationDto):
+    details: WeatherDetailsDto
 
 
-PolicyDiagnosticDto = ActivityPolicyDiagnosticDto | TimePolicyDiagnosticDto | SeasonPolicyDiagnosticDto | WeatherPolicyDiagnosticDto
+EvaluationDto = ActivityEvaluationDto | TimeEvaluationDto | SeasonEvaluationDto | WeatherEvaluationDto
 
 
-class ControllerEvaluationDto(ApiDto):
+class BlockerEvaluationDto(ApiDto):
     allowed: bool
     blocked_by: list[Blocker]
     cooldown_remaining: float
@@ -163,8 +163,8 @@ class ControllerEvaluationDto(ApiDto):
     force_after_remaining: float | None
 
 
-class ControllerDiagnosticDto(ApiDto):
-    evaluation: ControllerEvaluationDto | None
+class ControllerDto(ApiDto):
+    evaluation: BlockerEvaluationDto | None
 
 
 class PlaylistRefDto(ApiDto):
@@ -174,8 +174,8 @@ class PlaylistRefDto(ApiDto):
 
 
 class ActionDecisionDto(ApiDto):
-    kind: Action
-    reason_code: ActionReason
+    action: Action
+    reason: ActionReason
     executed: bool
     active_playlists_before: list[PlaylistRefDto]
     active_playlists_after: list[PlaylistRefDto]
@@ -201,12 +201,12 @@ class ThinkSnapshotDto(ApiDto):
     raw_context_vector: list[TagWeightDto]
     resolved_context_vector: list[TagWeightDto]
     fallback_expansions: dict[str, list[ResolvedTagWeightDto]]
-    policies: list[PolicyDiagnosticDto]
+    policies: list[EvaluationDto]
 
 
 class ActSnapshotDto(ApiDto):
     top_matches: list[TopMatchDto]
-    controller: ControllerDiagnosticDto
+    controller: ControllerDto
     decision: ActionDecisionDto
 
 
@@ -217,8 +217,8 @@ class TickSummaryDto(ApiDto):
     similarity_gap: float
     active_playlists: list[PlaylistRefDto]
     matched_playlists: list[PlaylistRefDto]
-    action_kind: Action
-    reason_code: ActionReason
+    action: Action
+    reason: ActionReason
     paused: bool
     executed: bool
     has_event: bool
@@ -320,8 +320,8 @@ def _clock_snapshot(local_time: time.struct_time) -> ClockSnapshotDto:
     )
 
 
-def _policy_base_dto(policy: PolicyEvaluation) -> BasePolicyDiagnosticDto:
-    return BasePolicyDiagnosticDto(
+def _policy_base_dto(policy: PolicyEvaluation) -> BaseEvaluationDto:
+    return BaseEvaluationDto(
         policy_id=policy.policy_id,
         enabled=policy.enabled,
         active=policy.active,
@@ -336,13 +336,13 @@ def _policy_base_dto(policy: PolicyEvaluation) -> BasePolicyDiagnosticDto:
     )
 
 
-def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
+def _policy_diagnostic(policy: PolicyEvaluation) -> EvaluationDto:
     base_dto = _policy_base_dto(policy)
     base_kwargs = base_dto.model_dump()
     if isinstance(policy, ActivityEvaluation):
-        return ActivityPolicyDiagnosticDto(
+        return ActivityEvaluationDto(
             **base_kwargs,
-            details=ActivityPolicyDetailsDto(
+            details=ActivityDetailsDto(
                 match_source=policy.details.match_source,
                 matched_rule=policy.details.matched_rule,
                 matched_tag=policy.details.matched_tag,
@@ -352,9 +352,9 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
             ),
         )
     if isinstance(policy, TimeEvaluation):
-        return TimePolicyDiagnosticDto(
+        return TimeEvaluationDto(
             **base_kwargs,
-            details=TimePolicyDetailsDto(
+            details=TimeDetailsDto(
                 auto=policy.details.auto,
                 hour=_round_float(policy.details.hour),
                 virtual_hour=_round_float(policy.details.virtual_hour),
@@ -364,17 +364,17 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
             ),
         )
     if isinstance(policy, SeasonEvaluation):
-        return SeasonPolicyDiagnosticDto(
+        return SeasonEvaluationDto(
             **base_kwargs,
-            details=SeasonPolicyDetailsDto(
+            details=SeasonDetailsDto(
                 day_of_year=policy.details.day_of_year,
                 peaks=dict(sorted(policy.details.peaks.items())),
             ),
         )
     if isinstance(policy, WeatherEvaluation):
-        return WeatherPolicyDiagnosticDto(
+        return WeatherEvaluationDto(
             **base_kwargs,
-            details=WeatherPolicyDetailsDto(
+            details=WeatherDetailsDto(
                 weather_id=policy.details.weather_id,
                 weather_main=policy.details.weather_main,
                 available=policy.details.available,
@@ -386,10 +386,10 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> PolicyDiagnosticDto:
 
 def _controller_evaluation(
     evaluation: BlockerEvaluation | None,
-) -> ControllerEvaluationDto | None:
+) -> BlockerEvaluationDto | None:
     if evaluation is None:
         return None
-    return ControllerEvaluationDto(
+    return BlockerEvaluationDto(
         allowed=evaluation.allowed,
         blocked_by=list(evaluation.blocked_by),
         cooldown_remaining=_round_float(evaluation.cooldown_remaining),
@@ -418,8 +418,8 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             similarity_gap=_round_float(trace.match.similarity_gap),
             active_playlists=active_playlists_after_refs,
             matched_playlists=matched_playlist_refs,
-            action_kind=trace.action.action,
-            reason_code=trace.action.reason,
+            action=trace.action.action,
+            reason=trace.action.reason,
             paused=trace.paused,
             executed=trace.action.executed,
             has_event=has_event,
@@ -451,10 +451,10 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
                 )
                 for playlist, score in trace.match.playlist_matches[:5]
             ],
-            controller=ControllerDiagnosticDto(evaluation=_controller_evaluation(trace.action.evaluation)),
+            controller=ControllerDto(evaluation=_controller_evaluation(trace.action.evaluation)),
             decision=ActionDecisionDto(
-                kind=trace.action.action,
-                reason_code=trace.action.reason,
+                action=trace.action.action,
+                reason=trace.action.reason,
                 executed=trace.action.executed,
                 active_playlists_before=active_playlists_before_refs,
                 active_playlists_after=active_playlists_after_refs,

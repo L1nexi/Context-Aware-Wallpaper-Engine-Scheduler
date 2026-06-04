@@ -2,14 +2,14 @@
 import { computed } from 'vue'
 
 import { useI18n } from '@/composables/useI18n'
-import type { PolicyDiagnostic } from '@/lib/dashboardAnalysis'
+import type { Evaluation } from '@/lib/dashboardAnalysis'
 
 import { formatWeight } from './formatting'
 import { getPolicySummary, getPolicyTitle } from './presenters'
 import VectorList from './VectorList.vue'
 
 const props = defineProps<{
-  policy: PolicyDiagnostic
+  policy: Evaluation
   defaultOpen: boolean
 }>()
 

@@ -1,10 +1,10 @@
 import type {
   ActionDecision,
-  ActionReasonCode,
-  ControllerBlocker,
-  ControllerEvaluation,
+  ActionReason,
+  Blocker,
+  BlockerEvaluation,
   PlaylistRef,
-  PolicyDiagnostic,
+  Evaluation,
   PolicyId,
   TopMatch,
   TickSnapshot,
@@ -58,7 +58,7 @@ export function getPolicyTitle(policyId: PolicyId, t: Translate): string {
 }
 
 export function getPolicySummary(
-  policy: PolicyDiagnostic,
+  policy: Evaluation,
   t: Translate,
 ): string {
   switch (policy.policyId) {
@@ -97,7 +97,7 @@ export function getPolicySummary(
   }
 }
 
-export function getDefaultExpandedPolicyIds(policies: PolicyDiagnostic[]): Set<PolicyId> {
+export function getDefaultExpandedPolicyIds(policies: Evaluation[]): Set<PolicyId> {
   if (policies.length === 0) {
     return new Set<PolicyId>()
   }
@@ -108,35 +108,35 @@ export function getDefaultExpandedPolicyIds(policies: PolicyDiagnostic[]): Set<P
 }
 
 export function getPoliciesSortedByMagnitude(
-  policies: PolicyDiagnostic[],
-): PolicyDiagnostic[] {
+  policies: Evaluation[],
+): Evaluation[] {
   return [...policies].sort((left, right) => {
     return right.effectiveMagnitude - left.effectiveMagnitude
   })
 }
 
-export function getActionReasonLabel(reasonCode: ActionReasonCode, t: Translate): string {
-  return t(`dashboard_reason_${reasonCode}`)
+export function getActionReasonLabel(reason: ActionReason, t: Translate): string {
+  return t(`dashboard_reason_${reason}`)
 }
 
-function getPrimaryBlocker(evaluation: ControllerEvaluation): ControllerBlocker | null {
+function getPrimaryBlocker(evaluation: BlockerEvaluation): Blocker | null {
   return evaluation.blockedBy[0] ?? null
 }
 
 export function getControllerSummary(
-  evaluation: ControllerEvaluation | null,
+  evaluation: BlockerEvaluation | null,
   decision: ActionDecision,
   t: Translate,
 ): string {
   if (evaluation === null) {
-    return decision.kind === 'pause'
+    return decision.action === 'pause'
       ? t('dashboard_controller_summary_paused')
       : t('dashboard_controller_summary_no_evaluation')
   }
 
   if (evaluation.allowed) {
     return t('dashboard_controller_summary_allowed', {
-      operation: t(`dashboard_operation_${evaluation.operation}`),
+      operation: t(`dashboard_operation_${decision.action}`),
     })
   }
 
@@ -149,7 +149,7 @@ export function getControllerSummary(
 }
 
 export function getRelevantControllerFacts(
-  evaluation: ControllerEvaluation | null,
+  evaluation: BlockerEvaluation | null,
   decision: ActionDecision,
   locale: string,
   t: Translate,
@@ -158,7 +158,7 @@ export function getRelevantControllerFacts(
     return [
       {
         label: t('dashboard_action_reason'),
-        value: getActionReasonLabel(decision.reasonCode, t),
+        value: getActionReasonLabel(decision.reason, t),
       },
     ]
   }
@@ -166,7 +166,7 @@ export function getRelevantControllerFacts(
   const fields: SummaryField[] = [
     {
       label: t('dashboard_controller_operation'),
-      value: t(`dashboard_operation_${evaluation.operation}`),
+      value: t(`dashboard_operation_${decision.action}`),
     },
     {
       label: t('dashboard_controller_status'),
@@ -230,7 +230,7 @@ export function getDecisionSummary(
   const activeBefore = formatPlaylistRefs(decision.activePlaylistsBefore, t)
   const activeAfter = formatPlaylistRefs(decision.activePlaylistsAfter, t)
 
-  switch (decision.kind) {
+  switch (decision.action) {
     case 'switch':
       return t('dashboard_decision_switch', {
         from: activeBefore,

@@ -115,7 +115,7 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
             <dt class="text-xs text-muted-foreground">{{ t('dashboard_action_reason') }}</dt>
             <dd class="mt-1 font-medium">
-              {{ getActionReasonLabel(tick.act.decision.reasonCode, t) }}
+              {{ getActionReasonLabel(tick.act.decision.reason, t) }}
             </dd>
           </div>
 

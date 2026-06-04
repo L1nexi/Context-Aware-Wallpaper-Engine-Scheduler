@@ -119,7 +119,7 @@ function getGapAxisMax(ticks: TickSnapshot[]): number {
 }
 
 function isRecoveryReason(tick: TickSnapshot): boolean {
-  return tick.summary.reasonCode.startsWith('recovery_')
+  return tick.summary.reason.startsWith('recovery_')
 }
 
 function buildEventSeries(
@@ -143,7 +143,7 @@ function buildEventSeries(
     .filter(({ tick }) =>
       isRecovery
         ? isRecoveryReason(tick)
-        : tick.summary.actionKind === type && !isRecoveryReason(tick),
+        : tick.summary.action === type && !isRecoveryReason(tick),
     )
     .map(({ tick, index }) => {
       const label = getTickPlaylistLabel(tick, 'active', t)
