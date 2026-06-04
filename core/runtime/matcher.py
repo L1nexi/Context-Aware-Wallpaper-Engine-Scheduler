@@ -8,6 +8,7 @@ from configurations.runtime_models import PlaylistConfig, TagSpec
 from core.models.context import Context
 from core.models.playlist import Playlists
 from core.models.trace import Match, PolicyEvaluation
+from core.runtime.tag_resolver import resolve_raw_tags
 
 if TYPE_CHECKING:
     from core.policies import Policy
@@ -15,7 +16,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger("WEScheduler.Matcher")
 
 _MIN_SIMILARITY = 0.001
-_MIN_EXPAND_WEIGHT = 0.02
 _CLUSTER_GAP_THRESHOLD = 0.02
 _MAX_CLUSTER_SIZE = 3
 
@@ -152,25 +152,13 @@ class Matcher:
         self,
         raw_contribution: dict[str, float],
     ) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
-        resolved: dict[str, float] = {}
-        expansions: dict[str, dict[str, float]] = {}
-        for tag, weight in raw_contribution.items():
-            if tag in self._known_tags:
-                resolved[tag] = resolved.get(tag, 0.0) + weight
-                continue
-
-            expanded, tag_expansions = self._recursive_expand_fallback(
-                tag=tag,
-                weight=weight,
-                visited=frozenset(),
-            )
-            if expanded:
-                for resolved_tag, resolved_weight in expanded.items():
-                    resolved[resolved_tag] = resolved.get(resolved_tag, 0.0) + resolved_weight
-                bucket = expansions.setdefault(tag, {})
-                for resolved_tag, resolved_weight in tag_expansions.items():
-                    bucket[resolved_tag] = bucket.get(resolved_tag, 0.0) + resolved_weight
-            elif tag not in self._warned_tags:
+        resolved, expansions = resolve_raw_tags(
+            raw_contribution,
+            known_tags=self._known_tags,
+            tag_specs=self._tag_specs,
+        )
+        for tag in raw_contribution:
+            if tag not in self._known_tags and tag not in expansions and tag not in self._warned_tags:
                 logger.info(
                     "Tag '%s' from a Policy is not present in any playlist "
                     "and has no fallback defined in 'tags' config. Add a "
@@ -180,37 +168,6 @@ class Matcher:
                 )
                 self._warned_tags.add(tag)
         return resolved, expansions
-
-    def _recursive_expand_fallback(
-        self,
-        *,
-        tag: str,
-        weight: float,
-        visited: frozenset[str],
-    ) -> tuple[dict[str, float], dict[str, float]]:
-        if tag in self._known_tags:
-            return {tag: weight}, {tag: weight}
-        if tag in visited or weight < _MIN_EXPAND_WEIGHT:
-            return {}, {}
-
-        spec = self._tag_specs.get(tag)
-        if not spec or not spec.fallback:
-            return {}, {}
-
-        result: dict[str, float] = {}
-        expansions: dict[str, float] = {}
-        new_visited = visited | {tag}
-        for fallback_tag, fallback_weight in spec.fallback.items():
-            child_resolved, child_expansions = self._recursive_expand_fallback(
-                tag=fallback_tag,
-                weight=weight * fallback_weight,
-                visited=new_visited,
-            )
-            for resolved_tag, resolved_weight in child_resolved.items():
-                result[resolved_tag] = result.get(resolved_tag, 0.0) + resolved_weight
-            for resolved_tag, resolved_weight in child_expansions.items():
-                expansions[resolved_tag] = expansions.get(resolved_tag, 0.0) + resolved_weight
-        return result, expansions
 
     def export_state(self) -> dict[str, dict[str, Any]]:
         return {type(policy).__name__: policy.export_state() for policy in self.policies}

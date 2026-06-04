@@ -313,13 +313,13 @@ def rank_for_profile(
     resolved_context_vector: dict[str, float],
     profile: MatchProfile,
 ) -> list[tuple[str, float]]:
-    context_dir = _normalize_pow(resolved_context_vector, profile.gamma_context)
+    context_dir = normalize_pow(resolved_context_vector, profile.gamma_context)
     if not context_dir:
         return []
 
     scores: list[tuple[float, str]] = []
     for playlist_name, playlist in config.playlists.items():
-        playlist_dir = _normalize_pow(playlist.tags, profile.gamma_playlist)
+        playlist_dir = normalize_pow(playlist.tags, profile.gamma_playlist)
         if not playlist_dir:
             continue
         score = _dot(context_dir, playlist_dir)
@@ -329,7 +329,7 @@ def rank_for_profile(
     return [(playlist_name, score) for score, playlist_name in scores]
 
 
-def _normalize_pow(vector: dict[str, float], gamma: float) -> dict[str, float]:
+def normalize_pow(vector: dict[str, float], gamma: float) -> dict[str, float]:
     powered: dict[str, float] = {}
     for tag, value in vector.items():
         if value <= 0:

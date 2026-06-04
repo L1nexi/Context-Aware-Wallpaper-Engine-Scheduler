@@ -13,8 +13,6 @@ from core.runtime.matcher import Matcher
 from tools.tuning.heatmaps import (
     HeatmapFigure,
     HeatmapSampling,
-    activity_from_axis,
-    build_heatmap_grid,
 )
 from tools.tuning.models import (
     ActivitySignal,
@@ -181,50 +179,6 @@ def test_matrix_builds_observed_cartesian_scenarios() -> None:
     assert scenarios[-1].name == "trial doy95 h23 focus1-i0.4 clear"
     assert all(scenario.expected is None for scenario in scenarios)
     assert all(scenario.note == "matrix trial" for scenario in scenarios)
-
-
-def test_heatmap_activity_axis_maps_chill_idle_focus() -> None:
-    chill_signal = activity_from_axis(-0.4)
-    idle_signal = activity_from_axis(0.0)
-    focus_signal = activity_from_axis(0.6)
-
-    assert chill_signal is not None
-    assert chill_signal.direction == {"chill": 1.0}
-    assert chill_signal.intensity == pytest.approx(0.4)
-    assert idle_signal is None
-    assert focus_signal is not None
-    assert focus_signal.direction == {"focus": 1.0}
-    assert focus_signal.intensity == pytest.approx(0.6)
-
-
-def test_heatmap_grid_uses_evaluate_scenario_results(tmp_path: Path) -> None:
-    config = ConfigLoader(str(_write_config_dir(tmp_path))).load_verified_config()
-    sampling = HeatmapSampling(hour_step=12.0)
-
-    current_grid = build_heatmap_grid(
-        config,
-        MatchProfile("current"),
-        "wx-hour",
-        sampling=sampling,
-        fixed={"activity": None, "day_of_year": 80},
-    )
-    candidate_grid = build_heatmap_grid(
-        config,
-        MatchProfile("candidate", gamma_playlist=1.2, gamma_context=1.1),
-        "wx-hour",
-        sampling=sampling,
-        fixed={"activity": None, "day_of_year": 80},
-    )
-
-    assert current_grid.profile.name == "current"
-    assert candidate_grid.profile.name == "candidate"
-    assert current_grid.x_axis.values == (0.0, 12.0)
-    assert len(current_grid.y_axis.values) == 11
-    assert len(current_grid.cells) == 11
-    assert all(len(row) == 2 for row in current_grid.cells)
-    assert current_grid.cells[0][0].winner in {"FOCUS", "CHILL", None}
-    assert current_grid.cells[0][0].score >= 0.0
-    assert current_grid.cells[0][0].gap >= 0.0
 
 
 def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> None:

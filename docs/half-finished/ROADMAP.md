@@ -2,30 +2,7 @@
 
 ---
 
-## R1 — 自动播单 Tag 生成（离线脚本）
-
-> 状态：已废弃。替代方案 R6
-
-**动机：** 手工给每个 WE playWlist 标注 tag 权重耗时且主观。Workshop 目录 `steamapps/workshop/content/431960/{id}/project.json` 已包含壁纸元数据，可离线批量处理。
-
-**可用元数据（project.json）：**
-
-- `title`, `description` — 文字描述
-- `tags` — WE 内置分类标签（如 `"Anime"`, `"Nature"`, `"Abstract"`）
-  > 但 WE 标签过于粗糙，且与我们 tag 语义不完全对齐。大部分标签并不包含细粒度语义信息。整体来说利用价值有限。
-- 预览图 `preview.gif` / `preview.jpg`
-  > 同样，预览图分辨率较低且内容不一定具有代表性，直接用 CLIP 可能效果不佳。
-  > 需要考虑解包 .pkg 文件 / 截取视频关键帧来获取更高质量的图像输入。
-
-**三层方案，复杂度递增：**
-
-### 层 1 — WE 内置 tag 静态映射（推荐起点）
-
-### 层 2 — 文字嵌入分类（中等）
-
-### 层 3 — CLIP 视觉分类（最准，有已知局限）
-
-## R2 — Wallpaper-Aware Cycle（折中路线）
+## R1 — Wallpaper-Aware Cycle（折中路线）
 
 参考规格：[WALLPAPER_AWARE_CYCLE_SPEC.md](./WALLPAPER_AWARE_CYCLE_SPEC.md)
 
@@ -57,9 +34,7 @@ score_i = cosine(context_vector, v_i) + recency + user_bias + noise
 
 **优先级：** 中。它不是当前 stable release 的阻塞项，适合作为 playlist-base 发布后的实验分支。
 
-## R3 —— 匹配算法修改/增强
-
-**前置：R4**
+## R2 —— 匹配算法修改/增强
 
 **背景**：当前匹配算法流程实际等价于
 
@@ -176,73 +151,3 @@ gamma_c = 1.2
 playlist_weight = 1.0
 beta = 0.25
 ```
-
-## R4 —— 匹配调参设施优化
-
-**背景**： 在 R6 这种涉及匹配算法的调整过程中，需要一个模拟器来确认改动行为的影响。老旧的 `/misc` 只吸收思想，不继续扩展。
-
-**目标**：开发内部调参基础设施。它不是公开用户功能，优先服务 R6。
-
-### 目录
-
-第一版放在：
-
-```text
-tools/tuning/
-  tune.py
-  scenarios_r6.py
-  models.py
-  runs/.gitkeep
-```
-
-- `tune.py` 负责加载配置、运行场景、profile 对比和输出报告。
-- `scenarios_r6.py` 负责定义 R6 调参场景。
-- `models.py` 放少量数据结构和 helper，不按每个模型拆文件。
-- `runs/` 放运行产物，不进 git。
-
-### P0
-
-1. 真实配置加载
-   直接用当前已有配置文件流。不维护第二套 playlist/tag 定义。
-2. Python 场景矩阵 + expected winner
-   不使用 YAML。场景是内部实验代码，需要 helper、组合生成、注释和临时观察场景。
-   场景描述 Context 向量的驱动外界因素：`hour`、`day_of_year`、`weather`、`activity` 和期望 playlist。`expected` 可以为空。
-3. 无副作用模拟执行
-   构造 Context，跑 Policy + Matcher，不使用真实传感器、不操作 Wallpaper Engine Executor。
-   ActivityPolicy 默认由 `ActivitySignal(direction, intensity, salience)` 完全指定，不跑真实 EMA / window matcher。Time / Season / Weather 按输入生成。
-4. 单场景排名报告
-   输出 winner、expected、top3、score、gap、raw/resolved context、policy contribution。
-5. 算法 profile 对比
-   至少支持 `current` vs `candidate`。profile 可以先是 Python 对象，如 `MatchProfile(name, gamma_playlist, gamma_context)`。
-   输出 winner 改变、expected pass/fail 改变、gap 变化和 observed 场景变化。
-
-### P1
-
-1. 参数扫描
-   扫 `gamma_playlist` / `gamma_context` 等参数，输出 pass rate、平均 gap、churn rate。第一版直接做小网格枚举，不做复杂优化器。
-2. 决策空间热力图：winner map
-   支持 `hour × doy`、`weather × hour`、`activity × hour`、`weather × activity` 等关键视图。
-3. 决策空间热力图：margin map
-   不只看赢家，还看边界稳定性。
-
-### 输出
-
-第一版输出：`manifest.json`、`rankings.csv`、`compare.csv`、`summary.md`。
-
-后续加入热力图后，再输出 `figures/*.png`。
-
-建议后续加入 gitignore：
-
-```gitignore
-# Internal tuning tool outputs
-tools/tuning/runs/*
-!tools/tuning/runs/.gitkeep
-```
-
-### 暂不做
-
-- YAML scenario 格式。
-- 用户界面。
-- 自动 low-margin 汇总。低 margin 不是天然错误，有些边界场景本来就应该 subtle。
-- 反向建议器。
-- 自动写配置。
