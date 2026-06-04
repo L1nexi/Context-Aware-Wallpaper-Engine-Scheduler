@@ -47,6 +47,7 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
   let refreshTimer: ReturnType<typeof setInterval> | null = null
   let currentInterval = DASHBOARD_ANALYSIS_POLL_INTERVAL_MS
   let requestInFlight = false
+  let abortController: AbortController | null = null
   let snapshotLiveBaselineTickId: number | null = null
 
   const activeWindow = computed<TickSnapshot[]>(() => {
@@ -113,6 +114,9 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
     }
 
     requestInFlight = true
+    abortController?.abort()
+    abortController = new AbortController()
+    const signal = abortController.signal
 
     if (!hasLoadedOnce.value) {
       loading.value = true
@@ -120,7 +124,7 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
     }
 
     try {
-      const response = await fetchDashboardAnalysisWindow()
+      const response = await fetchDashboardAnalysisWindow(signal)
       const nextLiveTickId = response.liveTickId ?? getLatestTickId(response.ticks)
 
       liveWindow.value = response.ticks
@@ -140,6 +144,9 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
 
       syncLiveSelection(nextLiveTickId, response.ticks)
     } catch (cause) {
+      if (cause instanceof DOMException && cause.name === 'AbortError') {
+        return
+      }
       error.value = cause instanceof Error ? cause.message : String(cause)
     } finally {
       loading.value = false
@@ -246,6 +253,8 @@ export const useDashboardAnalysisStore = defineStore('dashboardAnalysis', () => 
       refreshTimer = null
     }
 
+    abortController?.abort()
+    abortController = null
     currentInterval = DASHBOARD_ANALYSIS_POLL_INTERVAL_MS
   }
 

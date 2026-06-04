@@ -516,7 +516,7 @@ class ConfigFiles:
                 ConfigIssue(
                     source_file="context.yaml",
                     field_path=("weather", "api_key"),
-                    message="API key 为空。填入 OpenWeatherMap API key 或禁用天气策略",
+                    message="API key is empty. Provide an OpenWeatherMap API key or disable the weather policy",
                     code="weather_api_key_empty",
                 )
             )
@@ -526,7 +526,7 @@ class ConfigFiles:
                 ConfigIssue(
                     source_file="context.yaml",
                     field_path=("weather", "lat"),
-                    message="lat 未设置。填入所在地纬度",
+                    message="lat is not set. Provide your latitude",
                     code="weather_coordinate_missing",
                 )
             )
@@ -536,7 +536,7 @@ class ConfigFiles:
                 ConfigIssue(
                     source_file="context.yaml",
                     field_path=("weather", "lon"),
-                    message="lon 未设置。填入所在地经度",
+                    message="lon is not set. Provide your longitude",
                     code="weather_coordinate_missing",
                 )
             )
@@ -555,7 +555,7 @@ class ConfigFiles:
                     ConfigIssue(
                         source_file="context.yaml",
                         field_path=("weather", "api_key"),
-                        message=f"OpenWeatherMap API key 无效（HTTP {resp.status_code}）；请检查 API key 是否正确",
+                        message=f"OpenWeatherMap API key is invalid (HTTP {resp.status_code}); check that the API key is correct",
                         code="weather_api_key_invalid",
                     )
                 ]

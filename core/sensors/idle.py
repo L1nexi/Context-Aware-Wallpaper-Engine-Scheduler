@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 import win32api
 
 from configurations.runtime_models import SchedulerConfig
 from core.sensors.base import Sensor
+
+logger = logging.getLogger("WEScheduler.Sensor")
 
 
 class IdleSensor(Sensor):
@@ -28,5 +32,6 @@ class IdleSensor(Sensor):
             tick_count = win32api.GetTickCount()
             idle_milliseconds = tick_count - last_input_info
             return idle_milliseconds / 1000.0
-        except Exception:
+        except Exception as e:
+            logger.warning("IdleSensor collect failed: %s", e)
             return 0.0

@@ -58,7 +58,7 @@ cd dashboard && npm run dev
 
 ## 架构
 
-**Sense-Think-Act-Trace-Commit 管线**（`WEScheduler` 1 秒 tick 循环）：
+**Sense-Think-Act 管线**（`WEScheduler` 1 秒 tick 循环）：
 
 ```
 Sense:    ContextManager.sense()       -> Context snapshot

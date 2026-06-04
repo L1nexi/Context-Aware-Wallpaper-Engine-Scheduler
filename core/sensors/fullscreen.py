@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import ctypes
+import logging
 
 from configurations.runtime_models import SchedulerConfig
 from core.sensors.base import Sensor
+
+logger = logging.getLogger("WEScheduler.Sensor")
 
 
 class FullscreenSensor(Sensor):
@@ -22,7 +25,8 @@ class FullscreenSensor(Sensor):
             state = ctypes.c_int(0)
             ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state))
             return state.value in self._FULLSCREEN_STATES
-        except Exception:
+        except Exception as e:
+            logger.warning("FullscreenSensor collect failed: %s", e)
             return False
 
     @classmethod

@@ -1,5 +1,6 @@
 import locale
 import logging
+import os
 from typing import Literal
 
 logger = logging.getLogger("WEScheduler.I18n")
@@ -184,12 +185,18 @@ _TRANSLATIONS: dict[Lang, dict[str, str]] = {
 
 
 def _detect_lang() -> str:
+    for var in ("LANGUAGE", "LANG", "LC_ALL", "LC_MESSAGES"):
+        val = os.environ.get(var, "")
+        if val:
+            return "zh" if val.startswith("zh") else "en"
+
     try:
+        locale.setlocale(locale.LC_ALL, "")
         loc, _ = locale.getlocale()
     except Exception:
         return "en"
 
-    return "zh" if loc and loc.startswith("zh") else "en"
+    return "zh" if loc and (loc.startswith("zh") or "chinese" in loc.lower()) else "en"
 
 
 def _validate_translations() -> None:

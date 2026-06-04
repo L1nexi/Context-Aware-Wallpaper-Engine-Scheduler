@@ -72,11 +72,11 @@ function buildTrackSegments(
   ticks.forEach((tick, index) => {
     const playlist =
       type === 'active'
-        ? tick.summary.activePlaylists[0] ?? null
-        : tick.summary.matchedPlaylists[0] ?? null
+        ? (tick.summary.activePlaylists[0] ?? null)
+        : (tick.summary.matchedPlaylists[0] ?? null)
     const paused = tick.summary.paused
-    const key = paused ? '__paused__' : playlist?.name ?? '__none__'
-    const color = paused ? mutedColor : playlist?.color ?? mutedColor
+    const key = paused ? '__paused__' : (playlist?.name ?? '__none__')
+    const color = paused ? mutedColor : (playlist?.color ?? mutedColor)
 
     if (index === 0) {
       previousKey = key
@@ -122,11 +122,7 @@ function isRecoveryReason(tick: TickSnapshot): boolean {
   return tick.summary.reason.startsWith('recovery_')
 }
 
-function buildEventSeries(
-  ticks: TickSnapshot[],
-  type: EventType,
-  t: Translate,
-): SeriesOption {
+function buildEventSeries(ticks: TickSnapshot[], type: EventType, t: Translate): SeriesOption {
   const primary = getCssColor('--primary', '#4f8cff')
   const recovery = getCssColor('--chart-3', '#f97316')
   const border = getCssColor('--background', '#ffffff')
@@ -141,9 +137,7 @@ function buildEventSeries(
   const data = ticks
     .map((tick, index) => ({ tick, index }))
     .filter(({ tick }) =>
-      isRecovery
-        ? isRecoveryReason(tick)
-        : tick.summary.action === type && !isRecoveryReason(tick),
+      isRecovery ? isRecoveryReason(tick) : tick.summary.action === type && !isRecoveryReason(tick),
     )
     .map(({ tick, index }) => {
       const label = getTickPlaylistLabel(tick, 'active', t)
@@ -211,7 +205,7 @@ export function resolveTimelineIndexFromPixel(
   }
 
   const result = chart.convertFromPixel(finder, [pixelX, pixelY])
-  const rawIndex = Array.isArray(result) ? result[0] ?? null : result
+  const rawIndex = Array.isArray(result) ? (result[0] ?? null) : result
   if (rawIndex === null || Number.isNaN(rawIndex)) {
     return null
   }
@@ -269,7 +263,8 @@ export function buildTimelineOption(
         gridIndex: 1,
         axisLabel: {
           color: textColor,
-          formatter: (value: number) => formatShortTime(ticks[Math.round(value)]?.summary.ts, locale),
+          formatter: (value: number) =>
+            formatShortTime(ticks[Math.round(value)]?.summary.ts, locale),
           hideOverlap: true,
         },
         axisTick: { show: false },
@@ -336,7 +331,7 @@ export function buildTimelineOption(
       },
     ],
     axisPointer: {
-      link: [{ xAxisIndex: [0, 1, 2] }],
+      link: [{ xAxisIndex: [0, 1] }],
       lineStyle: {
         color: similarityColor,
         opacity: 0.2,
@@ -455,8 +450,7 @@ export function buildTimelineOption(
           const start = api.value(0) as number
           const end = api.value(1) as number
           const rowIndex = api.value(2) as number
-          const [startX = 0, startY = 0] = (api.coord?.([start - 0.45, rowIndex]) ??
-            []) as number[]
+          const [startX = 0, startY = 0] = (api.coord?.([start - 0.45, rowIndex]) ?? []) as number[]
           const [endX = startX] = (api.coord?.([end + 0.45, rowIndex]) ?? []) as number[]
           const [, rawRowHeight = 0] = (api.size?.([0, 1]) ?? []) as number[]
           const rowHeight = rawRowHeight * 0.54
@@ -490,8 +484,7 @@ export function buildTimelineOption(
           const start = api.value(0) as number
           const end = api.value(1) as number
           const rowIndex = api.value(2) as number
-          const [startX = 0, startY = 0] = (api.coord?.([start - 0.45, rowIndex]) ??
-            []) as number[]
+          const [startX = 0, startY = 0] = (api.coord?.([start - 0.45, rowIndex]) ?? []) as number[]
           const [endX = startX] = (api.coord?.([end + 0.45, rowIndex]) ?? []) as number[]
           const [, rawRowHeight = 0] = (api.size?.([0, 1]) ?? []) as number[]
           const rowHeight = rawRowHeight * 0.54
