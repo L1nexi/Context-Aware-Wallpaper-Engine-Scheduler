@@ -81,7 +81,6 @@ class WeatherSensor(Sensor):
                     "units": "metric",
                 },
                 timeout=self.timeout,
-                proxies={"http": None, "https": None},
             )
             if resp.ok:
                 data = resp.json()
