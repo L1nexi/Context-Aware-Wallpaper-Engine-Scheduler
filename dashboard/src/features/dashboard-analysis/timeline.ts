@@ -21,6 +21,9 @@ interface TrackSegmentDatum {
   value: [number, number, number]
   itemStyle: {
     color: string
+    opacity: number
+    borderColor: string
+    borderWidth: number
     decal?: {
       symbol: 'rect'
       dashArrayX: number[]
@@ -54,6 +57,9 @@ function buildTrackSegments(
       value: [segmentStart, endIndex, rowIndex],
       itemStyle: {
         color: previousColor,
+        opacity: 0.85,
+        borderColor: previousColor,
+        borderWidth: 1,
         ...(previousPaused
           ? {
               decal: {
