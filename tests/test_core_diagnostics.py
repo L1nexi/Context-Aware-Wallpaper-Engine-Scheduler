@@ -30,7 +30,7 @@ from core.models.trace import (
 )
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
 from core.runtime.actuator import Actuator
-from core.runtime.controller import DecisionMode, Intent, SchedulingController, weighted_jaccard
+from core.runtime.controller import CONTINUITY_DECAY_PER_TICK, DecisionMode, Intent, SchedulingController, weighted_jaccard
 from core.runtime.engine import Engine, _BuiltEngine
 from core.runtime.matcher import Matcher
 from core.runtime.scheduler import WEScheduler
@@ -493,7 +493,7 @@ def test_controller_partial_overlap_decays_continuity_by_time_only():
         Playlists(["A", "B"]),
     )
 
-    assert controller.semantic_continuity_score == pytest.approx(0.99)
+    assert controller.semantic_continuity_score == pytest.approx(CONTINUITY_DECAY_PER_TICK)
 
 
 def test_controller_no_match_resets_continuity_without_switching():

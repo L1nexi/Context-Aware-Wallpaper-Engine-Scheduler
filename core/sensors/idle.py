@@ -29,7 +29,7 @@ class IdleSensor(Sensor):
         """
         try:
             last_input_info = win32api.GetLastInputInfo()
-            tick_count = win32api.GetTickCount()
+            tick_count = win32api.GetTickCount64()
             idle_milliseconds = tick_count - last_input_info
             return idle_milliseconds / 1000.0
         except Exception as e:
