@@ -77,6 +77,11 @@ class Engine:
     def think(self, context: Context) -> Match:
         return self.matcher.match(context)
 
+    def ensure_we_alive(self, paused: bool = False) -> None:
+        if paused:
+            return
+        self.executor.keep_alive()
+
     def probe_playlist(self) -> FactualPlaylistState:
         return self.we_config_prober.probe_playlist()
 

@@ -110,6 +110,7 @@ class WEScheduler:
                 with self._runtime_lock:
                     self._check_hot_reload()
                     self._maybe_auto_resume()
+                    self._ensure_we_alive()
                     trace = self._run_tick()
                     self._commit_tick(trace)
 
@@ -117,6 +118,10 @@ class WEScheduler:
                 logger.exception("Error in main loop")
 
             time.sleep(1)
+
+    def _ensure_we_alive(self) -> None:
+        assert self.engine is not None
+        self.engine.ensure_we_alive(paused=self.state.paused)
 
     def _check_hot_reload(self) -> None:
         assert self.engine is not None

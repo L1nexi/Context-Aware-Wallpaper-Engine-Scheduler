@@ -919,7 +919,7 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
     controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
 
 
-def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
+def test_scheduler_paused_does_not_ensure_we_alive():
     class DummyHistory:
         def write(self, *_args, **_kwargs):
             return 0
@@ -931,9 +931,8 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
     engine.matcher = mock.Mock()
     engine.matcher.match.return_value = Match(best_playlists=Playlists(), playlist_matches=[])
     engine.executor = mock.Mock()
-    engine.executor.is_we_running = mock.Mock(return_value=False)
-    engine.executor.request_we_start = mock.Mock(return_value=True)
     engine.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN)))
+    engine.ensure_we_alive = mock.Mock()
     scheduler.engine = engine
     scheduler.state.cached_playlists = Playlists(["focus"])
     scheduler.state.paused = True
@@ -955,8 +954,9 @@ def test_scheduler_factual_probe_does_not_start_wallpaper_engine():
     engine.we_config_prober.probe_playlist.assert_called_once()
     engine.actuator.act.assert_called_once()
     assert engine.actuator.act.call_args.args[0] == DecisionMode.PAUSE
-    engine.executor.is_we_running.assert_not_called()
-    engine.executor.request_we_start.assert_not_called()
+
+    scheduler._ensure_we_alive()
+    engine.ensure_we_alive.assert_called_once_with(paused=True)
 
 
 def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
