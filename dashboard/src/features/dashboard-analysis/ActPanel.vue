@@ -8,7 +8,6 @@ import { getCssColor } from './cssColors'
 import ControllerSummary from './ControllerSummary.vue'
 import { formatWeight } from './formatting'
 import {
-  formatPlaylistRefs,
   getActionReasonLabel,
   getDecisionSummary,
   getTickPlaylistLabel,
@@ -24,12 +23,6 @@ const { t, lang } = useI18n()
 const topMatches = computed(() => props.tick.act.topMatches.slice(0, 5))
 const decisionSummary = computed(() => getDecisionSummary(props.tick.act.decision, props.tick, t))
 const matchedPlaylistLabel = computed(() => getTickPlaylistLabel(props.tick, 'matched', t))
-const activePlaylistBeforeLabel = computed(() =>
-  formatPlaylistRefs(props.tick.act.decision.activePlaylistsBefore, t),
-)
-const activePlaylistAfterLabel = computed(() =>
-  formatPlaylistRefs(props.tick.act.decision.activePlaylistsAfter, t),
-)
 const targetPlaylistLabel = computed(
   () =>
     props.tick.act.decision.targetPlaylist?.display ??
@@ -128,21 +121,7 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
           <summary class="cursor-pointer list-none text-sm font-medium text-foreground">
             {{ t('dashboard_expand_details') }}
           </summary>
-          <dl class="mt-3 grid gap-3 sm:grid-cols-2">
-            <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
-              <dt class="text-sm text-muted-foreground">{{ t('dashboard_active_before') }}</dt>
-              <dd class="mt-1 font-medium data-mono">
-                {{ activePlaylistBeforeLabel }}
-              </dd>
-            </div>
-
-            <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
-              <dt class="text-sm text-muted-foreground">{{ t('dashboard_active_after') }}</dt>
-              <dd class="mt-1 font-medium data-mono">
-                {{ activePlaylistAfterLabel }}
-              </dd>
-            </div>
-
+          <dl class="mt-3 grid gap-3">
             <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
               <dt class="text-sm text-muted-foreground">{{ t('dashboard_target_playlist') }}</dt>
               <dd class="mt-1 font-medium data-mono">
