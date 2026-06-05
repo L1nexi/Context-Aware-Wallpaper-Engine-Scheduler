@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { useDashboardAnalysisStore } from '@/stores/dashboardAnalysis'
 
 const { t } = useI18n()
-const colorMode = useColorMode()
+const colorMode = useColorMode({ emitAuto: true })
 const dashboardAnalysisStore = useDashboardAnalysisStore()
 
 const {
@@ -71,8 +71,7 @@ function cycleTheme(): void {
 <template>
   <WorkbenchHeader class="justify-between">
     <div class="min-w-0">
-      <p class="chrome-kicker">{{ t('dashboard_shell_label') }}</p>
-      <div class="mt-1 flex min-w-0 items-center gap-3">
+      <div class="flex min-w-0 items-center gap-3">
         <h2 class="truncate text-lg font-semibold tracking-tight">
           {{ t('dashboard_shell_title') }}
         </h2>
@@ -104,7 +103,6 @@ function cycleTheme(): void {
       class="flex min-h-[28rem] flex-1 flex-col justify-center"
     >
       <div class="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
-        <div class="chrome-kicker">{{ t('dashboard_shell_title') }}</div>
         <h3 class="text-2xl font-semibold tracking-tight">
           {{ t('dashboard_loading_title') }}
         </h3>
@@ -120,7 +118,6 @@ function cycleTheme(): void {
       class="flex min-h-[28rem] flex-1 flex-col justify-center"
     >
       <div class="mx-auto flex max-w-xl flex-col items-center gap-5 text-center">
-        <div class="chrome-kicker">{{ t('dashboard_shell_title') }}</div>
         <h3 class="text-2xl font-semibold tracking-tight">
           {{ t('dashboard_error_title') }}
         </h3>
@@ -149,7 +146,6 @@ function cycleTheme(): void {
       class="flex min-h-[28rem] flex-1 flex-col justify-center"
     >
       <div class="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
-        <div class="chrome-kicker">{{ t('dashboard_shell_title') }}</div>
         <h3 class="text-2xl font-semibold tracking-tight">
           {{ t('dashboard_empty_title') }}
         </h3>

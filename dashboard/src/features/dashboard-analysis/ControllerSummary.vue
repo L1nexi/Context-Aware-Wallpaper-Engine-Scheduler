@@ -84,7 +84,7 @@ const rawFacts = computed(() => {
         :key="fact.label"
         class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3"
       >
-        <dt class="text-xs text-muted-foreground">{{ fact.label }}</dt>
+        <dt class="text-sm text-muted-foreground">{{ fact.label }}</dt>
         <dd class="mt-1 font-medium data-mono">{{ fact.value }}</dd>
       </div>
     </dl>
@@ -102,7 +102,7 @@ const rawFacts = computed(() => {
           :key="`raw-${fact.label}`"
           class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3"
         >
-          <dt class="text-xs text-muted-foreground">{{ fact.label }}</dt>
+          <dt class="text-sm text-muted-foreground">{{ fact.label }}</dt>
           <dd class="mt-1 font-medium data-mono">{{ fact.value }}</dd>
         </div>
       </dl>

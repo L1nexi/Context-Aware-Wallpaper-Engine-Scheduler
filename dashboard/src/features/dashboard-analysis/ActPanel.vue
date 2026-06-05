@@ -42,13 +42,9 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
 <template>
   <section class="flex flex-col gap-4">
     <div>
-      <p class="chrome-kicker">{{ t('dashboard_act_title') }}</p>
-      <h3 class="mt-2 text-xl font-semibold tracking-tight">
+      <h3 class="text-xl font-semibold tracking-tight">
         {{ t('dashboard_act_heading') }}
       </h3>
-      <p class="mt-2 text-sm leading-6 text-muted-foreground">
-        {{ t('dashboard_act_body') }}
-      </p>
     </div>
 
     <div class="grid gap-4">
@@ -114,14 +110,14 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
 
         <dl class="mt-4 grid gap-3 sm:grid-cols-2">
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_action_reason') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_action_reason') }}</dt>
             <dd class="mt-1 font-medium">
               {{ getActionReasonLabel(tick.act.decision.reason, t) }}
             </dd>
           </div>
 
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_matched_playlist') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_matched_playlist') }}</dt>
             <dd class="mt-1 font-medium">
               {{ matchedPlaylistLabel }}
             </dd>
@@ -134,21 +130,21 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
           </summary>
           <dl class="mt-3 grid gap-3 sm:grid-cols-2">
             <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
-              <dt class="text-xs text-muted-foreground">{{ t('dashboard_active_before') }}</dt>
+              <dt class="text-sm text-muted-foreground">{{ t('dashboard_active_before') }}</dt>
               <dd class="mt-1 font-medium data-mono">
                 {{ activePlaylistBeforeLabel }}
               </dd>
             </div>
 
             <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
-              <dt class="text-xs text-muted-foreground">{{ t('dashboard_active_after') }}</dt>
+              <dt class="text-sm text-muted-foreground">{{ t('dashboard_active_after') }}</dt>
               <dd class="mt-1 font-medium data-mono">
                 {{ activePlaylistAfterLabel }}
               </dd>
             </div>
 
             <div class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
-              <dt class="text-xs text-muted-foreground">{{ t('dashboard_target_playlist') }}</dt>
+              <dt class="text-sm text-muted-foreground">{{ t('dashboard_target_playlist') }}</dt>
               <dd class="mt-1 font-medium data-mono">
                 {{ targetPlaylistLabel }}
               </dd>

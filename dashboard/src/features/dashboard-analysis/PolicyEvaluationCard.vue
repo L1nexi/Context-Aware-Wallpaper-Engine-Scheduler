@@ -121,12 +121,12 @@ const peakPairs = computed(() => {
             <div class="flex flex-wrap items-center gap-2">
               <p class="chrome-kicker">{{ policyTitle }}</p>
               <span
-                class="inline-flex items-center rounded-full border border-border/70 bg-muted/70 px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                class="inline-flex items-center rounded-full border border-border/70 bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"
               >
                 {{ policy.enabled ? t('dashboard_enabled') : t('dashboard_disabled') }}
               </span>
               <span
-                class="inline-flex items-center rounded-full border border-border/70 bg-muted/70 px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                class="inline-flex items-center rounded-full border border-border/70 bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"
               >
                 {{ policy.active ? t('dashboard_policy_active') : t('dashboard_policy_inactive') }}
               </span>
@@ -211,7 +211,7 @@ const peakPairs = computed(() => {
             :key="`${policy.policyId}-${pair.label}`"
             class="rounded-2xl border border-border/70 bg-background/70 px-3 py-3"
           >
-            <dt class="text-xs text-muted-foreground">{{ pair.label }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ pair.label }}</dt>
             <dd class="mt-1 font-medium data-mono">{{ pair.value }}</dd>
           </div>
         </dl>

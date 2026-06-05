@@ -23,13 +23,9 @@ const hasFallbacks = computed(() => Object.keys(props.tick.think.fallbackExpansi
 <template>
   <section class="flex flex-col gap-4">
     <div>
-      <p class="chrome-kicker">{{ t('dashboard_think_title') }}</p>
-      <h3 class="mt-2 text-xl font-semibold tracking-tight">
+      <h3 class="text-xl font-semibold tracking-tight">
         {{ t('dashboard_think_heading') }}
       </h3>
-      <p class="mt-2 text-sm leading-6 text-muted-foreground">
-        {{ t('dashboard_think_body') }}
-      </p>
     </div>
 
     <div class="grid gap-4">

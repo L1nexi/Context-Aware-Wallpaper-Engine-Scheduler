@@ -7,6 +7,7 @@ import { useI18n } from '@/composables/useI18n'
 import { useColorMode } from '@vueuse/core'
 import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
+import { clearColorCache } from './cssColors'
 import { formatShortTime, formatTimestamp, formatWeight } from './formatting'
 import { getTickPlaylistLabel } from './presenters'
 import { buildTimelineOption, resolveTimelineIndexFromPixel } from './timeline'
@@ -62,6 +63,7 @@ const currentTick = computed(() => {
 
 const option = computed(() => {
   void colorMode.value
+  clearColorCache()
   return buildTimelineOption(
     props.ticks,
     lang.value,
@@ -284,8 +286,7 @@ onBeforeUnmount(() => {
   <section class="flex flex-col gap-5">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <p class="chrome-kicker">{{ t('dashboard_timeline_title') }}</p>
-        <div class="mt-2 flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
           <h3 class="text-xl font-semibold tracking-tight">
             {{ t('dashboard_timeline_heading') }}
           </h3>
@@ -301,9 +302,6 @@ onBeforeUnmount(() => {
             {{ t('dashboard_disconnected_status') }}
           </span>
         </div>
-        <p class="mt-2 text-sm leading-6 text-muted-foreground">
-          {{ t('dashboard_timeline_body') }}
-        </p>
       </div>
 
       <div class="flex flex-col items-start gap-3 sm:items-end">

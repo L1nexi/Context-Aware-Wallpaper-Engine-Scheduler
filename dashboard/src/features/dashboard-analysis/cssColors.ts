@@ -1,5 +1,9 @@
 const colorCache = new Map<string, string>()
 
+export function clearColorCache(): void {
+  colorCache.clear()
+}
+
 let probeElement: HTMLSpanElement | null = null
 
 function getProbeElement(): HTMLSpanElement | null {

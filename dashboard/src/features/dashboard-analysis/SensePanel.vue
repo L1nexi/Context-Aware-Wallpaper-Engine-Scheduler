@@ -26,13 +26,9 @@ const weatherStatus = computed(() => {
 <template>
   <section class="flex flex-col gap-4">
     <div>
-      <p class="chrome-kicker">{{ t('dashboard_sense_title') }}</p>
-      <h3 class="mt-2 text-xl font-semibold tracking-tight">
+      <h3 class="text-xl font-semibold tracking-tight">
         {{ t('dashboard_sense_heading') }}
       </h3>
-      <p class="mt-2 text-sm leading-6 text-muted-foreground">
-        {{ t('dashboard_sense_body') }}
-      </p>
     </div>
 
     <div class="grid gap-4">
@@ -85,7 +81,7 @@ const weatherStatus = computed(() => {
 
         <dl class="mt-4 grid gap-3 sm:grid-cols-2">
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_weather_id') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_weather_id') }}</dt>
             <dd class="mt-1 font-medium data-mono">
               {{
                 tick.sense.weather.id === null ? t('dashboard_none') : String(tick.sense.weather.id)
@@ -94,21 +90,21 @@ const weatherStatus = computed(() => {
           </div>
 
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_weather_main') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_weather_main') }}</dt>
             <dd class="mt-1 font-medium data-mono">
               {{ tick.sense.weather.main ?? t('dashboard_none') }}
             </dd>
           </div>
 
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_weather_sunrise') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_weather_sunrise') }}</dt>
             <dd class="mt-1 font-medium data-mono">
               {{ formatTimestamp(tick.sense.weather.sunrise, lang, { timeStyle: 'short' }) }}
             </dd>
           </div>
 
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_weather_sunset') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_weather_sunset') }}</dt>
             <dd class="mt-1 font-medium data-mono">
               {{ formatTimestamp(tick.sense.weather.sunset, lang, { timeStyle: 'short' }) }}
             </dd>
@@ -120,19 +116,19 @@ const weatherStatus = computed(() => {
         <p class="chrome-kicker">{{ t('dashboard_clock_title') }}</p>
         <dl class="mt-4 grid gap-3 sm:grid-cols-3">
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_clock_local') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_clock_local') }}</dt>
             <dd class="mt-1 font-medium data-mono">
               {{ formatTimestamp(tick.sense.clock.localTs, lang, { timeStyle: 'medium' }) }}
             </dd>
           </div>
 
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_clock_hour') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_clock_hour') }}</dt>
             <dd class="mt-1 font-medium data-mono">{{ tick.sense.clock.hour }}</dd>
           </div>
 
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-xs text-muted-foreground">{{ t('dashboard_clock_day_of_year') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_clock_day_of_year') }}</dt>
             <dd class="mt-1 font-medium data-mono">{{ tick.sense.clock.dayOfYear }}</dd>
           </div>
         </dl>
