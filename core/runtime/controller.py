@@ -28,11 +28,13 @@ _REASON_PRIORITY: tuple[Blocker, ...] = (
     Blocker.IDLE,
 )
 
-REFERENCE_PARTIAL_OVERLAP_SCORE = 1.0 / 3.0
-CONTINUITY_HOLD_TICKS = 120
-CONTINUITY_DECAY_PER_TICK = 0.99
-CONTINUITY_THRESHOLD = math.nextafter(
-    REFERENCE_PARTIAL_OVERLAP_SCORE * (CONTINUITY_DECAY_PER_TICK**CONTINUITY_HOLD_TICKS),
+CONTINUITY_REFERENCE_OVERLAP = 1.0 / 3.0
+CONTINUITY_REFERENCE_HOLD_TICKS = 120
+CONTINUITY_THRESHOLD = 0.2
+
+CONTINUITY_DECAY_PER_TICK = (CONTINUITY_THRESHOLD / CONTINUITY_REFERENCE_OVERLAP) ** (1.0 / CONTINUITY_REFERENCE_HOLD_TICKS)
+CONTINUITY_SWITCH_BOUNDARY = math.nextafter(
+    CONTINUITY_REFERENCE_OVERLAP * (CONTINUITY_DECAY_PER_TICK**CONTINUITY_REFERENCE_HOLD_TICKS),
     math.inf,
 )
 
@@ -294,10 +296,9 @@ class SchedulingController:
             intent = Intent.CYCLE
         else:
             overlap_score = weighted_jaccard(matched, active_playlists)
-            # TODO 采用更合理的可缩放函数。目前的衰减值 0.99^120 ≈ 0.3。可以考虑用更明确的函数（如指数衰减）来控制
             self.semantic_continuity_score *= CONTINUITY_DECAY_PER_TICK
 
-            is_continuous = self.semantic_continuity_score * overlap_score > CONTINUITY_THRESHOLD
+            is_continuous = self.semantic_continuity_score * overlap_score > CONTINUITY_SWITCH_BOUNDARY
             intent = Intent.CYCLE if is_continuous else Intent.SWITCH
 
         evaluation = self._evaluate_blockers(context, intent)

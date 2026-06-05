@@ -29,6 +29,9 @@ class WEExecutor:
         self._run_command(["getWallpaper"])
 
     def _run_command(self, args: list[str]) -> bool:
+        """-control 参数默认会先拉起 WE，随后执行命令。
+        拉起时间小于 0.5s，这使得我们在除了在 WE 安全恢复后弹窗以外的场景无需做复杂的 WE 保活
+        """
         cmd = [self.we_path, "-control"] + args
         try:
             startupinfo = None
