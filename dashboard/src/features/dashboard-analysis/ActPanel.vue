@@ -51,7 +51,7 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
       <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <p class="chrome-kicker">{{ t('dashboard_top_matches_title') }}</p>
+            <p class="text-sm font-semibold text-foreground">{{ t('dashboard_top_matches_title') }}</p>
             <h4 class="mt-2 text-base font-semibold tracking-tight">
               {{ t('dashboard_top_matches_heading') }}
             </h4>
@@ -95,7 +95,7 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
       <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="chrome-kicker">{{ t('dashboard_action_title') }}</p>
+            <p class="text-sm font-semibold text-foreground">{{ t('dashboard_action_title') }}</p>
             <h4 class="mt-2 text-base font-semibold tracking-tight">
               {{ decisionSummary }}
             </h4>

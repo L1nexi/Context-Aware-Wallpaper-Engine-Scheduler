@@ -119,7 +119,7 @@ const peakPairs = computed(() => {
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="chrome-kicker">{{ policyTitle }}</p>
+              <p class="text-sm font-semibold text-foreground">{{ policyTitle }}</p>
               <span
                 class="inline-flex items-center rounded-full border border-border/70 bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"
               >
@@ -203,7 +203,7 @@ const peakPairs = computed(() => {
       </div>
 
       <section class="rounded-2xl border border-border/70 bg-muted/35 p-4">
-        <p class="chrome-kicker">{{ t('dashboard_policy_details') }}</p>
+        <p class="text-sm font-semibold text-foreground">{{ t('dashboard_policy_details') }}</p>
 
         <dl class="mt-4 grid gap-3 sm:grid-cols-2">
           <div

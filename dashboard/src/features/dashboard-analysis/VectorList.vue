@@ -27,7 +27,7 @@ const hiddenItems = computed(() => props.items.slice(props.limit))
   <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <p class="chrome-kicker">{{ title }}</p>
+        <p class="text-sm font-semibold text-foreground">{{ title }}</p>
         <p class="mt-2 text-sm text-muted-foreground">
           {{ t('dashboard_vector_summary', { count: items.length }) }}
         </p>

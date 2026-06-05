@@ -33,7 +33,7 @@ const weatherStatus = computed(() => {
 
     <div class="grid gap-4">
       <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
-        <p class="chrome-kicker">{{ t('activeWindow') }}</p>
+        <p class="text-sm font-semibold text-foreground">{{ t('activeWindow') }}</p>
         <h4 class="mt-2 text-base font-semibold tracking-tight">
           {{ tick.sense.window.title || t('dashboard_none') }}
         </h4>
@@ -44,21 +44,21 @@ const weatherStatus = computed(() => {
 
       <div class="grid gap-4 sm:grid-cols-3">
         <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
-          <p class="chrome-kicker">{{ t('idle') }}</p>
+          <p class="text-sm font-semibold text-foreground">{{ t('idle') }}</p>
           <p class="mt-2 text-2xl font-semibold tracking-tight data-mono">
             {{ formatSeconds(tick.sense.idle.seconds, lang) }}s
           </p>
         </section>
 
         <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
-          <p class="chrome-kicker">{{ t('cpu') }}</p>
+          <p class="text-sm font-semibold text-foreground">{{ t('cpu') }}</p>
           <p class="mt-2 text-2xl font-semibold tracking-tight data-mono">
             {{ formatPercent(tick.sense.cpu.averagePercent, lang) }}%
           </p>
         </section>
 
         <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
-          <p class="chrome-kicker">{{ t('fullscreen') }}</p>
+          <p class="text-sm font-semibold text-foreground">{{ t('fullscreen') }}</p>
           <p class="mt-2 text-2xl font-semibold tracking-tight data-mono">
             {{ tick.sense.fullscreen ? t('dashboard_yes') : t('dashboard_no') }}
           </p>
@@ -68,7 +68,7 @@ const weatherStatus = computed(() => {
       <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="chrome-kicker">{{ t('policy_weather') }}</p>
+            <p class="text-sm font-semibold text-foreground">{{ t('policy_weather') }}</p>
             <h4 class="mt-2 text-base font-semibold tracking-tight">
               {{ weatherStatus }}
             </h4>
@@ -113,7 +113,7 @@ const weatherStatus = computed(() => {
       </section>
 
       <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
-        <p class="chrome-kicker">{{ t('dashboard_clock_title') }}</p>
+        <p class="text-sm font-semibold text-foreground">{{ t('dashboard_clock_title') }}</p>
         <dl class="mt-4 grid gap-3 sm:grid-cols-3">
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
             <dt class="text-sm text-muted-foreground">{{ t('dashboard_clock_local') }}</dt>

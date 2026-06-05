@@ -20,7 +20,7 @@ const entries = computed(() => Object.entries(props.expansions))
     <summary class="cursor-pointer list-none">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="chrome-kicker">{{ t('dashboard_fallbacks_title') }}</p>
+          <p class="text-sm font-semibold text-foreground">{{ t('dashboard_fallbacks_title') }}</p>
           <h4 class="mt-2 text-base font-semibold tracking-tight">
             {{ t('dashboard_fallbacks_summary', { count: entries.length }) }}
           </h4>
