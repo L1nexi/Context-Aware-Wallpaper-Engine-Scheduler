@@ -32,7 +32,6 @@ class ActionHistoryWriter:
                     "similarity": round(match.similarity, 4),
                     "similarity_gap": round(match.similarity_gap, 4),
                     "max_policy_magnitude": round(match.max_policy_magnitude, 4),
-                    "reason_code": decision.reason.value,
                 },
             )
         elif decision.action == Action.CYCLE and result.executed:
@@ -42,7 +41,6 @@ class ActionHistoryWriter:
                     "playlists": trace.active_playlists.names(),
                     "target_playlist": result.target_playlist,
                     "tags": _tag_dict(match.raw_context_vector),
-                    "reason_code": decision.reason.value,
                 },
             )
         elif decision.action in {Action.SWITCH, Action.CYCLE} and not result.executed:
@@ -50,7 +48,6 @@ class ActionHistoryWriter:
                 EventType.ACTUATION_FAILED,
                 {
                     "action": decision.action.value,
-                    "reason_code": decision.reason.value,
                     "matched_playlists": decision.target.names(),
                     "active_playlists": trace.active_playlists.names(),
                 },

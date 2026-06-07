@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from core.models.playlist import Playlists
-from core.models.trace import Action, ActionReason, ActPlan, ActionResult, Decision, DecisionMode, Match, TickTrace, ThinkResult
+from core.models.trace import Action, ActPlan, ActionResult, Decision, DecisionMode, Match, TickTrace, ThinkResult
 from core.state.scheduler import SchedulerState
 
 
@@ -22,7 +22,6 @@ def test_cache_update_only_on_executed_switch():
     """cache_update returns playlists only for executed switch actions."""
     decision = Decision(
         action=Action.SWITCH,
-        reason=ActionReason.SWITCH_ALLOWED,
         target=Playlists(["X"]),
     )
     plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["A"]))
@@ -54,7 +53,6 @@ def test_cache_update_none_for_non_switch():
     for action_kind in (Action.HOLD, Action.CYCLE, Action.PAUSE, Action.NONE):
         decision = Decision(
             action=action_kind,
-            reason=ActionReason.HOLD_SAME_PLAYLIST,
             target=Playlists(["A"]),
         )
         plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["A"]))

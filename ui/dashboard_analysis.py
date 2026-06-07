@@ -13,7 +13,6 @@ from core.models.context import WeatherData
 from core.models.playlist import Playlists
 from core.models.trace import (
     Action,
-    ActionReason,
     ActivityEvaluation,
     Blocker,
     BlockerEvaluation,
@@ -175,7 +174,6 @@ class PlaylistRefDto(ApiDto):
 
 class ActionDecisionDto(ApiDto):
     action: Action
-    reason: ActionReason
     executed: bool
     active_playlists: list[PlaylistRefDto]
     target_playlists: list[PlaylistRefDto]
@@ -218,7 +216,6 @@ class TickSummaryDto(ApiDto):
     active_playlists: list[PlaylistRefDto]
     matched_playlists: list[PlaylistRefDto]
     action: Action
-    reason: ActionReason
     paused: bool
     executed: bool
     has_event: bool
@@ -419,7 +416,6 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             active_playlists=target_refs,
             matched_playlists=matched_playlist_refs,
             action=trace.decision.action,
-            reason=trace.decision.reason,
             paused=trace.paused,
             executed=trace.action.executed,
             has_event=has_event,
@@ -445,7 +441,6 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             controller=ControllerDto(evaluation=_controller_evaluation(trace.decision.evaluation)),
             decision=ActionDecisionDto(
                 action=trace.decision.action,
-                reason=trace.decision.reason,
                 executed=trace.action.executed,
                 active_playlists=active_playlists_refs,
                 target_playlists=target_refs,

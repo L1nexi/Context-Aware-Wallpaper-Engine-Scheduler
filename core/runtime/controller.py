@@ -12,7 +12,6 @@ from core.models.context import Context
 from core.models.playlist import Playlists
 from core.models.trace import (
     Action,
-    ActionReason,
     ActPlan,
     Blocker,
     BlockerEvaluation,
@@ -22,13 +21,6 @@ from core.models.trace import (
 )
 
 logger = logging.getLogger("WEScheduler.Controller")
-
-_REASON_PRIORITY: tuple[Blocker, ...] = (
-    Blocker.COOLDOWN,
-    Blocker.FULLSCREEN,
-    Blocker.CPU,
-    Blocker.IDLE,
-)
 
 CONTINUITY_REFERENCE_OVERLAP = 1.0 / 3.0
 CONTINUITY_REFERENCE_HOLD_TICKS = 120
@@ -69,42 +61,15 @@ class FullscreenGate:
         return None
 
 
-def _blocked_reason(
-    blockers: list[Blocker],
-    intent: Intent,
-) -> ActionReason:
-    for blocker in _REASON_PRIORITY:
-        if blocker not in blockers:
-            continue
-        if intent == Intent.SWITCH:
-            mapping = {
-                Blocker.COOLDOWN: ActionReason.SWITCH_BLOCKED_COOLDOWN,
-                Blocker.FULLSCREEN: ActionReason.SWITCH_BLOCKED_FULLSCREEN,
-                Blocker.CPU: ActionReason.SWITCH_BLOCKED_CPU,
-                Blocker.IDLE: ActionReason.SWITCH_BLOCKED_NOT_IDLE,
-            }
-        else:
-            mapping = {
-                Blocker.COOLDOWN: ActionReason.CYCLE_BLOCKED_COOLDOWN,
-                Blocker.FULLSCREEN: ActionReason.CYCLE_BLOCKED_FULLSCREEN,
-                Blocker.CPU: ActionReason.CYCLE_BLOCKED_CPU,
-                Blocker.IDLE: ActionReason.CYCLE_BLOCKED_NOT_IDLE,
-            }
-        return mapping[blocker]
-    return ActionReason.HOLD_SAME_PLAYLIST
-
-
 class Decisions:
     @staticmethod
     def make(
         action: Action,
-        reason: ActionReason,
         target: Playlists,
         evaluation: BlockerEvaluation | None = None,
     ) -> Decision:
         return Decision(
             action=action,
-            reason=reason,
             target=target,
             evaluation=evaluation,
         )
@@ -113,7 +78,6 @@ class Decisions:
     def no_match(cls, active: Playlists) -> Decision:
         return cls.make(
             Action.HOLD if active else Action.NONE,
-            ActionReason.NO_MATCH,
             Playlists(),
         )
 
@@ -127,8 +91,7 @@ class Decisions:
     ) -> Decision:
         target = matched if intent == Intent.SWITCH else active_playlists
         action = Action.SWITCH if intent == Intent.SWITCH else Action.CYCLE
-        reason = ActionReason.SWITCH_ALLOWED if intent == Intent.SWITCH else ActionReason.CYCLE_ALLOWED
-        return cls.make(action, reason, target, evaluation)
+        return cls.make(action, target, evaluation)
 
     @classmethod
     def blocked(
@@ -139,53 +102,11 @@ class Decisions:
         active_playlists: Playlists,
     ) -> Decision:
         target = matched if intent == Intent.SWITCH else active_playlists
-        return cls.make(
-            Action.HOLD,
-            _blocked_reason(evaluation.blocked_by, intent),
-            target,
-            evaluation,
-        )
-
-    @classmethod
-    def hold(
-        cls,
-        reason: ActionReason,
-        target: Playlists,
-        evaluation: BlockerEvaluation | None = None,
-    ) -> Decision:
-        return cls.make(Action.HOLD, reason, target, evaluation)
-
-    @classmethod
-    def manual_apply(cls, matched: Playlists, active: Playlists) -> Decision:
-        if not matched:
-            return cls.no_match(active)
-        if matched != active:
-            return cls.make(Action.SWITCH, ActionReason.MANUAL_APPLY_REQUESTED, matched)
-        if active:
-            return cls.make(Action.CYCLE, ActionReason.MANUAL_APPLY_REQUESTED, active)
-        return cls.hold(ActionReason.HOLD_SAME_PLAYLIST, matched)
-
-    @classmethod
-    def recovery(
-        cls,
-        matched: Playlists,
-        active: Playlists,
-    ) -> Decision:
-        if not matched:
-            return cls.make(
-                Action.HOLD if active else Action.NONE,
-                ActionReason.RECOVERY_NO_MATCH,
-                Playlists(),
-            )
-        return cls.make(Action.SWITCH, ActionReason.RECOVERY_UNMANAGED, matched)
+        return cls.make(Action.HOLD, target, evaluation)
 
     @classmethod
     def pause(cls, target: Playlists) -> Decision:
-        return cls.make(
-            Action.PAUSE,
-            ActionReason.SCHEDULER_PAUSED,
-            target,
-        )
+        return cls.make(Action.PAUSE, target)
 
 
 class SchedulingController:
@@ -207,6 +128,86 @@ class SchedulingController:
         if self.pause_on_fullscreen:
             self._gates.append(FullscreenGate())
         self.semantic_continuity_score = 1.0
+
+    def decide_action(
+        self,
+        plan: ActPlan,
+        context: Context,
+        match: Match,
+    ) -> Decision:
+        match plan.mode:
+            case DecisionMode.NORMAL:
+                return self._decide_normal(match, plan.active_playlists, context)
+            case DecisionMode.MANUAL:
+                return self._decide_manual(match, plan.active_playlists)
+            case DecisionMode.RECOVERY:
+                return self._decide_recovery(match, plan.active_playlists)
+            case DecisionMode.PAUSE:
+                return self._decide_pause(match)
+
+    def _decide_normal(
+        self,
+        match: Match,
+        active_playlists: Playlists,
+        context: Context,
+    ) -> Decision:
+        matched = match.best_playlists
+
+        if not matched:
+            self.semantic_continuity_score = 0.0
+            return Decisions.no_match(active_playlists)
+
+        if matched == active_playlists:
+            self.semantic_continuity_score = 1.0
+            intent = Intent.CYCLE
+        else:
+            overlap_score = weighted_jaccard(matched, active_playlists)
+            self.semantic_continuity_score *= CONTINUITY_DECAY_PER_TICK
+            is_continuous = self.semantic_continuity_score * overlap_score > CONTINUITY_SWITCH_BOUNDARY
+            intent = Intent.CYCLE if is_continuous else Intent.SWITCH
+
+        evaluation = self._evaluate_blockers(context, intent)
+        if evaluation.allowed:
+            return Decisions.allowed(intent, matched, evaluation, active_playlists)
+        return Decisions.blocked(intent, matched, evaluation, active_playlists)
+
+    def _decide_manual(
+        self,
+        match: Match,
+        active_playlists: Playlists,
+    ) -> Decision:
+        matched = match.best_playlists
+
+        if not matched:
+            self.semantic_continuity_score = 0.0
+            return Decisions.no_match(active_playlists)
+
+        if matched == active_playlists:
+            self.semantic_continuity_score = 1.0
+            return Decisions.make(Action.CYCLE, active_playlists)
+
+        self.semantic_continuity_score = 1.0
+        return Decisions.make(Action.SWITCH, matched)
+
+    def _decide_recovery(
+        self,
+        match: Match,
+        active_playlists: Playlists,
+    ) -> Decision:
+        matched = match.best_playlists
+        if not matched:
+            return Decisions.make(
+                Action.HOLD if active_playlists else Action.NONE,
+                Playlists(),
+            )
+        self.semantic_continuity_score = 1.0
+        return Decisions.make(Action.SWITCH, matched)
+
+    def _decide_pause(
+        self,
+        match: Match,
+    ) -> Decision:
+        return Decisions.pause(match.best_playlists)
 
     def _evaluate_blockers(
         self,
@@ -252,57 +253,6 @@ class SchedulingController:
             force_after_remaining=force_after_remaining,
         )
 
-    def decide_action(
-        self,
-        plan: ActPlan,
-        context: Context,
-        match: Match,
-    ) -> Decision:
-        """Determine the scheduling decision for the current tick.
-
-        Raises:
-            ValueError: If mode is unsupported.
-        """
-        mode = plan.mode
-        active_playlists = plan.active_playlists
-        if mode == DecisionMode.NORMAL:
-            return self._decide_normal(context, match, active_playlists)
-        if mode == DecisionMode.MANUAL:
-            return Decisions.manual_apply(match.best_playlists, active_playlists)
-        if mode == DecisionMode.RECOVERY:
-            return Decisions.recovery(match.best_playlists, active_playlists)
-        if mode == DecisionMode.PAUSE:
-            return Decisions.pause(match.best_playlists)
-        raise ValueError(f"unsupported decision mode: {mode!r}")
-
-    def _decide_normal(
-        self,
-        context: Context,
-        match: Match,
-        active_playlists: Playlists,
-    ) -> Decision:
-        matched = match.best_playlists
-
-        if not matched:
-            self.semantic_continuity_score = 0.0
-            return Decisions.no_match(active_playlists)
-
-        if matched == active_playlists:
-            self.semantic_continuity_score = 1.0
-            intent = Intent.CYCLE
-        else:
-            overlap_score = weighted_jaccard(matched, active_playlists)
-            self.semantic_continuity_score *= CONTINUITY_DECAY_PER_TICK
-
-            is_continuous = self.semantic_continuity_score * overlap_score > CONTINUITY_SWITCH_BOUNDARY
-            intent = Intent.CYCLE if is_continuous else Intent.SWITCH
-
-        evaluation = self._evaluate_blockers(context, intent)
-        if evaluation.allowed:
-            return Decisions.allowed(intent, matched, evaluation, active_playlists)
-        else:
-            return Decisions.blocked(intent, matched, evaluation, active_playlists)
-
     def _evaluate_gates(self, context: Context) -> list[Blocker]:
         blocked_by: list[Blocker] = []
         for gate in self._gates:
@@ -313,9 +263,6 @@ class SchedulingController:
 
     def notify_executed(self, decision: Decision) -> None:
         self.last_action_time = self._clock()
-        plain_cycle = decision.action == Action.CYCLE and decision.reason == ActionReason.CYCLE_ALLOWED
-        if not plain_cycle:
-            self.semantic_continuity_score = 1.0
 
     def export_state(self) -> dict[str, Any]:
         return {

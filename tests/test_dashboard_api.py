@@ -14,7 +14,6 @@ from core.models.context import Context, WeatherData, WindowData
 from core.models.playlist import Playlists
 from core.models.trace import (
     Action,
-    ActionReason,
     ActionResult,
     ActivityDetails,
     ActivityEvaluation,
@@ -114,7 +113,6 @@ def _make_trace(
     target_playlist: str | None = None,
     executed: bool = False,
     action_kind: Action = Action.HOLD,
-    reason_code: ActionReason = ActionReason.NO_MATCH,
     evaluation: BlockerEvaluation | None = None,
     weather: WeatherData | None = None,
     policy_evaluations: list | None = None,
@@ -148,7 +146,6 @@ def _make_trace(
             ),
             decision=Decision(
                 action=action_kind,
-                reason=reason_code,
                 target=best_playlists,
                 evaluation=evaluation,
             ),
@@ -241,7 +238,6 @@ def test_build_tick_snapshot_maps_analysis_fields():
         matched_playlist="focus",
         executed=False,
         action_kind=Action.HOLD,
-        reason_code=ActionReason.SWITCH_BLOCKED_NOT_IDLE,
         evaluation=evaluation,
         weather=WeatherData(
             id=501,
@@ -285,7 +281,6 @@ def test_build_tick_snapshot_maps_analysis_fields():
         "display": "Rainy Mood",
         "color": "#4A90D9",
     }
-    assert snapshot["think"]["decision"]["reason"] == "switch_blocked_not_idle"
     assert snapshot["think"]["decision"]["activePlaylists"] == [
         {"name": "idle", "display": "idle", "color": "#2E5F8A"},
     ]
@@ -306,7 +301,6 @@ def test_build_tick_snapshot_maps_target_playlist():
         target_playlist="focus",
         executed=True,
         action_kind=Action.SWITCH,
-        reason_code=ActionReason.SWITCH_ALLOWED,
     )
 
     snapshot = build_tick_snapshot(trace)
@@ -326,7 +320,6 @@ def test_build_tick_snapshot_maps_paused_tick():
         matched_playlist="rainy",
         executed=False,
         action_kind=Action.PAUSE,
-        reason_code=ActionReason.SCHEDULER_PAUSED,
         evaluation=None,
         weather=None,
     )
@@ -359,7 +352,6 @@ def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
         matched_playlist="unknown_match",
         executed=False,
         action_kind=Action.HOLD,
-        reason_code=ActionReason.HOLD_SAME_PLAYLIST,
         evaluation=None,
         weather=None,
     )
@@ -412,7 +404,6 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
             matched_playlist="missing_playlist",
             executed=False,
             action_kind=Action.HOLD,
-            reason_code=ActionReason.HOLD_SAME_PLAYLIST,
         )
     )
 

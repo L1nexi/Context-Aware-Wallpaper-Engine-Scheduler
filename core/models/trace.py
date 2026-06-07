@@ -18,32 +18,6 @@ class Action(StrEnum):
     PAUSE = "pause"
 
 
-class ActionReason(StrEnum):
-    """Primary decision summary for one tick.
-
-    Exactly one reason is chosen for a decision. When multiple blockers are
-    active, this enum stores only the controller-prioritized primary cause.
-    """
-
-    NO_MATCH = "no_match"
-    HOLD_SAME_PLAYLIST = "hold_same_playlist"
-    HOLD_SEMANTIC_CONTINUITY = "hold_semantic_continuity"
-    SWITCH_ALLOWED = "switch_allowed"
-    SWITCH_BLOCKED_COOLDOWN = "switch_blocked_cooldown"
-    SWITCH_BLOCKED_FULLSCREEN = "switch_blocked_fullscreen"
-    SWITCH_BLOCKED_CPU = "switch_blocked_cpu"
-    SWITCH_BLOCKED_NOT_IDLE = "switch_blocked_not_idle"
-    CYCLE_ALLOWED = "cycle_allowed"
-    CYCLE_BLOCKED_COOLDOWN = "cycle_blocked_cooldown"
-    CYCLE_BLOCKED_FULLSCREEN = "cycle_blocked_fullscreen"
-    CYCLE_BLOCKED_CPU = "cycle_blocked_cpu"
-    CYCLE_BLOCKED_NOT_IDLE = "cycle_blocked_not_idle"
-    SCHEDULER_PAUSED = "scheduler_paused"
-    MANUAL_APPLY_REQUESTED = "manual_apply_requested"
-    RECOVERY_UNMANAGED = "recovery_unmanaged"
-    RECOVERY_NO_MATCH = "recovery_no_match"
-
-
 class Blocker(StrEnum):
     COOLDOWN = "cooldown"
     FULLSCREEN = "fullscreen"
@@ -177,14 +151,9 @@ class BlockerEvaluation:
 
 @dataclass
 class Decision:
-    """Final controller decision for one tick.
-
-    `reason` is the prioritized single-cause summary for UI/status use,
-    while the paired evaluation retains the complete blocker facts.
-    """
+    """Final controller decision for one tick."""
 
     action: Action
-    reason: ActionReason
     target: Playlists
     evaluation: BlockerEvaluation | None = None
 
