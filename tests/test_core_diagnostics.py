@@ -26,11 +26,13 @@ from core.models.trace import (
     BlockerEvaluation,
     Decision,
     Match,
+    ThinkResult,
     TickTrace,
 )
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
+from core.models.trace import ActPlan, DecisionMode
 from core.runtime.actuator import Actuator
-from core.runtime.controller import CONTINUITY_DECAY_PER_TICK, DecisionMode, Intent, SchedulingController, weighted_jaccard
+from core.runtime.controller import CONTINUITY_DECAY_PER_TICK, Intent, SchedulingController, weighted_jaccard
 from core.runtime.engine import Engine, _BuiltEngine
 from core.runtime.matcher import Matcher
 from core.runtime.scheduler import WEScheduler
@@ -142,12 +144,8 @@ def _decide_normal(
     match: Match,
     active_playlists: Playlists,
 ):
-    return controller.decide_action(
-        "normal",
-        context=context,
-        match=match,
-        active_playlists=active_playlists,
-    )
+    plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=active_playlists)
+    return controller.decide_action(plan, context, match)
 
 
 def test_matcher_preserves_raw_resolved_and_fallback_vectors():
@@ -181,28 +179,31 @@ def test_matcher_preserves_raw_resolved_and_fallback_vectors():
 
 
 def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
-    trace = mock.Mock()
-    trace.tick_id = 1
-    trace.ts = 1.0
-    trace.paused = False
-    trace.context = Context(window=WindowData(title="Docs", process="Code.exe"))
-    trace.match = Match(
-        best_playlists=Playlists(["focus"]),
-        playlist_matches=[("focus", 0.9)],
-        raw_context_vector={"focus": 1.0},
-        resolved_context_vector={"focus": 1.0},
-        policy_evaluations=[],
-    )
-    trace.action = ActionResult(
-        decision=Decision(
-            action=Action.HOLD,
-            reason=ActionReason.HOLD_SAME_PLAYLIST,
-            matched=Playlists(["focus"]),
-            evaluation=None,
+    trace = TickTrace(
+        tick_id=1,
+        ts=1.0,
+        paused=False,
+        pause_until=0.0,
+        context=Context(window=WindowData(title="Docs", process="Code.exe")),
+        think=ThinkResult(
+            match=Match(
+                best_playlists=Playlists(["focus"]),
+                playlist_matches=[("focus", 0.9)],
+                raw_context_vector={"focus": 1.0},
+                resolved_context_vector={"focus": 1.0},
+                policy_evaluations=[],
+            ),
+            decision=Decision(
+                action=Action.HOLD,
+                reason=ActionReason.HOLD_SAME_PLAYLIST,
+                target=Playlists(["focus"]),
+                evaluation=None,
+            ),
+            plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["focus"])),
         ),
-        active_playlists_before=Playlists(["focus"]),
-        active_playlists_after=Playlists(["focus"]),
-        executed=False,
+        action=ActionResult(
+            executed=False,
+        ),
     )
 
     snapshot = map_tick_snapshot(trace).model_dump(mode="json", by_alias=True)
@@ -552,7 +553,7 @@ def test_controller_notify_executed_resets_continuity_for_switch():
         Decision(
             action=Action.SWITCH,
             reason=ActionReason.SWITCH_ALLOWED,
-            matched=Playlists(["rain"]),
+            target=Playlists(["rain"]),
         )
     )
 
@@ -579,7 +580,7 @@ def test_controller_notify_executed_preserves_continuity_for_plain_cycle():
         Decision(
             action=Action.CYCLE,
             reason=ActionReason.CYCLE_ALLOWED,
-            matched=Playlists(["focus"]),
+            target=Playlists(["focus"]),
         )
     )
 
@@ -606,7 +607,7 @@ def test_controller_notify_executed_resets_continuity_for_manual_cycle():
         Decision(
             action=Action.CYCLE,
             reason=ActionReason.MANUAL_APPLY_REQUESTED,
-            matched=Playlists(["focus"]),
+            target=Playlists(["focus"]),
         )
     )
 
@@ -684,10 +685,11 @@ def test_controller_recovery_uses_unmanaged_reason_without_gates():
     )
     controller._evaluate_blockers = mock.Mock()
 
+    plan = ActPlan(mode=DecisionMode.RECOVERY, active_playlists=Playlists())
     decision = controller.decide_action(
-        "recovery",
-        match=Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
-        active_playlists=Playlists(),
+        plan,
+        Context(),
+        Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
     )
 
     assert decision.action == Action.SWITCH
@@ -708,75 +710,52 @@ def test_controller_recovery_without_match_does_not_switch():
         )
     )
 
+    plan = ActPlan(mode=DecisionMode.RECOVERY, active_playlists=Playlists())
     decision = controller.decide_action(
-        "recovery",
-        match=Match(best_playlists=Playlists()),
-        active_playlists=Playlists(),
+        plan,
+        Context(),
+        Match(best_playlists=Playlists()),
     )
 
     assert decision.action == Action.NONE
     assert decision.reason == ActionReason.RECOVERY_NO_MATCH
 
 
-def test_controller_normal_requires_context():
-    controller = SchedulingController(
-        SchedulingConfig(
-            startup_delay=0,
-            force_after=100,
-            cycle_cooldown=15,
-            idle_threshold=60,
-            cpu_threshold=0,
-            pause_on_fullscreen=False,
-        )
-    )
-
-    with pytest.raises(ValueError, match="context is required"):
-        controller.decide_action(
-            "normal",
-            match=Match(best_playlists=Playlists(["rain"])),
-            active_playlists=Playlists(),
-        )
-
-
 def test_actuator_switch_returns_executed_outcome():
     executor = mock.Mock()
-    controller = mock.Mock()
-    controller.decide_action.return_value = Decision(
+    actuator = Actuator(executor)
+    decision = Decision(
         action=Action.SWITCH,
         reason=ActionReason.SWITCH_ALLOWED,
-        matched=Playlists(["rain"]),
+        target=Playlists(["rain"]),
     )
-    actuator = Actuator(executor, controller)
-    outcome = actuator.act(
-        "normal",
-        context=Context(),
-        match=Match(
-            best_playlists=Playlists(["rain"]),
-            playlist_matches=[("rain", 0.9), ("focus", 0.5)],
-            raw_context_vector={"rain": 1.0},
-            resolved_context_vector={"rain": 1.0},
-            max_policy_magnitude=1.0,
-        ),
-        active_playlists=Playlists(["focus"]),
-    )
+    outcome = actuator.act(decision)
 
-    assert outcome.action == Action.SWITCH
     assert outcome.executed is True
+    assert outcome.target_playlist == "rain"
     executor.open_playlist.assert_called_once_with("rain")
-    controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
 
 
 def test_scheduler_history_recorder_logs_switch_event():
     history = mock.Mock()
     recorder = ActionHistoryWriter(history)
-    outcome = ActionResult(
-        decision=Decision(
-            action=Action.SWITCH,
-            reason=ActionReason.SWITCH_ALLOWED,
-            matched=Playlists(["rain"]),
-        ),
-        active_playlists_before=Playlists(["focus"]),
-        active_playlists_after=Playlists(["rain"]),
+    decision = Decision(
+        action=Action.SWITCH,
+        reason=ActionReason.SWITCH_ALLOWED,
+        target=Playlists(["rain"]),
+    )
+    match = Match(
+        best_playlists=Playlists(["rain"]),
+        playlist_matches=[("rain", 0.9), ("focus", 0.5)],
+        raw_context_vector={"rain": 1.0},
+        resolved_context_vector={"rain": 1.0},
+        max_policy_magnitude=1.0,
+        similarity=0.9,
+        similarity_gap=0.4,
+    )
+    plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["focus"]))
+    think = ThinkResult(match=match, decision=decision, plan=plan)
+    action = ActionResult(
         target_playlist="rain",
         executed=True,
     )
@@ -786,16 +765,8 @@ def test_scheduler_history_recorder_logs_switch_event():
         paused=False,
         pause_until=0.0,
         context=Context(),
-        match=Match(
-            best_playlists=Playlists(["rain"]),
-            playlist_matches=[("rain", 0.9), ("focus", 0.5)],
-            raw_context_vector={"rain": 1.0},
-            resolved_context_vector={"rain": 1.0},
-            max_policy_magnitude=1.0,
-            similarity=0.9,
-            similarity_gap=0.4,
-        ),
-        action=outcome,
+        think=think,
+        action=action,
     )
 
     recorder.on_tick(trace)
@@ -810,24 +781,17 @@ def test_scheduler_history_recorder_logs_switch_event():
 def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
     monkeypatch.setattr("core.models.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
     executor = mock.Mock()
-    controller = mock.Mock()
     matched_pool = Playlists(["A", "B"])
-    controller.decide_action.return_value = Decision(
+    actuator = Actuator(executor)
+    decision = Decision(
         action=Action.SWITCH,
         reason=ActionReason.SWITCH_ALLOWED,
-        matched=matched_pool,
+        target=matched_pool,
     )
-    actuator = Actuator(executor, controller)
 
-    outcome = actuator.act(
-        "normal",
-        context=Context(),
-        match=Match(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
-        active_playlists=Playlists(),
-    )
+    outcome = actuator.act(decision)
 
     assert outcome.executed is True
-    assert outcome.active_playlists_after == matched_pool
     assert outcome.target_playlist == "A"
     executor.open_playlist.assert_called_once_with("A")
 
@@ -835,88 +799,53 @@ def test_actuator_switch_preserves_matched_pool_after_execution(monkeypatch):
 def test_actuator_cycle_uses_open_playlist_without_next_wallpaper(monkeypatch):
     monkeypatch.setattr("core.models.playlist.random.choices", lambda names, weights=None, k=1: ["A"])
     executor = mock.Mock()
-    controller = mock.Mock()
     matched_pool = Playlists(["A", "B"])
-    controller.decide_action.return_value = Decision(
+    actuator = Actuator(executor)
+    decision = Decision(
         action=Action.CYCLE,
         reason=ActionReason.CYCLE_ALLOWED,
-        matched=matched_pool,
+        target=matched_pool,
     )
-    actuator = Actuator(executor, controller)
 
-    outcome = actuator.act(
-        "normal",
-        context=Context(),
-        match=Match(best_playlists=matched_pool, playlist_matches=[("A", 0.9), ("B", 0.89)]),
-        active_playlists=matched_pool,
-    )
+    outcome = actuator.act(decision)
 
     assert outcome.executed is True
-    assert outcome.active_playlists_after == matched_pool
     assert outcome.target_playlist == "A"
     executor.open_playlist.assert_called_once_with("A")
-    controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
     executor.next_wallpaper.assert_not_called()
 
 
-def test_actuator_cycle_selects_from_active_pool(monkeypatch):
+def test_actuator_cycle_selects_from_matched_pool(monkeypatch):
     monkeypatch.setattr("core.models.playlist.random.choices", lambda names, weights=None, k=1: [names[0]])
     executor = mock.Mock()
-    controller = mock.Mock()
-    controller.decide_action.return_value = Decision(
+    actuator = Actuator(executor)
+    decision = Decision(
         action=Action.CYCLE,
         reason=ActionReason.CYCLE_ALLOWED,
-        matched=Playlists(["A", "C"]),
+        target=Playlists(["A", "C"]),
     )
-    actuator = Actuator(executor, controller)
 
-    outcome = actuator.act(
-        "normal",
-        context=Context(),
-        match=Match(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.89)]),
-        active_playlists=Playlists(["B"]),
-    )
+    outcome = actuator.act(decision)
 
     assert outcome.executed is True
-    assert outcome.active_playlists_after == Playlists(["B"])
-    assert outcome.target_playlist == "B"
-    executor.open_playlist.assert_called_once_with("B")
-    controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
+    assert outcome.target_playlist == "A"
+    executor.open_playlist.assert_called_once_with("A")
 
 
 def test_actuator_recovery_switch_bypasses_controller_gates():
     executor = mock.Mock()
-    controller = mock.Mock()
-    controller.decide_action.return_value = Decision(
+    actuator = Actuator(executor)
+    decision = Decision(
         action=Action.SWITCH,
         reason=ActionReason.RECOVERY_UNMANAGED,
-        matched=Playlists(["rain"]),
-    )
-    actuator = Actuator(executor, controller)
-
-    ctx = mock.Mock(spec=Context)
-    outcome = actuator.act(
-        "recovery",
-        match=Match(
-            best_playlists=Playlists(["rain"]),
-            playlist_matches=[("rain", 0.9), ("focus", 0.5)],
-            raw_context_vector={"rain": 1.0},
-        ),
-        active_playlists=Playlists(),
-        context=ctx,
+        target=Playlists(["rain"]),
     )
 
-    assert outcome.action == Action.SWITCH
-    assert outcome.reason == ActionReason.RECOVERY_UNMANAGED
+    outcome = actuator.act(decision)
+
     assert outcome.executed is True
+    assert outcome.target_playlist == "rain"
     executor.open_playlist.assert_called_once_with("rain")
-    controller.decide_action.assert_called_once_with(
-        "recovery",
-        mock.ANY,
-        Playlists(),
-        ctx,
-    )
-    controller.notify_executed.assert_called_once_with(controller.decide_action.return_value)
 
 
 def test_scheduler_paused_does_not_ensure_we_alive():
@@ -928,8 +857,6 @@ def test_scheduler_paused_does_not_ensure_we_alive():
     engine = Engine("config")
     engine.context_manager = mock.Mock()
     engine.context_manager.sense.return_value = Context(window=WindowData(title="", process=""), idle=0.0)
-    engine.matcher = mock.Mock()
-    engine.matcher.match.return_value = Match(best_playlists=Playlists(), playlist_matches=[])
     engine.executor = mock.Mock()
     engine.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN)))
     engine.ensure_we_alive = mock.Mock()
@@ -938,22 +865,23 @@ def test_scheduler_paused_does_not_ensure_we_alive():
     scheduler.state.paused = True
     engine.actuator = mock.Mock()
     engine.actuator.act.return_value = ActionResult(
-        decision=Decision(
-            action=Action.PAUSE,
-            reason=ActionReason.SCHEDULER_PAUSED,
-            matched=Playlists(),
-        ),
-        active_playlists_before=Playlists(["focus"]),
-        active_playlists_after=Playlists(["focus"]),
         executed=False,
     )
+
+    pause_plan = ActPlan(mode=DecisionMode.PAUSE, active_playlists=Playlists(["focus"]))
+    pause_decision = Decision(action=Action.PAUSE, reason=ActionReason.SCHEDULER_PAUSED, target=Playlists())
+    engine.think = mock.Mock(return_value=ThinkResult(
+        match=Match(best_playlists=Playlists(), playlist_matches=[]),
+        decision=pause_decision,
+        plan=pause_plan,
+    ))
 
     trace = scheduler._run_tick()
 
     assert trace.paused is True
-    engine.we_config_prober.probe_playlist.assert_called_once()
+    engine.think.assert_called_once()
     engine.actuator.act.assert_called_once()
-    assert engine.actuator.act.call_args.args[0] == DecisionMode.PAUSE
+    assert engine.actuator.act.call_args.args[0] == pause_decision
 
     scheduler._ensure_we_alive()
     engine.ensure_we_alive.assert_called_once_with(paused=True)
@@ -968,32 +896,48 @@ def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
     engine = Engine("config")
     engine.context_manager = mock.Mock()
     engine.context_manager.sense.return_value = Context(window=WindowData(title="", process=""), idle=0.0)
-    engine.matcher = mock.Mock()
-    engine.matcher.match.return_value = Match(
-        best_playlists=Playlists(["rain"]),
-        playlist_matches=[("rain", 0.9)],
-    )
     engine.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST)))
     scheduler.engine = engine
     scheduler.state.cached_playlists = Playlists(["focus"])
     scheduler.state.paused = False
     engine.actuator = mock.Mock()
     engine.actuator.act.return_value = ActionResult(
-        decision=Decision(
-            action=Action.SWITCH,
-            reason=ActionReason.RECOVERY_UNMANAGED,
-            matched=Playlists(["rain"]),
-        ),
-        active_playlists_before=Playlists(),
-        active_playlists_after=Playlists(["rain"]),
         executed=True,
     )
+
+    recovery_decision = Decision(
+        action=Action.SWITCH,
+        reason=ActionReason.RECOVERY_UNMANAGED,
+        target=Playlists(["rain"]),
+    )
+    recovery_plan = ActPlan(mode=DecisionMode.RECOVERY, active_playlists=Playlists())
+    think_result = ThinkResult(
+        match=Match(
+            best_playlists=Playlists(["rain"]),
+            playlist_matches=[("rain", 0.9)],
+        ),
+        decision=recovery_decision,
+        plan=recovery_plan,
+    )
+    engine.think = mock.Mock(return_value=think_result)
+    engine.actuator.act.return_value = ActionResult(
+        executed=True,
+    )
+    engine.controller = mock.Mock()
+
+    def _act(think):
+        result = engine.actuator.act(think.decision, think.plan.active_playlists)
+        if result.executed:
+            engine.controller.notify_executed(think.decision)
+        return result
+
+    engine.act = mock.Mock(side_effect=_act)
 
     scheduler._run_tick()
 
     engine.actuator.act.assert_called_once()
-    assert len(engine.actuator.act.call_args.args) == 4
-    assert engine.actuator.act.call_args.args[0] == DecisionMode.RECOVERY
+    assert engine.actuator.act.call_args.args[0] == recovery_decision
+    engine.controller.notify_executed.assert_called_once_with(recovery_decision)
 
 
 def test_scheduler_commit_tick_fans_out_to_listeners():
@@ -1005,21 +949,19 @@ def test_scheduler_commit_tick_fans_out_to_listeners():
     calls: list[tuple[str, int]] = []
     scheduler.add_tick_listener(lambda trace: calls.append(("first", trace.tick_id)))
     scheduler.add_tick_listener(lambda trace: calls.append(("second", trace.tick_id)))
+    think = ThinkResult(
+        match=Match(best_playlists=Playlists()),
+        decision=Decision(action=Action.HOLD, reason=ActionReason.NO_MATCH, target=Playlists()),
+        plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists()),
+    )
     trace = TickTrace(
         tick_id=42,
         ts=123.0,
         paused=False,
         pause_until=0.0,
         context=Context(),
-        match=Match(best_playlists=Playlists()),
+        think=think,
         action=ActionResult(
-            decision=Decision(
-                action=Action.HOLD,
-                reason=ActionReason.NO_MATCH,
-                matched=Playlists(),
-            ),
-            active_playlists_before=Playlists(),
-            active_playlists_after=Playlists(),
             executed=False,
         ),
     )
@@ -1101,6 +1043,7 @@ def test_hot_reload_state_import_error_keeps_previous_runtime():
         context_manager=object(),
         matcher=next_matcher,
         actuator=mock.Mock(),
+        controller=mock.Mock(),
         config=mock.Mock(playlists={}, language=None),
         we_config_prober=mock.Mock(),
     )

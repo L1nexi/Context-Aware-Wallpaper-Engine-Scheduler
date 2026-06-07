@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 
 from core.models.playlist import PlaylistInfo, Playlists
+from core.models.trace import DecisionMode
 from core.runtime.act_plan import plan_actuation
-from core.runtime.controller import DecisionMode
 from core.runtime.we_config import FactualPlaylistState, FactualPlaylistStatus
 
 

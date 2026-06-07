@@ -13,9 +13,11 @@ from core.models.playlist import Playlists
 from core.models.trace import (
     Action,
     ActionReason,
+    ActPlan,
     Blocker,
     BlockerEvaluation,
     Decision,
+    DecisionMode,
     Match,
 )
 
@@ -37,13 +39,6 @@ CONTINUITY_SWITCH_BOUNDARY = math.nextafter(
     CONTINUITY_REFERENCE_OVERLAP * (CONTINUITY_DECAY_PER_TICK**CONTINUITY_REFERENCE_HOLD_TICKS),
     math.inf,
 )
-
-
-class DecisionMode(StrEnum):
-    NORMAL = "normal"
-    MANUAL = "manual"
-    RECOVERY = "recovery"
-    PAUSE = "pause"
 
 
 class Intent(StrEnum):
@@ -104,13 +99,13 @@ class Decisions:
     def make(
         action: Action,
         reason: ActionReason,
-        matched: Playlists,
+        target: Playlists,
         evaluation: BlockerEvaluation | None = None,
     ) -> Decision:
         return Decision(
             action=action,
             reason=reason,
-            matched=matched,
+            target=target,
             evaluation=evaluation,
         )
 
@@ -128,11 +123,12 @@ class Decisions:
         intent: Intent,
         matched: Playlists,
         evaluation: BlockerEvaluation,
+        active_playlists: Playlists,
     ) -> Decision:
-        if intent == Intent.SWITCH:
-            return cls.make(Action.SWITCH, ActionReason.SWITCH_ALLOWED, matched, evaluation)
-        else:
-            return cls.make(Action.CYCLE, ActionReason.CYCLE_ALLOWED, matched, evaluation)
+        target = matched if intent == Intent.SWITCH else active_playlists
+        action = Action.SWITCH if intent == Intent.SWITCH else Action.CYCLE
+        reason = ActionReason.SWITCH_ALLOWED if intent == Intent.SWITCH else ActionReason.CYCLE_ALLOWED
+        return cls.make(action, reason, target, evaluation)
 
     @classmethod
     def blocked(
@@ -140,11 +136,13 @@ class Decisions:
         intent: Intent,
         matched: Playlists,
         evaluation: BlockerEvaluation,
+        active_playlists: Playlists,
     ) -> Decision:
+        target = matched if intent == Intent.SWITCH else active_playlists
         return cls.make(
             Action.HOLD,
             _blocked_reason(evaluation.blocked_by, intent),
-            matched,
+            target,
             evaluation,
         )
 
@@ -152,10 +150,10 @@ class Decisions:
     def hold(
         cls,
         reason: ActionReason,
-        matched: Playlists,
+        target: Playlists,
         evaluation: BlockerEvaluation | None = None,
     ) -> Decision:
-        return cls.make(Action.HOLD, reason, matched, evaluation)
+        return cls.make(Action.HOLD, reason, target, evaluation)
 
     @classmethod
     def manual_apply(cls, matched: Playlists, active: Playlists) -> Decision:
@@ -164,7 +162,7 @@ class Decisions:
         if matched != active:
             return cls.make(Action.SWITCH, ActionReason.MANUAL_APPLY_REQUESTED, matched)
         if active:
-            return cls.make(Action.CYCLE, ActionReason.MANUAL_APPLY_REQUESTED, matched)
+            return cls.make(Action.CYCLE, ActionReason.MANUAL_APPLY_REQUESTED, active)
         return cls.hold(ActionReason.HOLD_SAME_PLAYLIST, matched)
 
     @classmethod
@@ -182,11 +180,11 @@ class Decisions:
         return cls.make(Action.SWITCH, ActionReason.RECOVERY_UNMANAGED, matched)
 
     @classmethod
-    def pause(cls, matched: Playlists) -> Decision:
+    def pause(cls, target: Playlists) -> Decision:
         return cls.make(
             Action.PAUSE,
             ActionReason.SCHEDULER_PAUSED,
-            matched,
+            target,
         )
 
 
@@ -256,20 +254,18 @@ class SchedulingController:
 
     def decide_action(
         self,
-        mode: DecisionMode,
+        plan: ActPlan,
+        context: Context,
         match: Match,
-        active_playlists: Playlists,
-        context: Context | None = None,
     ) -> Decision:
         """Determine the scheduling decision for the current tick.
 
         Raises:
-            ValueError: If mode is ``NORMAL`` and context is ``None``,
-                or if mode is unsupported.
+            ValueError: If mode is unsupported.
         """
+        mode = plan.mode
+        active_playlists = plan.active_playlists
         if mode == DecisionMode.NORMAL:
-            if context is None:
-                raise ValueError("context is required for normal scheduling decisions")
             return self._decide_normal(context, match, active_playlists)
         if mode == DecisionMode.MANUAL:
             return Decisions.manual_apply(match.best_playlists, active_playlists)
@@ -303,9 +299,9 @@ class SchedulingController:
 
         evaluation = self._evaluate_blockers(context, intent)
         if evaluation.allowed:
-            return Decisions.allowed(intent, matched, evaluation)
+            return Decisions.allowed(intent, matched, evaluation, active_playlists)
         else:
-            return Decisions.blocked(intent, matched, evaluation)
+            return Decisions.blocked(intent, matched, evaluation, active_playlists)
 
     def _evaluate_gates(self, context: Context) -> list[Blocker]:
         blocked_by: list[Blocker] = []

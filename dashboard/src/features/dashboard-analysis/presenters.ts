@@ -212,8 +212,8 @@ export function getDecisionSummary(
   tick: TickSnapshot,
   t: Translate,
 ): string {
-  const activeBefore = formatPlaylistRefs(decision.activePlaylistsBefore, t)
-  const activeAfter = formatPlaylistRefs(decision.activePlaylistsAfter, t)
+  const activeBefore = formatPlaylistRefs(decision.activePlaylists, t)
+  const activeAfter = formatPlaylistRefs(decision.targetPlaylists, t)
 
   switch (decision.action) {
     case 'switch':

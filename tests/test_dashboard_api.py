@@ -21,10 +21,12 @@ from core.models.trace import (
     BlockerEvaluation,
     Decision,
     Match,
+    ThinkResult,
     TickTrace,
     WeatherDetails,
     WeatherEvaluation,
 )
+from core.models.trace import ActPlan, DecisionMode
 from ui.dashboard import (
     DASHBOARD_STATIC_APP_DIR,
     DASHBOARD_STATIC_DIST_DIR,
@@ -108,7 +110,6 @@ def _make_trace(
     tick_id: int = 1,
     paused: bool = False,
     active_playlist_before: str = "",
-    active_playlist_after: str = "",
     matched_playlist: str | None = None,
     target_playlist: str | None = None,
     executed: bool = False,
@@ -121,6 +122,7 @@ def _make_trace(
     current_time = time.localtime(1714800000)
     playlist_matches = [("focus", 0.91), ("rainy", 0.66)]
     best_playlists = Playlists([matched_playlist]) if matched_playlist else Playlists()
+    plan_active = Playlists([active_playlist_before]) if active_playlist_before else Playlists()
     return TickTrace(
         tick_id=tick_id,
         ts=1714800000.0 + tick_id,
@@ -134,24 +136,25 @@ def _make_trace(
             weather=weather,
             time=current_time,
         ),
-        match=Match(
-            best_playlists=best_playlists,
-            playlist_matches=playlist_matches,
-            raw_context_vector={"focus": 0.8, "rain": 0.4},
-            resolved_context_vector={"focus": 0.8, "rain": 0.4},
-            fallback_expansions={"storm": {"rain": 0.25}},
-            policy_evaluations=policy_evaluations or [],
-            max_policy_magnitude=1.2,
-        ),
-        action=ActionResult(
+        think=ThinkResult(
+            match=Match(
+                best_playlists=best_playlists,
+                playlist_matches=playlist_matches,
+                raw_context_vector={"focus": 0.8, "rain": 0.4},
+                resolved_context_vector={"focus": 0.8, "rain": 0.4},
+                fallback_expansions={"storm": {"rain": 0.25}},
+                policy_evaluations=policy_evaluations or [],
+                max_policy_magnitude=1.2,
+            ),
             decision=Decision(
                 action=action_kind,
                 reason=reason_code,
-                matched=best_playlists,
+                target=best_playlists,
                 evaluation=evaluation,
             ),
-            active_playlists_before=Playlists([active_playlist_before]) if active_playlist_before else Playlists(),
-            active_playlists_after=Playlists([active_playlist_after]) if active_playlist_after else Playlists(),
+            plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=plan_active),
+        ),
+        action=ActionResult(
             target_playlist=target_playlist,
             executed=executed,
         ),
@@ -235,7 +238,6 @@ def test_build_tick_snapshot_maps_analysis_fields():
     trace = _make_trace(
         tick_id=7,
         active_playlist_before="idle",
-        active_playlist_after="idle",
         matched_playlist="focus",
         executed=False,
         action_kind=Action.HOLD,
@@ -283,24 +285,23 @@ def test_build_tick_snapshot_maps_analysis_fields():
         "display": "Rainy Mood",
         "color": "#4A90D9",
     }
-    assert snapshot["act"]["decision"]["reason"] == "switch_blocked_not_idle"
-    assert snapshot["act"]["decision"]["activePlaylistsBefore"] == [
+    assert snapshot["think"]["decision"]["reason"] == "switch_blocked_not_idle"
+    assert snapshot["think"]["decision"]["activePlaylists"] == [
         {"name": "idle", "display": "idle", "color": "#2E5F8A"},
     ]
-    assert snapshot["act"]["decision"]["activePlaylistsAfter"] == [
+    assert snapshot["think"]["decision"]["targetPlaylists"] == [
         {"name": "idle", "display": "idle", "color": "#2E5F8A"},
     ]
-    assert snapshot["act"]["decision"]["matchedPlaylists"] == [
+    assert snapshot["think"]["decision"]["matchedPlaylists"] == [
         {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
     ]
-    assert snapshot["act"]["decision"]["targetPlaylist"] is None
+    assert snapshot["think"]["decision"]["targetPlaylist"] is None
 
 
 def test_build_tick_snapshot_maps_target_playlist():
     trace = _make_trace(
         tick_id=10,
         active_playlist_before="idle",
-        active_playlist_after="focus",
         matched_playlist="focus",
         target_playlist="focus",
         executed=True,
@@ -310,7 +311,7 @@ def test_build_tick_snapshot_maps_target_playlist():
 
     snapshot = build_tick_snapshot(trace)
 
-    assert snapshot["act"]["decision"]["targetPlaylist"] == {
+    assert snapshot["think"]["decision"]["targetPlaylist"] == {
         "name": "focus",
         "display": "Focus Flow",
         "color": "#F5C518",
@@ -322,7 +323,6 @@ def test_build_tick_snapshot_maps_paused_tick():
         tick_id=8,
         paused=True,
         active_playlist_before="focus",
-        active_playlist_after="focus",
         matched_playlist="rainy",
         executed=False,
         action_kind=Action.PAUSE,
@@ -343,11 +343,11 @@ def test_build_tick_snapshot_maps_paused_tick():
         {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9"},
     ]
     assert snapshot["sense"]["weather"]["available"] is False
-    assert snapshot["act"]["controller"]["evaluation"] is None
-    assert snapshot["act"]["decision"]["activePlaylistsAfter"] == [
+    assert snapshot["think"]["controller"]["evaluation"] is None
+    assert snapshot["think"]["decision"]["targetPlaylists"] == [
         {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
     ]
-    assert snapshot["act"]["decision"]["matchedPlaylists"] == [
+    assert snapshot["think"]["decision"]["matchedPlaylists"] == [
         {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9"},
     ]
 
@@ -355,8 +355,7 @@ def test_build_tick_snapshot_maps_paused_tick():
 def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
     trace = _make_trace(
         tick_id=9,
-        active_playlist_before="",
-        active_playlist_after="unknown_active",
+        active_playlist_before="unknown_active",
         matched_playlist="unknown_match",
         executed=False,
         action_kind=Action.HOLD,
@@ -373,7 +372,9 @@ def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
     assert snapshot["summary"]["matchedPlaylists"] == [
         {"name": "unknown_match", "display": "unknown_match", "color": None},
     ]
-    assert snapshot["act"]["decision"]["activePlaylistsBefore"] == []
+    assert snapshot["think"]["decision"]["activePlaylists"] == [
+        {"name": "unknown_active", "display": "unknown_active", "color": None},
+    ]
 
 
 def test_api_analysis_window_empty(app):
@@ -408,7 +409,6 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
         _make_trace(
             tick_id=1,
             active_playlist_before="test_pl",
-            active_playlist_after="test_pl",
             matched_playlist="missing_playlist",
             executed=False,
             action_kind=Action.HOLD,

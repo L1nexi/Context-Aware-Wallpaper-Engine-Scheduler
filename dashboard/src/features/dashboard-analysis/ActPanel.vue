@@ -21,12 +21,12 @@ const props = defineProps<{
 const { t, lang } = useI18n()
 
 const topMatches = computed(() => props.tick.act.topMatches.slice(0, 5))
-const decisionSummary = computed(() => getDecisionSummary(props.tick.act.decision, props.tick, t))
+const decisionSummary = computed(() => getDecisionSummary(props.tick.think.decision, props.tick, t))
 const matchedPlaylistLabel = computed(() => getTickPlaylistLabel(props.tick, 'matched', t))
 const targetPlaylistLabel = computed(
   () =>
-    props.tick.act.decision.targetPlaylist?.display ??
-    props.tick.act.decision.targetPlaylist?.name ??
+    props.tick.think.decision.targetPlaylist?.display ??
+    props.tick.think.decision.targetPlaylist?.name ??
     t('dashboard_none'),
 )
 const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
@@ -81,8 +81,8 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
       </section>
 
       <ControllerSummary
-        :evaluation="tick.act.controller.evaluation"
-        :decision="tick.act.decision"
+        :evaluation="tick.think.controller.evaluation"
+        :decision="tick.think.decision"
       />
 
       <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
@@ -97,7 +97,7 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
           <span
             class="inline-flex items-center rounded-full border border-border/70 bg-muted/70 px-3 py-1 text-xs font-medium text-muted-foreground"
           >
-            {{ tick.act.decision.executed ? t('dashboard_executed') : t('dashboard_not_executed') }}
+            {{ tick.think.decision.executed ? t('dashboard_executed') : t('dashboard_not_executed') }}
           </span>
         </div>
 
@@ -105,7 +105,7 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
             <dt class="text-sm text-muted-foreground">{{ t('dashboard_action_reason') }}</dt>
             <dd class="mt-1 font-medium">
-              {{ getActionReasonLabel(tick.act.decision.reason, t) }}
+              {{ getActionReasonLabel(tick.think.decision.reason, t) }}
             </dd>
           </div>
 

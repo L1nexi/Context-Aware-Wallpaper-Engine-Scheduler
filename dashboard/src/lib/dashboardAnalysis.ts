@@ -155,8 +155,8 @@ export interface ActionDecision {
   action: Action
   reason: ActionReason
   executed: boolean
-  activePlaylistsBefore: PlaylistRef[]
-  activePlaylistsAfter: PlaylistRef[]
+  activePlaylists: PlaylistRef[]
+  targetPlaylists: PlaylistRef[]
   matchedPlaylists: PlaylistRef[]
   targetPlaylist: PlaylistRef | null
 }
@@ -180,12 +180,12 @@ export interface ThinkSnapshot {
   resolvedContextVector: TagWeight[]
   fallbackExpansions: Record<string, ResolvedTagWeight[]>
   policies: Evaluation[]
+  decision: ActionDecision
+  controller: Controller
 }
 
 export interface ActSnapshot {
   topMatches: TopMatch[]
-  controller: Controller
-  decision: ActionDecision
 }
 
 export interface TickSummary {

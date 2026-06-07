@@ -19,38 +19,39 @@ class ActionHistoryWriter:
     def on_tick(self, trace: TickTrace) -> None:
         result = trace.action
         match = trace.match
+        decision = trace.decision
 
-        if result.action == Action.SWITCH and result.executed:
+        if decision.action == Action.SWITCH and result.executed:
             self._history.write(
                 EventType.PLAYLISTS_SWITCH,
                 {
-                    "playlists_from": result.active_playlists_before.names(),
-                    "playlists_to": result.active_playlists_after.names(),
+                    "playlists_from": trace.active_playlists.names(),
+                    "playlists_to": trace.target.names(),
                     "target_playlist": result.target_playlist,
                     "tags": _tag_dict(match.raw_context_vector),
                     "similarity": round(match.similarity, 4),
                     "similarity_gap": round(match.similarity_gap, 4),
                     "max_policy_magnitude": round(match.max_policy_magnitude, 4),
-                    "reason_code": result.reason.value,
+                    "reason_code": decision.reason.value,
                 },
             )
-        elif result.action == Action.CYCLE and result.executed:
+        elif decision.action == Action.CYCLE and result.executed:
             self._history.write(
                 EventType.PLAYLISTS_CYCLE,
                 {
-                    "playlists": result.active_playlists_before.names(),
+                    "playlists": trace.active_playlists.names(),
                     "target_playlist": result.target_playlist,
                     "tags": _tag_dict(match.raw_context_vector),
-                    "reason_code": result.reason.value,
+                    "reason_code": decision.reason.value,
                 },
             )
-        elif result.action in {Action.SWITCH, Action.CYCLE} and not result.executed:
+        elif decision.action in {Action.SWITCH, Action.CYCLE} and not result.executed:
             self._history.write(
                 EventType.ACTUATION_FAILED,
                 {
-                    "action": result.action.value,
-                    "reason_code": result.reason.value,
-                    "matched_playlists": result.decision.matched.names(),
-                    "active_playlists_before": result.active_playlists_before.names(),
+                    "action": decision.action.value,
+                    "reason_code": decision.reason.value,
+                    "matched_playlists": decision.target.names(),
+                    "active_playlists": trace.active_playlists.names(),
                 },
             )

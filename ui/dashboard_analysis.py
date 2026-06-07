@@ -177,8 +177,8 @@ class ActionDecisionDto(ApiDto):
     action: Action
     reason: ActionReason
     executed: bool
-    active_playlists_before: list[PlaylistRefDto]
-    active_playlists_after: list[PlaylistRefDto]
+    active_playlists: list[PlaylistRefDto]
+    target_playlists: list[PlaylistRefDto]
     matched_playlists: list[PlaylistRefDto]
     target_playlist: PlaylistRefDto | None
 
@@ -202,12 +202,12 @@ class ThinkSnapshotDto(ApiDto):
     resolved_context_vector: list[TagWeightDto]
     fallback_expansions: dict[str, list[ResolvedTagWeightDto]]
     policies: list[EvaluationDto]
+    controller: ControllerDto
+    decision: ActionDecisionDto
 
 
 class ActSnapshotDto(ApiDto):
     top_matches: list[TopMatchDto]
-    controller: ControllerDto
-    decision: ActionDecisionDto
 
 
 class TickSummaryDto(ApiDto):
@@ -404,11 +404,11 @@ def _controller_evaluation(
 
 def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
     matched_playlist_refs = _playlist_refs(trace.match.best_playlists)
-    action_matched_playlist_refs = _playlist_refs(trace.action.decision.matched)
-    active_playlists_after_refs = _playlist_refs(trace.action.active_playlists_after)
-    active_playlists_before_refs = _playlist_refs(trace.action.active_playlists_before)
+    action_matched_playlist_refs = _playlist_refs(trace.decision.target)
+    target_refs = _playlist_refs(trace.target)
+    active_playlists_refs = _playlist_refs(trace.active_playlists)
     target_playlist_ref = _playlist_ref(trace.action.target_playlist)
-    has_event = trace.action.action in {Action.SWITCH, Action.CYCLE}
+    has_event = trace.decision.action in {Action.SWITCH, Action.CYCLE}
 
     return TickSnapshotDto(
         summary=TickSummaryDto(
@@ -416,10 +416,10 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             ts=trace.ts,
             similarity=_round_float(trace.match.similarity),
             similarity_gap=_round_float(trace.match.similarity_gap),
-            active_playlists=active_playlists_after_refs,
+            active_playlists=target_refs,
             matched_playlists=matched_playlist_refs,
-            action=trace.action.action,
-            reason=trace.action.reason,
+            action=trace.decision.action,
+            reason=trace.decision.reason,
             paused=trace.paused,
             executed=trace.action.executed,
             has_event=has_event,
@@ -442,6 +442,16 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
                 source_tag: _resolved_tag_weights(expansions) for source_tag, expansions in sorted(trace.match.fallback_expansions.items())
             },
             policies=[_policy_diagnostic(policy) for policy in trace.match.policy_evaluations],
+            controller=ControllerDto(evaluation=_controller_evaluation(trace.decision.evaluation)),
+            decision=ActionDecisionDto(
+                action=trace.decision.action,
+                reason=trace.decision.reason,
+                executed=trace.action.executed,
+                active_playlists=active_playlists_refs,
+                target_playlists=target_refs,
+                matched_playlists=action_matched_playlist_refs,
+                target_playlist=target_playlist_ref,
+            ),
         ),
         act=ActSnapshotDto(
             top_matches=[
@@ -451,16 +461,6 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
                 )
                 for playlist, score in trace.match.playlist_matches[:5]
             ],
-            controller=ControllerDto(evaluation=_controller_evaluation(trace.action.evaluation)),
-            decision=ActionDecisionDto(
-                action=trace.action.action,
-                reason=trace.action.reason,
-                executed=trace.action.executed,
-                active_playlists_before=active_playlists_before_refs,
-                active_playlists_after=active_playlists_after_refs,
-                matched_playlists=action_matched_playlist_refs,
-                target_playlist=target_playlist_ref,
-            ),
         ),
     )
 

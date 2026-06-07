@@ -1,17 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from core.models.playlist import Playlists
-from core.runtime.controller import DecisionMode
+from core.models.trace import ActPlan, DecisionMode
 from core.runtime.we_config import FactualPlaylistState
 from core.runtime.we_config import FactualPlaylistStatus as Status
-
-
-@dataclass(frozen=True)
-class ActPlan:
-    mode: DecisionMode
-    active_playlists: Playlists
 
 
 def plan_actuation(

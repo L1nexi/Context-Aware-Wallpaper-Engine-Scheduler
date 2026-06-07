@@ -123,6 +123,26 @@ class WeatherEvaluation(BaseEvaluation):
 type PolicyEvaluation = ActivityEvaluation | TimeEvaluation | SeasonEvaluation | WeatherEvaluation
 
 
+class DecisionMode(StrEnum):
+    NORMAL = "normal"
+    MANUAL = "manual"
+    RECOVERY = "recovery"
+    PAUSE = "pause"
+
+
+@dataclass(frozen=True)
+class ActPlan:
+    mode: DecisionMode
+    active_playlists: Playlists
+
+
+@dataclass
+class ThinkResult:
+    match: Match
+    decision: Decision
+    plan: ActPlan
+
+
 @dataclass
 class Match:
     best_playlists: Playlists
@@ -165,35 +185,14 @@ class Decision:
 
     action: Action
     reason: ActionReason
-    matched: Playlists
+    target: Playlists
     evaluation: BlockerEvaluation | None = None
 
 
 @dataclass
 class ActionResult:
-    decision: Decision
-    active_playlists_before: Playlists
-    active_playlists_after: Playlists
     target_playlist: str | None = None
     executed: bool = False
-
-    @property
-    def action(self) -> Action:
-        return self.decision.action
-
-    @property
-    def reason(self) -> ActionReason:
-        return self.decision.reason
-
-    @property
-    def evaluation(self) -> BlockerEvaluation | None:
-        return self.decision.evaluation
-
-    @property
-    def cache_update(self) -> Playlists | None:
-        if self.executed and self.action == Action.SWITCH:
-            return self.active_playlists_after
-        return None
 
 
 @dataclass
@@ -203,5 +202,29 @@ class TickTrace:
     paused: bool
     pause_until: float
     context: Context
-    match: Match
+    think: ThinkResult
     action: ActionResult
+
+    @property
+    def match(self) -> Match:
+        return self.think.match
+
+    @property
+    def decision(self) -> Decision:
+        return self.think.decision
+
+    @property
+    def active_playlists(self) -> Playlists:
+        return self.think.plan.active_playlists
+
+    @property
+    def target(self) -> Playlists:
+        if self.action.executed and self.think.decision.action == Action.SWITCH:
+            return self.think.decision.target
+        return self.think.plan.active_playlists
+
+    @property
+    def cache_update(self) -> Playlists | None:
+        if self.action.executed and self.think.decision.action == Action.SWITCH:
+            return self.target
+        return None

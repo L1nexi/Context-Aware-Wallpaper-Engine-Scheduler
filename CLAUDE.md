@@ -62,8 +62,8 @@ cd dashboard && npm run dev
 
 ```
 Sense:    ContextManager.sense()       -> Context snapshot
-Think:    Engine.think()               -> Match (policy evaluations + playlist ranking)
-Act:      plan_actuation() + Actuator  -> ActionResult (decision + execution)
+Think:    Engine.think()               -> ThinkResult (match + decision + plan)
+Act:      Actuator.act()               -> ActionResult (execution result)
 Trace:    _build_tick_trace()          -> TickTrace (full tick record)
 Commit:   _commit_tick()               -> cache persist, tick listeners, HistoryLogger
 
@@ -71,14 +71,17 @@ TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
                                         HistoryLogger.write() -> history-{YYYY}-{MM}.jsonl
 ```
 
+Think 阶段内部三步：matcher 排名 → plan_actuation 探测 WE 状态 → controller 调度决策。Act 阶段是纯执行（target selection + CLI 调用）。
+
 - **Sensors** (`core/sensors/`)：WindowSensor、IdleSensor、CpuSensor、FullscreenSensor、WeatherSensor、TimeSensor
 - **Context** (`core/models/context.py`)：`Context` dataclass，`ContextManager` 每 tick 轮询传感器，`sense()` 返回深拷贝快照
 - **Policies** (`core/policies/`)：ActivityPolicy（双 EMA）、TimePolicy（Hann 窗插值）、SeasonPolicy（Hann 窗插值）、WeatherPolicy（四档连续强度）— 各输出归一化标签向量 + salience
 - **Matcher** (`core/runtime/`)：上下文向量与播放列表标签向量的余弦相似度匹配；通过 `tags.yaml` 递归展开 fallback
-- **Actuator** (`core/runtime/`)：将 matcher 结果与 actuation plan 桥接为 `ActionResult`，`ActionResult.cache_update` 是播放列表缓存的唯一写入权威
+- **SchedulingController** (`core/runtime/`)：纯调度决策器（switch/cycle/hold/pause），由 Engine 持有，在 Think 阶段调用
+- **Actuator** (`core/runtime/`)：纯执行器，接收 `Decision` 做 target selection + CLI 调用，不持有 controller
 - **Executor** (`core/runtime/`)：Wallpaper Engine CLI 命令（`-control openPlaylist`、`-control nextWallpaper`）
 - **Scheduler** (`core/runtime/`)：主编排器，tick 循环（Sense -> Think -> Act -> Trace -> Commit）、热重载、暂停/恢复、状态持久化
-- **Models** (`core/models/`)：`TickTrace`、`ActionResult`、`Decision` 等 dataclass 层级，用于 tick 内省
+- **Models** (`core/models/`)：`ThinkResult`、`TickTrace`、`ActionResult`、`Decision` 等 dataclass 层级，用于 tick 内省
 - **State** (`core/state/`)：`PersistedState`、`SchedulerState`、`ActionHistory` 等运行时状态管理
 
 ### UI 层 (`ui/`)

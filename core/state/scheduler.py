@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from core.models.context import Context
 from core.models.playlist import Playlists
-from core.models.trace import ActionResult, Match, TickTrace
+from core.models.trace import ActionResult, ThinkResult, TickTrace
 from core.state.persisted import PersistedState
 
 logger = logging.getLogger("WEScheduler.State")
@@ -65,7 +65,7 @@ class SchedulerState:
         self._manual_apply_pending = False
         return True
 
-    def build_tick_trace(self, context: Context, match: Match, action: ActionResult) -> TickTrace:
+    def build_tick_trace(self, context: Context, think: ThinkResult, action: ActionResult) -> TickTrace:
         self.tick_id += 1
         return TickTrace(
             tick_id=self.tick_id,
@@ -73,14 +73,14 @@ class SchedulerState:
             paused=self.paused,
             pause_until=self.pause_until,
             context=context,
-            match=match,
+            think=think,
             action=action,
         )
 
     def commit_tick(self, trace: TickTrace) -> None:
         self.last_tick_trace = trace
 
-        next_cached = trace.action.cache_update
+        next_cached = trace.cache_update
         if next_cached is not None and next_cached != self.cached_playlists:
             self.cached_playlists = next_cached
             self.save()

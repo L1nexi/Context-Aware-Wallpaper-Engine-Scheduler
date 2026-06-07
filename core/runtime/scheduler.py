@@ -9,7 +9,6 @@ from configurations.errors import ConfigLoadError
 from core.models.event import EventLogger, EventType
 from core.models.playlist import Playlists
 from core.models.trace import TickTrace
-from core.runtime.act_plan import plan_actuation
 from core.runtime.engine import Engine
 from core.state.action_history import ActionHistoryWriter
 from core.state.persisted import PersistedState
@@ -150,17 +149,14 @@ class WEScheduler:
         assert self.engine is not None
         engine = self.engine
         context = engine.sense()
-        match = engine.think(context)
-
-        plan = plan_actuation(
-            factual=engine.probe_playlist(),
-            cached_playlists=self.state.cached_playlists,
-            paused=self.state.paused,
-            manual_requested=self.state.consume_manual_apply_request(),
+        think = engine.think(
+            context,
+            self.state.cached_playlists,
+            self.state.paused,
+            self.state.consume_manual_apply_request(),
         )
-
-        action = engine.act(plan, match, context)
-        return self.state.build_tick_trace(context, match, action)
+        action = engine.act(think)
+        return self.state.build_tick_trace(context, think, action)
 
     def apply_current_match_now(self) -> None:
         logger.info("Manual apply requested.")

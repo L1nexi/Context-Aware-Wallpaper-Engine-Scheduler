@@ -8,14 +8,14 @@ from configurations.loader import ConfigLoader
 from configurations.runtime_models import SchedulerConfig
 from core.models.context import Context, ContextManager
 from core.models.playlist import Playlists
-from core.models.trace import ActionResult, Match
+from core.models.trace import ActionResult, ThinkResult
 from core.policies import POLICY_REGISTRY, Policy
-from core.runtime.act_plan import ActPlan
+from core.runtime.act_plan import plan_actuation
 from core.runtime.actuator import Actuator
 from core.runtime.controller import SchedulingController
 from core.runtime.executor import WEExecutor
 from core.runtime.matcher import Matcher
-from core.runtime.we_config import FactualPlaylistState, WEConfigProber
+from core.runtime.we_config import WEConfigProber
 from core.sensors import SENSOR_REGISTRY
 from ui.i18n import set_language
 
@@ -28,6 +28,7 @@ class _BuiltEngine:
     context_manager: ContextManager
     matcher: Matcher
     actuator: Actuator
+    controller: SchedulingController
     config: SchedulerConfig
     we_config_prober: WEConfigProber
 
@@ -42,6 +43,7 @@ class Engine:
         self.context_manager: ContextManager | None = None
         self.matcher: Matcher | None = None
         self.actuator: Actuator | None = None
+        self.controller: SchedulingController | None = None
         self.we_config_prober: WEConfigProber | None = None
         self.config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
 
@@ -74,19 +76,33 @@ class Engine:
     def sense(self) -> Context:
         return self.context_manager.sense()
 
-    def think(self, context: Context) -> Match:
-        return self.matcher.match(context)
+    def think(
+        self,
+        context: Context,
+        cached_playlists: Playlists,
+        paused: bool,
+        manual_requested: bool,
+    ) -> ThinkResult:
+        match = self.matcher.match(context)
+        plan = plan_actuation(
+            factual=self.we_config_prober.probe_playlist(),
+            cached_playlists=cached_playlists,
+            paused=paused,
+            manual_requested=manual_requested,
+        )
+        decision = self.controller.decide_action(plan, context, match)
+        return ThinkResult(match=match, decision=decision, plan=plan)
 
     def ensure_we_alive(self, paused: bool = False) -> None:
         if paused:
             return
         self.executor.keep_alive()
 
-    def probe_playlist(self) -> FactualPlaylistState:
-        return self.we_config_prober.probe_playlist()
-
-    def act(self, plan: ActPlan, match: Match, context: Context) -> ActionResult:
-        return self.actuator.act(plan.mode, match, plan.active_playlists, context)
+    def act(self, think: ThinkResult) -> ActionResult:
+        result = self.actuator.act(think.decision)
+        if result.executed:
+            self.controller.notify_executed(think.decision)
+        return result
 
     def _build_components(self, config: SchedulerConfig) -> _BuiltEngine:
         executor = WEExecutor(config.wallpaper_engine_path)
@@ -98,16 +114,15 @@ class Engine:
         policies: list[Policy] = [cls(getattr(config.policies, cls.config_key)) for cls in POLICY_REGISTRY]
 
         matcher = Matcher(config.playlists, policies, config.tags)
-        actuator = Actuator(
-            executor,
-            SchedulingController(config.scheduling),
-        )
+        controller = SchedulingController(config.scheduling)
+        actuator = Actuator(executor)
 
         return _BuiltEngine(
             executor=executor,
             context_manager=context_manager,
             matcher=matcher,
             actuator=actuator,
+            controller=controller,
             config=config,
             we_config_prober=WEConfigProber(config.wallpaper_engine_path),
         )
@@ -117,6 +132,7 @@ class Engine:
         self.context_manager = runtime.context_manager
         self.matcher = runtime.matcher
         self.actuator = runtime.actuator
+        self.controller = runtime.controller
         self.we_config_prober = runtime.we_config_prober
         Playlists.configure(runtime.config.playlists)
         set_language(runtime.config.language)
@@ -125,7 +141,7 @@ class Engine:
         previous_config = self.config_loader.config
         try:
             matcher_state = self.matcher.export_state()
-            actuator_state = self.actuator.export_state()
+            controller_state = self.controller.export_state()
 
             config = self.config_loader.load_verified_config()
             logger.info("Hot reload: config changed, rebuilding components.")
@@ -133,7 +149,7 @@ class Engine:
             next_runtime = self._build_components(config)
 
             next_runtime.matcher.import_state(matcher_state)
-            next_runtime.actuator.import_state(actuator_state)
+            next_runtime.controller.import_state(controller_state)
             self._install_components(next_runtime)
 
             logger.info("Hot reload complete. %d playlists loaded.", len(config.playlists))
