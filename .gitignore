@@ -39,7 +39,7 @@ docs/superpowers/
 
 .playwright*/
 
-venv313/
+.venv/
 config/
 
 # Internal tuning tool outputs

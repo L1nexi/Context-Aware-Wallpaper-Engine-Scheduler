@@ -460,7 +460,7 @@ POC 验证：
 回归测试：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
 如触及 dashboard 前端，再补：

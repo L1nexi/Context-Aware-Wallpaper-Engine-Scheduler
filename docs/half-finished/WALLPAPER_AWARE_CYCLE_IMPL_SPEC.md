@@ -773,7 +773,7 @@ def get_wallpaper(self) -> str | None:
 验证：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest tests/test_we_config.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_we_config.py -q
 ```
 
 依赖：
@@ -797,7 +797,7 @@ def get_wallpaper(self) -> str | None:
 验证：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest tests/test_wallpaper_index.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_wallpaper_index.py -q
 ```
 
 依赖：
@@ -825,7 +825,7 @@ def get_wallpaper(self) -> str | None:
 验证：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest tests/test_wallpaper_ranker.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_wallpaper_ranker.py -q
 ```
 
 必需测试：
@@ -861,7 +861,7 @@ def get_wallpaper(self) -> str | None:
 验证：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest tests/test_core_diagnostics.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_core_diagnostics.py -q
 ```
 
 必需测试：
@@ -893,7 +893,7 @@ def get_wallpaper(self) -> str | None:
 验证：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest tests/test_core_diagnostics.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_core_diagnostics.py -q
 ```
 
 依赖：
@@ -919,7 +919,7 @@ def get_wallpaper(self) -> str | None:
 验证：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest tests/test_dashboard_api.py tests/test_core_diagnostics.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_dashboard_api.py tests/test_core_diagnostics.py -q
 ```
 
 依赖：
@@ -939,7 +939,7 @@ def get_wallpaper(self) -> str | None:
 验证：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
 如果 dashboard TypeScript types 被修改：
@@ -997,14 +997,14 @@ POC：
 回归：
 
 ```bash
-.\venv313\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
 手动运行时冒烟：
 
 ```powershell
 $env:WESCHEDULER_EXPERIMENTAL_WALLPAPER_CYCLE="1"
-.\venv313\Scripts\python.exe main.py --no-tray
+.\.venv\Scripts\python.exe main.py --no-tray
 ```
 
 手动冒烟预期：

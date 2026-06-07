@@ -23,7 +23,7 @@ pytest tests/test_foo.py    # 运行单个测试文件
 
 ### 代码检查 / 格式化（Ruff，Python 3.13，行宽 150）
 
-虚拟环境位于 `venv313/`
+虚拟环境位于 `.venv/`
 
 ```powershell
 python -m ruff check . --fix
@@ -77,11 +77,12 @@ Think 阶段内部三步：matcher 排名 → plan_actuation 探测 WE 状态 �
 - **Context** (`core/models/context.py`)：`Context` dataclass，`ContextManager` 每 tick 轮询传感器，`sense()` 返回深拷贝快照
 - **Policies** (`core/policies/`)：ActivityPolicy（双 EMA）、TimePolicy（Hann 窗插值）、SeasonPolicy（Hann 窗插值）、WeatherPolicy（四档连续强度）— 各输出归一化标签向量 + salience
 - **Matcher** (`core/runtime/`)：上下文向量与播放列表标签向量的余弦相似度匹配；通过 `tags.yaml` 递归展开 fallback
-- **SchedulingController** (`core/runtime/`)：纯调度决策器（switch/cycle/hold/pause），由 Engine 持有，在 Think 阶段调用
-- **Actuator** (`core/runtime/`)：纯执行器，接收 `Decision` 做 target selection + CLI 调用，不持有 controller
-- **Executor** (`core/runtime/`)：Wallpaper Engine CLI 命令（`-control openPlaylist`、`-control nextWallpaper`）
-- **Scheduler** (`core/runtime/`)：主编排器，tick 循环（Sense -> Think -> Act -> Trace -> Commit）、热重载、暂停/恢复、状态持久化
-- **Models** (`core/models/`)：`ThinkResult`、`TickTrace`、`ActionResult`、`Decision` 等 dataclass 层级，用于 tick 内省
+- **ActPlan** (`core/runtime/act_plan.py`)：探测 WE 实际状态，决定 `DecisionMode`（NORMAL/MANUAL/RECOVERY/PAUSE）和 `active_playlists`
+- **SchedulingController** (`core/runtime/controller.py`)：纯调度决策器，在 Think 阶段接收 `ActPlan` + `Match` + `Context`，输出 `Decision`（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
+- **Actuator** (`core/runtime/actuator.py`)：纯执行器，接收 `Decision` 做 target selection + CLI 调用，不持有 controller
+- **Executor** (`core/runtime/executor.py`)：Wallpaper Engine CLI 命令（`-control openPlaylist`、`-control nextWallpaper`），内置 keep_alive 保活（每 5 tick 发 `getWallpaper`）
+- **Scheduler** (`core/runtime/scheduler.py`)：主编排器，tick 循环（Sense -> Think -> Act -> Trace -> Commit）、热重载、暂停/恢复、状态持久化
+- **Models** (`core/models/trace.py`)：`ThinkResult`、`TickTrace`、`ActionResult`、`Decision`、`ActPlan`、`BlockerEvaluation` 等 dataclass 层级，用于 tick 内省
 - **State** (`core/state/`)：`PersistedState`、`SchedulerState`、`ActionHistory` 等运行时状态管理
 
 ### UI 层 (`ui/`)

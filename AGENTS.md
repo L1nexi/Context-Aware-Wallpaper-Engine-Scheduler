@@ -22,9 +22,33 @@
 - `config.example/` 是发布与示例配置；`tests/` 放 pytest 测试。
 - `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格
 
+### Sense-Think-Act 管线（`WEScheduler` 1 秒 tick）
+
+```
+Sense:    ContextManager.sense()       -> Context snapshot
+Think:    Engine.think()               -> ThinkResult (match + decision + plan)
+Act:      Actuator.act()               -> ActionResult
+Trace:    _build_tick_trace()          -> TickTrace
+Commit:   _commit_tick()               -> cache persist, tick listeners, HistoryLogger
+```
+
+Think 阶段三步：
+1. `Matcher.match()` — 上下文向量与播放列表标签的余弦相似度排名
+2. `plan_actuation()` — 探测 WE 实际状态，决定 `DecisionMode`（NORMAL/MANUAL/RECOVERY/PAUSE）和 `active_playlists`
+3. `SchedulingController.decide_action()` — 基于 ActPlan + Match + Context 输出 Decision（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
+
+Act 阶段是纯执行：`Actuator` 接收 `Decision` 做 target selection + CLI 调用，不持有 controller。
+
+关键组件：
+- `core/runtime/act_plan.py` — WE 状态探测，输出 `ActPlan`
+- `core/runtime/controller.py` — 调度决策器，输出 `Decision`
+- `core/runtime/actuator.py` — 纯执行器
+- `core/runtime/executor.py` — WE CLI 封装，内置 keep_alive 保活
+- `core/models/trace.py` — `ThinkResult`、`TickTrace`、`Decision`、`ActPlan`、`BlockerEvaluation` 等 dataclass
+
 ## 构建、测试与本地开发命令
 
-本项目采用虚拟环境，目录为根目录的 `venv313/`
+本项目采用虚拟环境，目录为根目录的 `.venv/`
 
 后端常用命令：
 

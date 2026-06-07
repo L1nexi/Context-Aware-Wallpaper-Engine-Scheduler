@@ -317,7 +317,7 @@ Match: <latest matched playlist display>
 验证：
 
 ```bash
-venv313\Scripts\python.exe -m pytest tests/test_we_config.py tests/test_we_path.py tests/test_config_loader.py -q
+.venv\Scripts\python.exe -m pytest tests/test_we_config.py tests/test_we_path.py tests/test_config_loader.py -q
 ```
 
 ### Phase 2: Tick-level factual correction and recovery
