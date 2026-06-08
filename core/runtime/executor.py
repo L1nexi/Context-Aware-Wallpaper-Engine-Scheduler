@@ -31,6 +31,10 @@ class WEExecutor:
     def _run_command(self, args: list[str]) -> bool:
         """-control 参数默认会先拉起 WE，随后执行命令。
         拉起时间小于 0.5s，这使得我们在除了在 WE 安全恢复后弹窗以外的场景无需做复杂的 WE 保活
+
+        使用 Popen + wait(timeout) 而非 subprocess.run(timeout)，避免超时时 kill 子进程。
+        当 WE 处于安全启动弹窗时 -control 命令会挂起，如果 kill 子进程会把 WE 本身也杀掉，
+        导致 keep_alive 反复拉起又杀死 WE 的循环。
         """
         cmd = [self.we_path, "-control"] + args
         try:
@@ -39,27 +43,31 @@ class WEExecutor:
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-            subprocess.run(
+            proc = subprocess.Popen(
                 cmd,
-                check=True,
-                timeout=WE_CONTROL_TIMEOUT_SECONDS,
                 startupinfo=startupinfo,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            try:
+                proc.wait(timeout=WE_CONTROL_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                logger.warning(
+                    "WE control command timed out after %.1fs: %s",
+                    WE_CONTROL_TIMEOUT_SECONDS,
+                    args,
+                )
+                return False
+
+            if proc.returncode != 0:
+                if proc.returncode == 5:
+                    logger.warning(f"WE Error 5 (Likely Encoding Issue). Try renaming playlist '{args[-1]}' to English. Command: {args}")
+                else:
+                    logger.error(f"Error executing command: return code {proc.returncode}, args: {args}")
+                return False
+
             logger.debug(f"Executed: {' '.join(cmd)}")
             return True
-        except subprocess.TimeoutExpired:
-            logger.warning(
-                "WE control command timed out after %.1fs: %s",
-                WE_CONTROL_TIMEOUT_SECONDS,
-                args,
-            )
-        except subprocess.CalledProcessError as e:
-            if e.returncode == 5:
-                logger.warning(f"WE Error 5 (Likely Encoding Issue). Try renaming playlist '{args[-1]}' to English. Command: {args}")
-            else:
-                logger.error(f"Error executing command: {e}")
         except Exception as e:
             logger.error(f"Unexpected error executing command: {e}")
         return False
