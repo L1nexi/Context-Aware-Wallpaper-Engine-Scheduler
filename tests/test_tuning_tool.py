@@ -12,7 +12,6 @@ from core.policies import SeasonPolicy, TimePolicy, WeatherPolicy
 from core.runtime.matcher import Matcher
 from tools.tuning.heatmaps import (
     HeatmapFigure,
-    HeatmapSampling,
 )
 from tools.tuning.models import (
     ActivitySignal,

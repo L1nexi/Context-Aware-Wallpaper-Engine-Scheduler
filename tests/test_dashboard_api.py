@@ -17,15 +17,16 @@ from core.models.trace import (
     ActionResult,
     ActivityDetails,
     ActivityEvaluation,
+    ActPlan,
     BlockerEvaluation,
     Decision,
+    DecisionMode,
     Match,
-    ThinkResult,
+    ScheduleTrace,
     TickTrace,
     WeatherDetails,
     WeatherEvaluation,
 )
-from core.models.trace import ActPlan, DecisionMode
 from ui.dashboard import (
     DASHBOARD_STATIC_APP_DIR,
     DASHBOARD_STATIC_DIST_DIR,
@@ -126,15 +127,15 @@ def _make_trace(
         ts=1714800000.0 + tick_id,
         paused=paused,
         pause_until=1714803600.0 if paused else 0.0,
-        context=Context(
-            window=WindowData(process="chrome.exe", title="Code Review"),
-            idle=12.5,
-            cpu=27.25,
-            fullscreen=False,
-            weather=weather,
-            time=current_time,
-        ),
-        think=ThinkResult(
+        schedule=ScheduleTrace(
+            context=Context(
+                window=WindowData(process="chrome.exe", title="Code Review"),
+                idle=12.5,
+                cpu=27.25,
+                fullscreen=False,
+                weather=weather,
+                time=current_time,
+            ),
             match=Match(
                 best_playlists=best_playlists,
                 playlist_matches=playlist_matches,
@@ -144,16 +145,16 @@ def _make_trace(
                 policy_evaluations=policy_evaluations or [],
                 max_policy_magnitude=1.2,
             ),
+            plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=plan_active),
             decision=Decision(
                 action=action_kind,
                 target=best_playlists,
                 evaluation=evaluation,
             ),
-            plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=plan_active),
-        ),
-        action=ActionResult(
-            target_playlist=target_playlist,
-            executed=executed,
+            action=ActionResult(
+                target_playlist=target_playlist,
+                executed=executed,
+            ),
         ),
     )
 

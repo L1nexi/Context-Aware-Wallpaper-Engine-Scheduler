@@ -58,31 +58,32 @@ cd dashboard && npm run dev
 
 ## 架构
 
-**Sense-Think-Act 管线**（`WEScheduler` 1 秒 tick 循环）：
+**调度管线**（`engine.schedule()`）：
 
 ```
 Sense:    ContextManager.sense()       -> Context snapshot
-Think:    Engine.think()               -> ThinkResult (match + decision + plan)
-Act:      Actuator.act()               -> ActionResult (execution result)
-Trace:    _build_tick_trace()          -> TickTrace (full tick record)
-Commit:   _commit_tick()               -> cache persist, tick listeners, HistoryLogger
+Match:    Matcher.match()              -> Match
+Plan:     plan_actuation()             -> ActPlan
+Decide:   Controller.decide_action()   -> Decision
+Execute:  Actuator.act()               -> ActionResult
+Commit:   SchedulerState.commit()      -> cache persist
 
 TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
                                         HistoryLogger.write() -> history-{YYYY}-{MM}.jsonl
 ```
 
-Think 阶段内部三步：matcher 排名 → plan_actuation 探测 WE 状态 → controller 调度决策。Act 阶段是纯执行（target selection + CLI 调用）。
+`Engine.schedule()` 接管完整调度流程：sense、match、plan、decide、execute，并返回 `ScheduleTrace`。`WEScheduler` 只负责热重载、暂停恢复、keep_alive、添加 tick 元信息、提交状态和通知 listener。Execute 阶段是纯执行（target selection + CLI 调用）。
 
 - **Sensors** (`core/sensors/`)：WindowSensor、IdleSensor、CpuSensor、FullscreenSensor、WeatherSensor、TimeSensor
 - **Context** (`core/models/context.py`)：`Context` dataclass，`ContextManager` 每 tick 轮询传感器，`sense()` 返回深拷贝快照
 - **Policies** (`core/policies/`)：ActivityPolicy（双 EMA）、TimePolicy（Hann 窗插值）、SeasonPolicy（Hann 窗插值）、WeatherPolicy（四档连续强度）— 各输出归一化标签向量 + salience
 - **Matcher** (`core/runtime/`)：上下文向量与播放列表标签向量的余弦相似度匹配；通过 `tags.yaml` 递归展开 fallback
 - **ActPlan** (`core/runtime/act_plan.py`)：探测 WE 实际状态，决定 `DecisionMode`（NORMAL/MANUAL/RECOVERY/PAUSE）和 `active_playlists`
-- **Controller** (`core/runtime/controller.py`)：纯调度决策器，在 Think 阶段接收 `ActPlan` + `Match` + `Context`，输出 `Decision`（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
+- **Controller** (`core/runtime/controller.py`)：纯调度决策器，在 Decide 阶段接收 `ActPlan` + `Match` + `Context`，输出 `Decision`（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
 - **Actuator** (`core/runtime/actuator.py`)：纯执行器，接收 `Decision` 做 target selection + CLI 调用，不持有 controller
 - **Executor** (`core/runtime/executor.py`)：Wallpaper Engine CLI 命令（`-control openPlaylist`、`-control nextWallpaper`），内置 keep_alive 保活（每 5 tick 发 `getWallpaper`）
-- **Scheduler** (`core/runtime/scheduler.py`)：主编排器，tick 循环（Sense -> Think -> Act -> Trace -> Commit）、热重载、暂停/恢复、状态持久化
-- **Models** (`core/models/trace.py`)：`ThinkResult`、`TickTrace`、`ActionResult`、`Decision`、`ActPlan`、`BlockerEvaluation` 等 dataclass 层级，用于 tick 内省
+- **Scheduler** (`core/runtime/scheduler.py`)：生命周期编排器，tick 循环中调用 `Engine.schedule()`、添加 tick 元信息、提交状态、通知 listeners，并处理热重载、暂停/恢复、状态持久化
+- **Models** (`core/models/trace.py`)：`ScheduleTrace`、`TickTrace`、`ActionResult`、`Decision`、`ActPlan`、`BlockerEvaluation` 等 dataclass 层级，用于调度内省
 - **State** (`core/state/`)：`PersistedState`、`SchedulerState`、`ActionHistory` 等运行时状态管理
 
 ### UI 层 (`ui/`)
@@ -118,7 +119,7 @@ Think 阶段内部三步：matcher 排名 → plan_actuation 探测 WE 状态 �
 
 ## 测试
 
-pytest 配置以 `pytest.ini` 为准，必须在仓库根目录运行。`testpaths = tests`、`basetemp = .pytest_tmp`、`cache_dir = .pytest_tmp/cache`。
+pytest 配置以 `pytest.ini` 为准，必须在仓库根目录运行。`testpaths = tests`、`basetemp = .pytest_tmp`、`cache_dir = .pytest_tmp/cache`。不要并行启动多个 pytest 进程；固定 `.pytest_tmp` 会让并行进程竞争清理同一目录，尤其在 Windows 上容易触发权限错误。
 
 测试应验证行为、边界条件或非显然回归。不要为简单属性透传、平凡分支写测试。
 

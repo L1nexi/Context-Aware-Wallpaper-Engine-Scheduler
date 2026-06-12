@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from core.models.playlist import Playlists
-from core.models.trace import Action, ActPlan, ActionResult, Decision, DecisionMode, Match, TickTrace, ThinkResult
+from core.models.trace import Action, ActionResult, ActPlan, Decision, DecisionMode, Match, ScheduleTrace, TickTrace
 from core.state.scheduler import SchedulerState
 
 
@@ -25,15 +25,23 @@ def test_cache_update_only_on_executed_switch():
         target=Playlists(["X"]),
     )
     plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["A"]))
-    think = ThinkResult(match=Match(best_playlists=Playlists(["X"])), decision=decision, plan=plan)
-
     executed_action = ActionResult(
         target_playlist="X",
         executed=True,
     )
+    schedule = ScheduleTrace(
+        context=None,
+        match=Match(best_playlists=Playlists(["X"])),
+        plan=plan,
+        decision=decision,
+        action=executed_action,
+    )
     trace = TickTrace(
-        tick_id=1, ts=0.0, paused=False, pause_until=0.0,
-        context=None, think=think, action=executed_action,
+        tick_id=1,
+        ts=0.0,
+        paused=False,
+        pause_until=0.0,
+        schedule=schedule,
     )
     assert trace.cache_update == Playlists(["X"])
 
@@ -42,8 +50,17 @@ def test_cache_update_only_on_executed_switch():
         executed=False,
     )
     trace2 = TickTrace(
-        tick_id=2, ts=0.0, paused=False, pause_until=0.0,
-        context=None, think=think, action=not_executed_action,
+        tick_id=2,
+        ts=0.0,
+        paused=False,
+        pause_until=0.0,
+        schedule=ScheduleTrace(
+            context=None,
+            match=schedule.match,
+            plan=plan,
+            decision=decision,
+            action=not_executed_action,
+        ),
     )
     assert trace2.cache_update is None
 
@@ -56,12 +73,20 @@ def test_cache_update_none_for_non_switch():
             target=Playlists(["A"]),
         )
         plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["A"]))
-        think = ThinkResult(match=Match(best_playlists=Playlists(["A"])), decision=decision, plan=plan)
         action = ActionResult(
             executed=True,
         )
         trace = TickTrace(
-            tick_id=1, ts=0.0, paused=False, pause_until=0.0,
-            context=None, think=think, action=action,
+            tick_id=1,
+            ts=0.0,
+            paused=False,
+            pause_until=0.0,
+            schedule=ScheduleTrace(
+                context=None,
+                match=Match(best_playlists=Playlists(["A"])),
+                plan=plan,
+                decision=decision,
+                action=action,
+            ),
         )
         assert trace.cache_update is None, f"Expected None for {action_kind}"

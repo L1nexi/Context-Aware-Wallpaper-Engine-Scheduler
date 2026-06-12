@@ -27,7 +27,7 @@ from core.models.trace import (
     Decision,
     DecisionMode,
     Match,
-    ThinkResult,
+    ScheduleTrace,
     TickTrace,
 )
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
@@ -184,8 +184,8 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
         ts=1.0,
         paused=False,
         pause_until=0.0,
-        context=Context(window=WindowData(title="Docs", process="Code.exe")),
-        think=ThinkResult(
+        schedule=ScheduleTrace(
+            context=Context(window=WindowData(title="Docs", process="Code.exe")),
             match=Match(
                 best_playlists=Playlists(["focus"]),
                 playlist_matches=[("focus", 0.9)],
@@ -193,15 +193,15 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
                 resolved_context_vector={"focus": 1.0},
                 policy_evaluations=[],
             ),
+            plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["focus"])),
             decision=Decision(
                 action=Action.HOLD,
                 target=Playlists(["focus"]),
                 evaluation=None,
             ),
-            plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["focus"])),
-        ),
-        action=ActionResult(
-            executed=False,
+            action=ActionResult(
+                executed=False,
+            ),
         ),
     )
 
@@ -739,7 +739,6 @@ def test_scheduler_history_recorder_logs_switch_event():
         similarity_gap=0.4,
     )
     plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["focus"]))
-    think = ThinkResult(match=match, decision=decision, plan=plan)
     action = ActionResult(
         target_playlist="rain",
         executed=True,
@@ -749,9 +748,13 @@ def test_scheduler_history_recorder_logs_switch_event():
         ts=123.0,
         paused=False,
         pause_until=0.0,
-        context=Context(),
-        think=think,
-        action=action,
+        schedule=ScheduleTrace(
+            context=Context(),
+            match=match,
+            plan=plan,
+            decision=decision,
+            action=action,
+        ),
     )
 
     recorder.on_tick(trace)
@@ -828,100 +831,50 @@ def test_actuator_recovery_switch_bypasses_controller_gates():
     executor.open_playlist.assert_called_once_with("rain")
 
 
-def test_scheduler_paused_does_not_ensure_we_alive():
-    class DummyHistory:
-        def write(self, *_args, **_kwargs):
-            return 0
-
-    scheduler = WEScheduler("config", DummyHistory())
+def test_engine_ensure_we_alive_skips_when_paused():
     engine = Engine("config")
-    engine.context_manager = mock.Mock()
-    engine.context_manager.sense.return_value = Context(window=WindowData(title="", process=""), idle=0.0)
     engine.executor = mock.Mock()
-    engine.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.UNKNOWN)))
-    engine.ensure_we_alive = mock.Mock()
-    scheduler.engine = engine
-    scheduler.state.cached_playlists = Playlists(["focus"])
-    scheduler.state.paused = True
-    engine.actuator = mock.Mock()
-    engine.actuator.act.return_value = ActionResult(
-        executed=False,
-    )
 
-    pause_plan = ActPlan(mode=DecisionMode.PAUSE, active_playlists=Playlists(["focus"]))
-    pause_decision = Decision(action=Action.PAUSE, target=Playlists())
-    engine.think = mock.Mock(
-        return_value=ThinkResult(
-            match=Match(best_playlists=Playlists(), playlist_matches=[]),
-            decision=pause_decision,
-            plan=pause_plan,
-        )
-    )
+    engine.ensure_we_alive(paused=True)
 
-    trace = scheduler._run_tick()
-
-    assert trace.paused is True
-    engine.think.assert_called_once()
-    engine.actuator.act.assert_called_once()
-    assert engine.actuator.act.call_args.args[0] == pause_decision
-
-    scheduler._ensure_we_alive()
-    engine.ensure_we_alive.assert_called_once_with(paused=True)
+    engine.executor.keep_alive.assert_not_called()
 
 
-def test_scheduler_recovery_tick_uses_action_without_reason_parameter():
-    class DummyHistory:
-        def write(self, *_args, **_kwargs):
-            return 0
-
-    scheduler = WEScheduler("config", DummyHistory())
+def test_engine_schedule_recovery_uses_action_without_reason_parameter():
     engine = Engine("config")
     engine.context_manager = mock.Mock()
     engine.context_manager.sense.return_value = Context(window=WindowData(title="", process=""), idle=0.0)
-    engine.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST)))
-    scheduler.engine = engine
-    scheduler.state.cached_playlists = Playlists(["focus"])
-    scheduler.state.paused = False
-    engine.actuator = mock.Mock()
-    engine.actuator.act.return_value = ActionResult(
-        executed=True,
+    engine.matcher = mock.Mock()
+    engine.matcher.match.return_value = Match(
+        best_playlists=Playlists(["rain"]),
+        playlist_matches=[("rain", 0.9)],
     )
-
+    engine.we_config_prober = mock.Mock(probe_playlist=mock.Mock(return_value=FactualPlaylistState(FactualPlaylistStatus.NO_PLAYLIST)))
     recovery_decision = Decision(
         action=Action.SWITCH,
         target=Playlists(["rain"]),
     )
-    recovery_plan = ActPlan(mode=DecisionMode.RECOVERY, active_playlists=Playlists())
-    think_result = ThinkResult(
-        match=Match(
-            best_playlists=Playlists(["rain"]),
-            playlist_matches=[("rain", 0.9)],
-        ),
-        decision=recovery_decision,
-        plan=recovery_plan,
-    )
-    engine.think = mock.Mock(return_value=think_result)
+    engine.controller = mock.Mock()
+    engine.controller.decide_action.return_value = recovery_decision
+    engine.actuator = mock.Mock()
     engine.actuator.act.return_value = ActionResult(
         executed=True,
     )
-    engine.controller = mock.Mock()
 
-    def _act(think):
-        result = engine.actuator.act(think.decision, think.plan.active_playlists)
-        if result.executed:
-            engine.controller.notify_executed(think.decision)
-        return result
+    schedule = engine.schedule(
+        cached_playlists=Playlists(["focus"]),
+        paused=False,
+        manual_requested=False,
+    )
 
-    engine.act = mock.Mock(side_effect=_act)
-
-    scheduler._run_tick()
-
-    engine.actuator.act.assert_called_once()
-    assert engine.actuator.act.call_args.args[0] == recovery_decision
+    assert schedule.plan.mode == DecisionMode.RECOVERY
+    assert schedule.plan.active_playlists == Playlists()
+    assert schedule.decision == recovery_decision
+    engine.actuator.act.assert_called_once_with(recovery_decision)
     engine.controller.notify_executed.assert_called_once_with(recovery_decision)
 
 
-def test_scheduler_commit_tick_fans_out_to_listeners():
+def test_scheduler_notify_tick_listeners_fans_out():
     class DummyHistory:
         def write(self, *_args, **_kwargs):
             return 0
@@ -930,24 +883,23 @@ def test_scheduler_commit_tick_fans_out_to_listeners():
     calls: list[tuple[str, int]] = []
     scheduler.add_tick_listener(lambda trace: calls.append(("first", trace.tick_id)))
     scheduler.add_tick_listener(lambda trace: calls.append(("second", trace.tick_id)))
-    think = ThinkResult(
-        match=Match(best_playlists=Playlists()),
-        decision=Decision(action=Action.HOLD, target=Playlists()),
-        plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists()),
-    )
     trace = TickTrace(
         tick_id=42,
         ts=123.0,
         paused=False,
         pause_until=0.0,
-        context=Context(),
-        think=think,
-        action=ActionResult(
-            executed=False,
+        schedule=ScheduleTrace(
+            context=Context(),
+            match=Match(best_playlists=Playlists()),
+            plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists()),
+            decision=Decision(action=Action.HOLD, target=Playlists()),
+            action=ActionResult(
+                executed=False,
+            ),
         ),
     )
 
-    scheduler._commit_tick(trace)
+    scheduler._notify_tick_listeners(trace)
 
     assert calls == [("first", 42), ("second", 42)]
 

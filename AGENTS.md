@@ -22,23 +22,18 @@
 - `config.example/` 是发布与示例配置；`tests/` 放 pytest 测试。
 - `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格
 
-### Sense-Think-Act 管线（`WEScheduler` 1 秒 tick）
+### 调度管线（`engine.schedule()`）
 
 ```
 Sense:    ContextManager.sense()       -> Context snapshot
-Think:    Engine.think()               -> ThinkResult (match + decision + plan)
-Act:      Actuator.act()               -> ActionResult
-Trace:    _build_tick_trace()          -> TickTrace
-Commit:   _commit_tick()               -> cache persist, tick listeners, HistoryLogger
+Match:    Matcher.match()              -> Match
+Plan:     plan_actuation()             -> ActPlan
+Decide:   Controller.decide_action()   -> Decision
+Execute:  Actuator.act()               -> ActionResult
+Commit:   SchedulerState.commit()      -> cache persist
 ```
 
-Think 阶段三步：
-
-1. `Matcher.match()` — 上下文向量与播放列表标签的余弦相似度排名
-2. `plan_actuation()` — 探测 WE 实际状态，决定 `DecisionMode`（NORMAL/MANUAL/RECOVERY/PAUSE）和 `active_playlists`
-3. `Controller.decide_action()` — 基于 ActPlan + Match + Context 输出 Decision（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
-
-Act 阶段是纯执行：`Actuator` 接收 `Decision` 做 target selection + CLI 调用，不持有 controller。
+`Engine.schedule()` 接管完整调度流程：sense、match、plan、decide、execute，并返回 `ScheduleTrace`。`WEScheduler` 负责热重载、暂停恢复、keep_alive、添加 tick 元信息、提交状态和通知 listener。`Actuator` 是纯执行器：接收 `Decision` 做 target selection + CLI 调用。
 
 关键组件：
 
@@ -46,7 +41,7 @@ Act 阶段是纯执行：`Actuator` 接收 `Decision` 做 target selection + CLI
 - `core/runtime/controller.py` — 调度决策器，输出 `Decision`
 - `core/runtime/actuator.py` — 纯执行器
 - `core/runtime/executor.py` — WE CLI 封装，内置 keep_alive 保活
-- `core/models/trace.py` — `ThinkResult`、`TickTrace`、`Decision`、`ActPlan`、`BlockerEvaluation` 等 dataclass
+- `core/models/trace.py` — `ScheduleTrace`、`TickTrace`、`Decision`、`ActPlan`、`BlockerEvaluation` 等 dataclass
 
 ## 构建、测试与本地开发命令
 
@@ -90,7 +85,7 @@ Python 代码使用完整类型注解。代码应尽量自解释；会抛出异�
 
 ## 测试规范
 
-pytest 配置以 `pytest.ini` 为准，这是测试隔离契约的一部分：`testpaths = tests`、`addopts = --basetemp=.pytest_tmp`、`cache_dir = .pytest_tmp/cache`、`norecursedirs = data .pytest_tmp`。优先在仓库根目录运行 `pytest -q` 或指定目标测试；不要绕过 `pytest.ini`，也不要发明新的 basetemp/cache 目录。
+pytest 配置以 `pytest.ini` 为准，这是测试隔离契约的一部分：`testpaths = tests`、`addopts = --basetemp=.pytest_tmp`、`cache_dir = .pytest_tmp/cache`、`norecursedirs = data .pytest_tmp`。优先在仓库根目录运行 `pytest -q` 或指定目标测试；不要绕过 `pytest.ini`，也不要发明新的 basetemp/cache 目录。不要并行启动多个 pytest 进程；固定 `.pytest_tmp` 会让并行进程竞争清理同一目录，尤其在 Windows 上容易触发权限错误。
 
 新增测试应验证行为、边界条件或非显然回归。测试不是仪式；不要为了简单属性透传、平凡分支或无算法价值的断言写测试。前端改动至少验证 `npm run type-check` 和 `npm run build-only`。
 

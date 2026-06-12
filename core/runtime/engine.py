@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from configurations.errors import ConfigLoadError
 from configurations.loader import ConfigLoader
 from configurations.runtime_models import SchedulerConfig
-from core.models.context import Context, ContextManager
+from core.models.context import ContextManager
 from core.models.playlist import Playlists
-from core.models.trace import ActionResult, ThinkResult
+from core.models.trace import ScheduleTrace
 from core.policies import POLICY_REGISTRY, Policy
 from core.runtime.act_plan import plan_actuation
 from core.runtime.actuator import Actuator
@@ -73,16 +73,13 @@ class Engine:
             return
         self._hot_reload(fingerprint)
 
-    def sense(self) -> Context:
-        return self.context_manager.sense()
-
-    def think(
+    def schedule(
         self,
-        context: Context,
         cached_playlists: Playlists,
         paused: bool,
         manual_requested: bool,
-    ) -> ThinkResult:
+    ) -> ScheduleTrace:
+        context = self.context_manager.sense()
         match = self.matcher.match(context)
         plan = plan_actuation(
             factual=self.we_config_prober.probe_playlist(),
@@ -91,18 +88,21 @@ class Engine:
             manual_requested=manual_requested,
         )
         decision = self.controller.decide_action(plan, context, match)
-        return ThinkResult(match=match, decision=decision, plan=plan)
+        action = self.actuator.act(decision)
+        if action.executed:
+            self.controller.notify_executed(decision)
+        return ScheduleTrace(
+            context=context,
+            match=match,
+            plan=plan,
+            decision=decision,
+            action=action,
+        )
 
     def ensure_we_alive(self, paused: bool = False) -> None:
         if paused:
             return
         self.executor.keep_alive()
-
-    def act(self, think: ThinkResult) -> ActionResult:
-        result = self.actuator.act(think.decision)
-        if result.executed:
-            self.controller.notify_executed(think.decision)
-        return result
 
     def _build_components(self, config: SchedulerConfig) -> _BuiltEngine:
         executor = WEExecutor(config.wallpaper_engine_path)

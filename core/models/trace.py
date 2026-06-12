@@ -111,13 +111,6 @@ class ActPlan:
 
 
 @dataclass
-class ThinkResult:
-    match: Match
-    decision: Decision
-    plan: ActPlan
-
-
-@dataclass
 class Match:
     best_playlists: Playlists
     playlist_matches: list[tuple[str, float]] = field(default_factory=list)
@@ -165,35 +158,54 @@ class ActionResult:
 
 
 @dataclass
+class ScheduleTrace:
+    context: Context
+    match: Match
+    plan: ActPlan
+    decision: Decision
+    action: ActionResult
+
+
+@dataclass
 class TickTrace:
     tick_id: int
     ts: float
     paused: bool
     pause_until: float
-    context: Context
-    think: ThinkResult
-    action: ActionResult
+    schedule: ScheduleTrace
+
+    @property
+    def context(self) -> Context:
+        return self.schedule.context
 
     @property
     def match(self) -> Match:
-        return self.think.match
+        return self.schedule.match
+
+    @property
+    def plan(self) -> ActPlan:
+        return self.schedule.plan
 
     @property
     def decision(self) -> Decision:
-        return self.think.decision
+        return self.schedule.decision
+
+    @property
+    def action(self) -> ActionResult:
+        return self.schedule.action
 
     @property
     def active_playlists(self) -> Playlists:
-        return self.think.plan.active_playlists
+        return self.schedule.plan.active_playlists
 
     @property
     def target(self) -> Playlists:
-        if self.action.executed and self.think.decision.action == Action.SWITCH:
-            return self.think.decision.target
-        return self.think.plan.active_playlists
+        if self.action.executed and self.decision.action == Action.SWITCH:
+            return self.decision.target
+        return self.active_playlists
 
     @property
     def cache_update(self) -> Playlists | None:
-        if self.action.executed and self.think.decision.action == Action.SWITCH:
+        if self.action.executed and self.decision.action == Action.SWITCH:
             return self.target
         return None

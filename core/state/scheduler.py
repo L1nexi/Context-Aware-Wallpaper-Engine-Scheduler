@@ -4,9 +4,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from core.models.context import Context
 from core.models.playlist import Playlists
-from core.models.trace import ActionResult, ThinkResult, TickTrace
+from core.models.trace import ScheduleTrace, TickTrace
 from core.state.persisted import PersistedState
 
 logger = logging.getLogger("WEScheduler.State")
@@ -65,19 +64,17 @@ class SchedulerState:
         self._manual_apply_pending = False
         return True
 
-    def build_tick_trace(self, context: Context, think: ThinkResult, action: ActionResult) -> TickTrace:
+    def attach_metadata(self, schedule: ScheduleTrace) -> TickTrace:
         self.tick_id += 1
         return TickTrace(
             tick_id=self.tick_id,
             ts=time.time(),
             paused=self.paused,
             pause_until=self.pause_until,
-            context=context,
-            think=think,
-            action=action,
+            schedule=schedule,
         )
 
-    def commit_tick(self, trace: TickTrace) -> None:
+    def commit(self, trace: TickTrace) -> None:
         self.last_tick_trace = trace
 
         next_cached = trace.cache_update

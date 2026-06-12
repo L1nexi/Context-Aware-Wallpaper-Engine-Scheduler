@@ -109,21 +109,22 @@ class WEScheduler:
                 with self._runtime_lock:
                     self._check_hot_reload()
                     self._maybe_auto_resume()
-                    self._ensure_we_alive()
-                    trace = self._run_tick()
-                    self._commit_tick(trace)
+                    self.engine.ensure_we_alive(paused=self.state.paused)
+                    schedule = self.engine.schedule(
+                        cached_playlists=self.state.cached_playlists,
+                        paused=self.state.paused,
+                        manual_requested=self.state.consume_manual_apply_request(),
+                    )
+                    trace = self.state.attach_metadata(schedule)
+                    self.state.commit(trace)
+                    self._notify_tick_listeners(trace)
 
             except Exception:
                 logger.exception("Error in main loop")
 
             time.sleep(1)
 
-    def _ensure_we_alive(self) -> None:
-        assert self.engine is not None
-        self.engine.ensure_we_alive(paused=self.state.paused)
-
     def _check_hot_reload(self) -> None:
-        assert self.engine is not None
         try:
             self.engine.reload_if_changed()
         except ConfigLoadError as exc:
@@ -145,26 +146,11 @@ class WEScheduler:
             except Exception:
                 logger.exception("on_auto_resume hook failed")
 
-    def _run_tick(self) -> TickTrace:
-        assert self.engine is not None
-        engine = self.engine
-        context = engine.sense()
-        think = engine.think(
-            context,
-            self.state.cached_playlists,
-            self.state.paused,
-            self.state.consume_manual_apply_request(),
-        )
-        action = engine.act(think)
-        return self.state.build_tick_trace(context, think, action)
-
     def apply_current_match_now(self) -> None:
         logger.info("Manual apply requested.")
         self.state.request_manual_apply()
 
-    def _commit_tick(self, trace: TickTrace) -> None:
-        self.state.commit_tick(trace)
-
+    def _notify_tick_listeners(self, trace: TickTrace) -> None:
         for listener in list(self._tick_listeners):
             try:
                 listener(trace)
