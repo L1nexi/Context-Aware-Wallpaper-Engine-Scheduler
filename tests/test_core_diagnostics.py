@@ -21,17 +21,18 @@ from core.models.trace import (
     ActionResult,
     ActivityDetails,
     ActivityEvaluation,
+    ActPlan,
     Blocker,
     BlockerEvaluation,
     Decision,
+    DecisionMode,
     Match,
     ThinkResult,
     TickTrace,
 )
 from core.policies import ActivityPolicy, TimePolicy, WeatherPolicy
-from core.models.trace import ActPlan, DecisionMode
 from core.runtime.actuator import Actuator
-from core.runtime.controller import CONTINUITY_DECAY_PER_TICK, Intent, SchedulingController, weighted_jaccard
+from core.runtime.controller import CONTINUITY_DECAY_PER_TICK, Controller, Intent, weighted_jaccard
 from core.runtime.engine import Engine, _BuiltEngine
 from core.runtime.matcher import Matcher
 from core.runtime.scheduler import WEScheduler
@@ -138,7 +139,7 @@ def test_weather_policy_without_weather_is_inactive():
 
 
 def _decide_normal(
-    controller: SchedulingController,
+    controller: Controller,
     context: Context,
     match: Match,
     active_playlists: Playlists,
@@ -213,7 +214,7 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
 
 def test_controller_evaluation_reports_all_blockers():
     clock = _MutableClock(200.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=100,
@@ -266,7 +267,7 @@ def test_controller_warmup_blocks_all_operations():
     """During startup warmup, both switch and cycle are blocked by COOLDOWN,
     and context gates (CPU, fullscreen) are still collected."""
     clock = _MutableClock(100.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=30,
             force_after=100,
@@ -318,7 +319,7 @@ def test_controller_warmup_blocks_all_operations():
 def test_controller_warmup_switch_blocked():
     """During warmup, a switch decision should be blocked by cooldown."""
     clock = _MutableClock(100.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=30,
             force_after=100,
@@ -346,7 +347,7 @@ def test_controller_warmup_switch_blocked():
 def test_controller_warmup_expires_normal_behavior():
     """After warmup expires, switches proceed with normal idle/force_after logic."""
     clock = _MutableClock(100.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=10,
             force_after=100,
@@ -375,7 +376,7 @@ def test_controller_warmup_expires_normal_behavior():
 def test_controller_switch_has_no_cooldown_gate():
     """Two consecutive switches are not blocked by a cooldown gate."""
     clock = _MutableClock(100.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=3600,
@@ -403,7 +404,7 @@ def test_controller_switch_has_no_cooldown_gate():
 
 def test_controller_switch_force_after_overrides_idle():
     clock = _MutableClock(500.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=100,
@@ -439,7 +440,7 @@ def test_controller_partial_overlap_keeps_active_pool_for_reference_window():
         }
     )
     clock = _MutableClock(1000.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=0,
@@ -471,7 +472,7 @@ def test_controller_partial_overlap_decays_continuity_by_time_only():
         }
     )
     clock = _MutableClock(1000.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=0,
@@ -495,7 +496,7 @@ def test_controller_partial_overlap_decays_continuity_by_time_only():
 
 def test_controller_no_match_resets_continuity_without_switching():
     clock = _MutableClock(1000.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=0,
@@ -531,7 +532,7 @@ def test_controller_semantic_overlap_uses_sqrt_item_count_weights():
 
 def test_controller_notify_executed_resets_continuity_for_switch():
     clock = _MutableClock(2000.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=0,
@@ -556,7 +557,7 @@ def test_controller_notify_executed_resets_continuity_for_switch():
 
 def test_controller_notify_executed_preserves_continuity_for_plain_cycle():
     clock = _MutableClock(2000.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=0,
@@ -581,7 +582,7 @@ def test_controller_notify_executed_preserves_continuity_for_plain_cycle():
 
 def test_controller_notify_executed_updates_last_action_time():
     clock = _MutableClock(2000.0)
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=0,
@@ -643,7 +644,7 @@ def test_controller_decide_action(
     cycle_eval,
     expected_action,
 ):
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=100,
@@ -661,7 +662,7 @@ def test_controller_decide_action(
 
 
 def test_controller_recovery_uses_unmanaged_reason_without_gates():
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=30,
             force_after=100,
@@ -686,7 +687,7 @@ def test_controller_recovery_uses_unmanaged_reason_without_gates():
 
 
 def test_controller_recovery_without_match_does_not_switch():
-    controller = SchedulingController(
+    controller = Controller(
         SchedulingConfig(
             startup_delay=0,
             force_after=100,
@@ -849,11 +850,13 @@ def test_scheduler_paused_does_not_ensure_we_alive():
 
     pause_plan = ActPlan(mode=DecisionMode.PAUSE, active_playlists=Playlists(["focus"]))
     pause_decision = Decision(action=Action.PAUSE, target=Playlists())
-    engine.think = mock.Mock(return_value=ThinkResult(
-        match=Match(best_playlists=Playlists(), playlist_matches=[]),
-        decision=pause_decision,
-        plan=pause_plan,
-    ))
+    engine.think = mock.Mock(
+        return_value=ThinkResult(
+            match=Match(best_playlists=Playlists(), playlist_matches=[]),
+            decision=pause_decision,
+            plan=pause_plan,
+        )
+    )
 
     trace = scheduler._run_tick()
 
@@ -1043,7 +1046,7 @@ def test_hot_reload_preserves_startup_end():
     old controller, not reset to ``now + startup_delay`` (which would cause a
     phantom ~30 s cooldown blocker)."""
     clock = _MutableClock(500.0)
-    old_controller = SchedulingController(
+    old_controller = Controller(
         SchedulingConfig(
             startup_delay=30,
             force_after=100,
@@ -1063,7 +1066,7 @@ def test_hot_reload_preserves_startup_end():
     # After hot reload, a new controller is created at t=900 with startup_delay=30
     # -> default startup_end = 930.
     clock.now = 900.0
-    new_controller = SchedulingController(
+    new_controller = Controller(
         SchedulingConfig(
             startup_delay=30,
             force_after=100,

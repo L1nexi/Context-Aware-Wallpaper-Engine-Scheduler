@@ -78,7 +78,7 @@ Think 阶段内部三步：matcher 排名 → plan_actuation 探测 WE 状态 �
 - **Policies** (`core/policies/`)：ActivityPolicy（双 EMA）、TimePolicy（Hann 窗插值）、SeasonPolicy（Hann 窗插值）、WeatherPolicy（四档连续强度）— 各输出归一化标签向量 + salience
 - **Matcher** (`core/runtime/`)：上下文向量与播放列表标签向量的余弦相似度匹配；通过 `tags.yaml` 递归展开 fallback
 - **ActPlan** (`core/runtime/act_plan.py`)：探测 WE 实际状态，决定 `DecisionMode`（NORMAL/MANUAL/RECOVERY/PAUSE）和 `active_playlists`
-- **SchedulingController** (`core/runtime/controller.py`)：纯调度决策器，在 Think 阶段接收 `ActPlan` + `Match` + `Context`，输出 `Decision`（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
+- **Controller** (`core/runtime/controller.py`)：纯调度决策器，在 Think 阶段接收 `ActPlan` + `Match` + `Context`，输出 `Decision`（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
 - **Actuator** (`core/runtime/actuator.py`)：纯执行器，接收 `Decision` 做 target selection + CLI 调用，不持有 controller
 - **Executor** (`core/runtime/executor.py`)：Wallpaper Engine CLI 命令（`-control openPlaylist`、`-control nextWallpaper`），内置 keep_alive 保活（每 5 tick 发 `getWallpaper`）
 - **Scheduler** (`core/runtime/scheduler.py`)：主编排器，tick 循环（Sense -> Think -> Act -> Trace -> Commit）、热重载、暂停/恢复、状态持久化

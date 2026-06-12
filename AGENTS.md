@@ -33,13 +33,15 @@ Commit:   _commit_tick()               -> cache persist, tick listeners, History
 ```
 
 Think 阶段三步：
+
 1. `Matcher.match()` — 上下文向量与播放列表标签的余弦相似度排名
 2. `plan_actuation()` — 探测 WE 实际状态，决定 `DecisionMode`（NORMAL/MANUAL/RECOVERY/PAUSE）和 `active_playlists`
-3. `SchedulingController.decide_action()` — 基于 ActPlan + Match + Context 输出 Decision（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
+3. `Controller.decide_action()` — 基于 ActPlan + Match + Context 输出 Decision（switch/cycle/hold/pause）。通过语义连续性评分（weighted Jaccard + 衰减）区分 switch vs cycle，通过 CPU/全屏/idle 门控评估 blocker
 
 Act 阶段是纯执行：`Actuator` 接收 `Decision` 做 target selection + CLI 调用，不持有 controller。
 
 关键组件：
+
 - `core/runtime/act_plan.py` — WE 状态探测，输出 `ActPlan`
 - `core/runtime/controller.py` — 调度决策器，输出 `Decision`
 - `core/runtime/actuator.py` — 纯执行器

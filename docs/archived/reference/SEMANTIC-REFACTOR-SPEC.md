@@ -302,7 +302,7 @@ class MatchResult:
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `core/policies.py`              | 基类：`_compute_output() -> Optional[PolicyOutput]`，`get_output()` 中添加 L2 归一化。重写所有四个策略以返回 `PolicyOutput`。ActivityPolicy EMA 分拆为方向和幅度双轨道。WeatherPolicy `_ID_TAGS` 重组为单个字典。      |
 | `core/matcher.py`               | 接收 `List[PolicyOutput]`。聚合使用 `direction * salience * intensity * weight_scale`。在聚合向量上进行 Fallback 解析。返回包含 `similarity_gap` 和 `max_policy_magnitude` 的 `MatchResult`。移除子向量投影/补偿逻辑。 |
-| `core/controller.py`            | `SchedulingController` 接收 `MatchResult`（目前仅使用 `best_playlist`；`similarity_gap` 和 `max_policy_magnitude` 供将来使用）。                                                                                       |
+| `core/controller.py`            | `Controller` 接收 `MatchResult`（目前仅使用 `best_playlist`；`similarity_gap` 和 `max_policy_magnitude` 供将来使用）。                                                                                                 |
 | `utils/config_loader.py`        | 添加 `TagSpecConfig` 模型，`AppConfig` 增加 `tag_schema` 字段。                                                                                                                                                        |
 | `scheduler_config.example.json` | 添加 `tag_schema` 节点。更新任何已变更的字段名称。                                                                                                                                                                     |
 | `core/scheduler.py`             | 更新 Matcher/Controller 的调用签名。根据新的 ActivityPolicy EMA 结构更新状态的导出/导入。                                                                                                                              |
@@ -314,7 +314,7 @@ class MatchResult:
 3. 重构 `Policy` 基类：`_compute_tags()` → `_compute_output()`，在 `get_output()` 中添加方向归一化。
 4. 重写每个策略，使其返回 `PolicyOutput`。
 5. 重构 `Matcher`：新的聚合逻辑、fallback 解析、`MatchResult` 输出。
-6. 更新 `SchedulingController` 以接收 `MatchResult`。
+6. 更新 `Controller` 以接收 `MatchResult`。
 7. 更新 `Scheduler` 的编排以及状态的导出/导入逻辑。
 8. 使用 `misc/sim_match.py` 和热力图可视化进行验证。
 

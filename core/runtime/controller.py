@@ -109,7 +109,7 @@ class Decisions:
         return cls.make(Action.PAUSE, target)
 
 
-class SchedulingController:
+class Controller:
     def __init__(self, config: SchedulingConfig, clock: Callable[[], float] | None = None):
         self._clock = clock if clock is not None else time.monotonic
         self.idle_threshold = config.idle_threshold

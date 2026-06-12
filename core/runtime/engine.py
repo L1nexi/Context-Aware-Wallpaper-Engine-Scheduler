@@ -12,7 +12,7 @@ from core.models.trace import ActionResult, ThinkResult
 from core.policies import POLICY_REGISTRY, Policy
 from core.runtime.act_plan import plan_actuation
 from core.runtime.actuator import Actuator
-from core.runtime.controller import SchedulingController
+from core.runtime.controller import Controller
 from core.runtime.executor import WEExecutor
 from core.runtime.matcher import Matcher
 from core.runtime.we_config import WEConfigProber
@@ -28,7 +28,7 @@ class _BuiltEngine:
     context_manager: ContextManager
     matcher: Matcher
     actuator: Actuator
-    controller: SchedulingController
+    controller: Controller
     config: SchedulerConfig
     we_config_prober: WEConfigProber
 
@@ -43,7 +43,7 @@ class Engine:
         self.context_manager: ContextManager | None = None
         self.matcher: Matcher | None = None
         self.actuator: Actuator | None = None
-        self.controller: SchedulingController | None = None
+        self.controller: Controller | None = None
         self.we_config_prober: WEConfigProber | None = None
         self.config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
 
@@ -114,7 +114,7 @@ class Engine:
         policies: list[Policy] = [cls(getattr(config.policies, cls.config_key)) for cls in POLICY_REGISTRY]
 
         matcher = Matcher(config.playlists, policies, config.tags)
-        controller = SchedulingController(config.scheduling)
+        controller = Controller(config.scheduling)
         actuator = Actuator(executor)
 
         return _BuiltEngine(

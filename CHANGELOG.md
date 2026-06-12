@@ -188,7 +188,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`Sensor.key: ClassVar[str]`** + **`register_sensor()` 验证**：`ContextManager.register_sensor()` 校验 `sensor.key` 是否为 `Context` dataclass 的合法字段，`_CONTEXT_FIELD_NAMES` 从 `dataclasses.fields(Context)` 在 import 时推导，`Context` 成为 sensor key 的唯一权威来源。
 - **`Policy.__init__` 强类型化**：所有 Policy 子类的 `__init__` 从接受 `dict` 改为直接接受对应的 typed config 模型（`ActivityPolicyConfig`、`TimePolicyConfig` 等），消除内部 `.get()` 访问。
 - **`Matcher.__init__(List[PlaylistConfig], List[Policy])`**：去除 `isinstance` 分支，参数类型完全确定。
-- **`DisturbanceController` → `SchedulingController`**：类名与配置块名 `scheduling` 保持一致。
+- **`DisturbanceController` → `Controller`**：类名与配置块名 `scheduling` 保持一致。
 - **`context_types.py` 合并**：`WindowData`、`WeatherData`、`Context` 并入 `core/context.py`，删除 `context_types.py`，消除双文件维护负担。
 - **`_hot_reload` 清理**：移除 `if self.matcher:` / `if self.actuator:` 多余 None 守卫（热重载仅在 `initialize()` 成功后调用，两者永远非 None）。
 
