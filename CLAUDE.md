@@ -17,8 +17,8 @@ pip install -r requirements.txt
 python main.py              # 托盘模式
 python main.py --no-tray    # 控制台模式（调试用）
 python main.py config       # 独立配置工具 TUI，不启动调度循环
-pytest -q                   # 运行全部测试
-pytest tests/test_foo.py    # 运行单个测试文件
+.\scripts\test.ps1 -q       # 运行全部测试
+.\scripts\test.ps1 tests/test_foo.py -q  # 运行单个测试文件
 ```
 
 ### 代码检查 / 格式化（Ruff，Python 3.13，行宽 150）
@@ -119,7 +119,7 @@ TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
 
 ## 测试
 
-pytest 配置以 `pytest.ini` 为准，必须在仓库根目录运行。`testpaths = tests`、`basetemp = .pytest_tmp`、`cache_dir = .pytest_tmp/cache`。不要并行启动多个 pytest 进程；固定 `.pytest_tmp` 会让并行进程竞争清理同一目录，尤其在 Windows 上容易触发权限错误。
+pytest 配置以 `pytest.ini` 为准。推荐通过 `.\scripts\test.ps1 -q` 或 `.\scripts\test.ps1 tests/test_foo.py -q` 运行测试；脚本会为每次运行分配 `.pytest_tmp/<run-id>/tmp` 和 `.pytest_tmp/<run-id>/cache`，让多个 pytest 进程可以并行运行且测试产物仍集中在 `.pytest_tmp/`。不要把多个 pytest 进程固定到同一个 basetemp/cache 目录。
 
 测试应验证行为、边界条件或非显然回归。不要为简单属性透传、平凡分支写测试。
 

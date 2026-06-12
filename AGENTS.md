@@ -55,7 +55,7 @@ python main.py
 python main.py --no-tray
 python main.py config
 python main.py config --config <config_dir>
-pytest -q
+.\scripts\test.ps1 -q
 ```
 
 `python main.py config` 是独立配置工具入口；指定配置目录时参数顺序应为 `python main.py config --config <config_dir>`。Windows 打包使用 `.\scripts\build.bat`。
@@ -85,7 +85,7 @@ Python 代码使用完整类型注解。代码应尽量自解释；会抛出异�
 
 ## 测试规范
 
-pytest 配置以 `pytest.ini` 为准，这是测试隔离契约的一部分：`testpaths = tests`、`addopts = --basetemp=.pytest_tmp`、`cache_dir = .pytest_tmp/cache`、`norecursedirs = data .pytest_tmp`。优先在仓库根目录运行 `pytest -q` 或指定目标测试；不要绕过 `pytest.ini`，也不要发明新的 basetemp/cache 目录。不要并行启动多个 pytest 进程；固定 `.pytest_tmp` 会让并行进程竞争清理同一目录，尤其在 Windows 上容易触发权限错误。
+pytest 配置以 `pytest.ini` 为准，这是测试隔离契约的一部分：`testpaths = tests`、`norecursedirs = data .pytest_tmp`。优先通过 `.\scripts\test.ps1 -q` 或 `.\scripts\test.ps1 tests/test_foo.py -q` 运行测试；脚本会为每次运行分配 `.pytest_tmp/<run-id>/tmp` 和 `.pytest_tmp/<run-id>/cache`，让多个 pytest 进程可以并行运行且测试产物仍集中在 `.pytest_tmp/`。不要把多个 pytest 进程固定到同一个 basetemp/cache 目录。
 
 新增测试应验证行为、边界条件或非显然回归。测试不是仪式；不要为了简单属性透传、平凡分支或无算法价值的断言写测试。前端改动至少验证 `npm run type-check` 和 `npm run build-only`。
 
