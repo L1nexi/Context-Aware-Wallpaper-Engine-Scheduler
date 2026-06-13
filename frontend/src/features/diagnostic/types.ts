@@ -1,7 +1,19 @@
 export type DiagnosticAction = 'none' | 'switch' | 'cycle' | 'hold' | 'pause'
+export type DiagnosticDecisionMode = 'normal' | 'manual' | 'recovery' | 'pause'
 
 export type DiagnosticBlocker = 'cooldown' | 'fullscreen' | 'cpu' | 'idle'
 export type DiagnosticPolicyId = 'activity' | 'time' | 'season' | 'weather'
+
+export interface DiagnosticPlaylistCatalogItem {
+  name: string
+  display: string
+  color: string | null
+  itemCount: number
+}
+
+export interface DiagnosticCatalog {
+  playlists: DiagnosticPlaylistCatalogItem[]
+}
 
 export interface DiagnosticTagWeight {
   tag: string
@@ -11,12 +23,6 @@ export interface DiagnosticTagWeight {
 export interface DiagnosticResolvedTagWeight {
   resolvedTag: string
   weight: number
-}
-
-export interface DiagnosticPlaylistRef {
-  name: string
-  display: string
-  color: string | null
 }
 
 export interface DiagnosticWindowSnapshot {
@@ -129,21 +135,8 @@ export interface DiagnosticBlockerEvaluation {
   forceAfterRemaining: number | null
 }
 
-export interface DiagnosticControllerSnapshot {
-  evaluation: DiagnosticBlockerEvaluation | null
-}
-
-export interface DiagnosticDecisionSnapshot {
-  action: DiagnosticAction
-  executed: boolean
-  activePlaylists: DiagnosticPlaylistRef[]
-  targetPlaylists: DiagnosticPlaylistRef[]
-  matchedPlaylists: DiagnosticPlaylistRef[]
-  targetPlaylist: DiagnosticPlaylistRef | null
-}
-
 export interface DiagnosticTopMatch {
-  playlist: DiagnosticPlaylistRef
+  playlist: string
   score: number
 }
 
@@ -156,26 +149,42 @@ export interface DiagnosticSenseSnapshot {
   clock: DiagnosticClockSnapshot
 }
 
-export interface DiagnosticThinkSnapshot {
+export interface DiagnosticMatchSnapshot {
+  bestPlaylists: string[]
+  topMatches: DiagnosticTopMatch[]
   rawContextVector: DiagnosticTagWeight[]
   resolvedContextVector: DiagnosticTagWeight[]
   fallbackExpansions: Record<string, DiagnosticResolvedTagWeight[]>
   policies: DiagnosticPolicyEvaluation[]
-  controller: DiagnosticControllerSnapshot
-  decision: DiagnosticDecisionSnapshot
+  maxPolicyMagnitude: number
+  similarity: number
+  similarityGap: number
+}
+
+export interface DiagnosticPlanSnapshot {
+  mode: DiagnosticDecisionMode
+  activePlaylists: string[]
+}
+
+export interface DiagnosticDecideSnapshot {
+  action: DiagnosticAction
+  targetPlaylists: string[]
+  evaluation: DiagnosticBlockerEvaluation | null
 }
 
 export interface DiagnosticActSnapshot {
-  topMatches: DiagnosticTopMatch[]
+  targetPlaylist: string | null
+  executed: boolean
 }
 
 export interface DiagnosticTickSummary {
   tickId: number
   ts: number
+  pauseUntil: number
   similarity: number
   similarityGap: number
-  activePlaylists: DiagnosticPlaylistRef[]
-  matchedPlaylists: DiagnosticPlaylistRef[]
+  activePlaylists: string[]
+  matchedPlaylists: string[]
   action: DiagnosticAction
   paused: boolean
   executed: boolean
@@ -185,11 +194,14 @@ export interface DiagnosticTickSummary {
 export interface DiagnosticTickSnapshot {
   summary: DiagnosticTickSummary
   sense: DiagnosticSenseSnapshot
-  think: DiagnosticThinkSnapshot
+  match: DiagnosticMatchSnapshot
+  plan: DiagnosticPlanSnapshot
+  decide: DiagnosticDecideSnapshot
   act: DiagnosticActSnapshot
 }
 
 export interface DiagnosticWindowResponse {
   liveTickId: number | null
+  catalog: DiagnosticCatalog
   ticks: DiagnosticTickSnapshot[]
 }

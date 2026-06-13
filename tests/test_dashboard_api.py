@@ -34,7 +34,8 @@ from ui.dashboard import (
     _build_app,
     _resolve_static_root,
 )
-from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
+from ui.dto.diagnostic import build_tick_snapshot
+from ui.tick_trace_store import TickTraceStore
 
 
 @pytest.fixture(autouse=True)
@@ -52,13 +53,13 @@ def _configure_playlists():
 
 
 @pytest.fixture
-def analysis_store():
-    return AnalysisStore(tick_history=300)
+def tick_store():
+    return TickTraceStore(tick_history=300)
 
 
 @pytest.fixture
-def app(analysis_store):
-    return _build_app(analysis_store)
+def app(tick_store):
+    return _build_app(tick_store)
 
 
 def _make_wsgi_environ(method, path, query="", body=None):
@@ -165,18 +166,18 @@ def _find_free_port() -> int:
         return sock.getsockname()[1]
 
 
-def test_analysis_store_read_window_empty(analysis_store):
-    window = analysis_store.read_window()
+def test_tick_trace_store_read_window_empty(tick_store):
+    window = tick_store.read_window()
 
     assert window.live_tick_id is None
     assert window.traces == []
 
 
-def test_analysis_store_read_window_returns_recent(analysis_store):
+def test_tick_trace_store_read_window_returns_recent(tick_store):
     for tick_id in range(1, 6):
-        analysis_store.update(_make_trace(tick_id=tick_id))
+        tick_store.update(_make_trace(tick_id=tick_id))
 
-    window = analysis_store.read_window(2)
+    window = tick_store.read_window(2)
 
     assert window.live_tick_id == 5
     assert [trace.tick_id for trace in window.traces] == [4, 5]
@@ -254,12 +255,8 @@ def test_build_tick_snapshot_maps_analysis_fields():
     snapshot = build_tick_snapshot(trace)
 
     assert snapshot["summary"]["tickId"] == 7
-    assert snapshot["summary"]["activePlaylists"] == [
-        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
-    ]
-    assert snapshot["summary"]["matchedPlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
+    assert snapshot["summary"]["activePlaylists"] == ["idle"]
+    assert snapshot["summary"]["matchedPlaylists"] == ["focus"]
     assert "activePlaylistDisplay" not in snapshot["summary"]
     assert "activePlaylistColor" not in snapshot["summary"]
     assert "matchedPlaylistDisplay" not in snapshot["summary"]
@@ -267,31 +264,17 @@ def test_build_tick_snapshot_maps_analysis_fields():
     assert "enabled" not in snapshot["sense"]["weather"]
     assert snapshot["sense"]["weather"]["available"] is True
     assert snapshot["sense"]["weather"]["stale"] is True
-    assert snapshot["think"]["fallbackExpansions"]["storm"][0]["resolvedTag"] == "rain"
-    assert snapshot["think"]["policies"][0]["policyId"] == "activity"
-    assert snapshot["think"]["policies"][1]["details"]["mapped"] is True
-    assert snapshot["think"]["policies"] is not None
-    assert snapshot["act"]["topMatches"][0]["playlist"] == {
-        "name": "focus",
-        "display": "Focus Flow",
-        "color": "#F5C518",
-    }
-    assert snapshot["act"]["topMatches"][0]["score"] == 0.91
-    assert snapshot["act"]["topMatches"][1]["playlist"] == {
-        "name": "rainy",
-        "display": "Rainy Mood",
-        "color": "#4A90D9",
-    }
-    assert snapshot["think"]["decision"]["activePlaylists"] == [
-        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
-    ]
-    assert snapshot["think"]["decision"]["targetPlaylists"] == [
-        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
-    ]
-    assert snapshot["think"]["decision"]["matchedPlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
-    assert snapshot["think"]["decision"]["targetPlaylist"] is None
+    assert "think" not in snapshot
+    assert snapshot["match"]["fallbackExpansions"]["storm"][0]["resolvedTag"] == "rain"
+    assert snapshot["match"]["policies"][0]["policyId"] == "activity"
+    assert snapshot["match"]["policies"][1]["details"]["mapped"] is True
+    assert snapshot["match"]["policies"] is not None
+    assert snapshot["match"]["bestPlaylists"] == ["focus"]
+    assert snapshot["match"]["topMatches"][0] == {"playlist": "focus", "score": 0.91}
+    assert snapshot["match"]["topMatches"][1] == {"playlist": "rainy", "score": 0.66}
+    assert snapshot["plan"] == {"mode": "normal", "activePlaylists": ["idle"]}
+    assert snapshot["decide"]["targetPlaylists"] == ["focus"]
+    assert snapshot["act"] == {"targetPlaylist": None, "executed": False}
 
 
 def test_build_tick_snapshot_maps_target_playlist():
@@ -306,11 +289,8 @@ def test_build_tick_snapshot_maps_target_playlist():
 
     snapshot = build_tick_snapshot(trace)
 
-    assert snapshot["think"]["decision"]["targetPlaylist"] == {
-        "name": "focus",
-        "display": "Focus Flow",
-        "color": "#F5C518",
-    }
+    assert snapshot["decide"]["targetPlaylists"] == ["focus"]
+    assert snapshot["act"]["targetPlaylist"] == "focus"
 
 
 def test_build_tick_snapshot_maps_paused_tick():
@@ -330,20 +310,12 @@ def test_build_tick_snapshot_maps_paused_tick():
     assert snapshot["summary"]["action"] == "pause"
     assert snapshot["summary"]["paused"] is True
     assert snapshot["summary"]["hasEvent"] is False
-    assert snapshot["summary"]["activePlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
-    assert snapshot["summary"]["matchedPlaylists"] == [
-        {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9"},
-    ]
+    assert snapshot["summary"]["activePlaylists"] == ["focus"]
+    assert snapshot["summary"]["matchedPlaylists"] == ["rainy"]
     assert snapshot["sense"]["weather"]["available"] is False
-    assert snapshot["think"]["controller"]["evaluation"] is None
-    assert snapshot["think"]["decision"]["targetPlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
-    assert snapshot["think"]["decision"]["matchedPlaylists"] == [
-        {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9"},
-    ]
+    assert snapshot["decide"]["evaluation"] is None
+    assert snapshot["decide"]["targetPlaylists"] == ["rainy"]
+    assert snapshot["match"]["bestPlaylists"] == ["rainy"]
 
 
 def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
@@ -359,27 +331,31 @@ def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
 
     snapshot = build_tick_snapshot(trace)
 
-    assert snapshot["summary"]["activePlaylists"] == [
-        {"name": "unknown_active", "display": "unknown_active", "color": None},
-    ]
-    assert snapshot["summary"]["matchedPlaylists"] == [
-        {"name": "unknown_match", "display": "unknown_match", "color": None},
-    ]
-    assert snapshot["think"]["decision"]["activePlaylists"] == [
-        {"name": "unknown_active", "display": "unknown_active", "color": None},
-    ]
+    assert snapshot["summary"]["activePlaylists"] == ["unknown_active"]
+    assert snapshot["summary"]["matchedPlaylists"] == ["unknown_match"]
+    assert snapshot["plan"]["activePlaylists"] == ["unknown_active"]
 
 
 def test_api_analysis_window_empty(app):
     status, body = wsgi_get(app, "/api/analysis/window")
     assert "200" in status
-    assert body == {"liveTickId": None, "ticks": []}
+    assert body == {
+        "liveTickId": None,
+        "catalog": {
+            "playlists": [
+                {"name": "focus", "display": "Focus Flow", "color": "#F5C518", "itemCount": 10},
+                {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9", "itemCount": 5},
+                {"name": "idle", "display": "idle", "color": "#2E5F8A", "itemCount": 3},
+            ],
+        },
+        "ticks": [],
+    }
 
 
-def test_api_analysis_window_returns_recent(analysis_store):
-    app = _build_app(analysis_store)
+def test_api_analysis_window_returns_recent(tick_store):
+    app = _build_app(tick_store)
     for tick_id in range(1, 5):
-        analysis_store.update(_make_trace(tick_id=tick_id))
+        tick_store.update(_make_trace(tick_id=tick_id))
 
     status, body = wsgi_request(app, "GET", "/api/analysis/window", query="count=2")
     assert "200" in status
@@ -388,7 +364,7 @@ def test_api_analysis_window_returns_recent(analysis_store):
 
 
 def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
-    analysis_store,
+    tick_store,
 ):
     Playlists.configure(
         {
@@ -397,8 +373,8 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
             "test_pl": PlaylistConfig(display="Test Playlist", color="#5BB8D4", item_count=1),
         }
     )
-    app = _build_app(analysis_store)
-    analysis_store.update(
+    app = _build_app(tick_store)
+    tick_store.update(
         _make_trace(
             tick_id=1,
             active_playlist_before="test_pl",
@@ -412,17 +388,14 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
 
     assert "200" in status
     tick = body["ticks"][0]
-    assert tick["summary"]["activePlaylists"] == [
-        {"name": "test_pl", "display": "Test Playlist", "color": "#5BB8D4"},
+    assert body["catalog"]["playlists"] == [
+        {"name": "focus", "display": "Focus Flow", "color": "#F5C518", "itemCount": 10},
+        {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9", "itemCount": 5},
+        {"name": "test_pl", "display": "Test Playlist", "color": "#5BB8D4", "itemCount": 1},
     ]
-    assert tick["summary"]["matchedPlaylists"] == [
-        {"name": "missing_playlist", "display": "missing_playlist", "color": None},
-    ]
-    assert tick["act"]["topMatches"][0]["playlist"] == {
-        "name": "focus",
-        "display": "Focus Flow",
-        "color": "#F5C518",
-    }
+    assert tick["summary"]["activePlaylists"] == ["test_pl"]
+    assert tick["summary"]["matchedPlaylists"] == ["missing_playlist"]
+    assert tick["match"]["topMatches"][0] == {"playlist": "focus", "score": 0.91}
 
 
 def test_api_analysis_window_invalid_count(app):
@@ -441,10 +414,10 @@ def test_api_health(app):
     assert body == {"ok": True}
 
 
-def test_dashboard_http_server_binds_requested_port(analysis_store):
+def test_dashboard_http_server_binds_requested_port(tick_store):
     requested_port = _find_free_port()
     server = DashboardHTTPServer(
-        analysis_store,
+        tick_store,
         requested_port=requested_port,
     )
 

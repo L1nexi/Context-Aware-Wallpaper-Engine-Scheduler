@@ -136,7 +136,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     from app.history_logger import HistoryLogger
     from core.runtime.scheduler import WEScheduler
     from ui.dashboard import DashboardHTTPServer
-    from ui.dashboard_analysis import AnalysisStore
+    from ui.tick_trace_store import TickTraceStore
     from ui.tray import TrayIcon
 
     scheduler = WEScheduler(config_dir, HistoryLogger(get_data_dir()))
@@ -148,12 +148,12 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
         sys.exit(1)
     scheduler.on_reload_error = lambda exc: TrayIcon.show_reload_error(str(exc))
 
-    analysis_store = AnalysisStore()
+    tick_store = TickTraceStore()
 
-    scheduler.add_tick_listener(analysis_store.update)
+    scheduler.add_tick_listener(tick_store.update)
     scheduler.start()
     httpd = DashboardHTTPServer(
-        analysis_store,
+        tick_store,
         requested_port=dashboard_api_port,
     )
     try:

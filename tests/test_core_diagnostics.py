@@ -39,7 +39,7 @@ from core.runtime.scheduler import WEScheduler
 from core.runtime.we_config import FactualPlaylistState, FactualPlaylistStatus
 from core.state.action_history import ActionHistoryWriter
 from core.state.persisted import PersistedState
-from ui.dashboard_analysis import map_tick_snapshot
+from ui.dto.diagnostic import map_tick_snapshot
 
 
 @pytest.fixture(autouse=True)
@@ -207,9 +207,7 @@ def test_diagnostics_snapshot_uses_playlist_metadata_from_runtime_map():
 
     snapshot = map_tick_snapshot(trace).model_dump(mode="json", by_alias=True)
 
-    assert snapshot["summary"]["matchedPlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
+    assert snapshot["summary"]["matchedPlaylists"] == ["focus"]
 
 
 def test_controller_evaluation_reports_all_blockers():

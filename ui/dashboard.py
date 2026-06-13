@@ -11,10 +11,8 @@ from wsgiref.simple_server import WSGIServer, make_server
 import bottle
 
 from app.context import get_app_root
-from ui.dashboard_analysis import (
-    AnalysisStore,
-    build_tick_window_response,
-)
+from ui.dto.diagnostic import build_tick_window_response
+from ui.tick_trace_store import TickTraceStore
 
 logger = logging.getLogger("WEScheduler.Dashboard")
 
@@ -39,7 +37,7 @@ def _parse_positive_count(raw_value: str) -> int:
     return count
 
 
-def _build_app(analysis_store: AnalysisStore) -> bottle.Bottle:
+def _build_app(tick_store: TickTraceStore) -> bottle.Bottle:
     app = bottle.Bottle()
 
     @app.route("/api/analysis/window")
@@ -52,7 +50,7 @@ def _build_app(analysis_store: AnalysisStore) -> bottle.Bottle:
             bottle.response.content_type = "application/json; charset=utf-8"
             return json.dumps({"error": "invalid_count"})
 
-        window = analysis_store.read_window(count)
+        window = tick_store.read_window(count)
         payload = build_tick_window_response(window)
         bottle.response.content_type = "application/json; charset=utf-8"
         return json.dumps(payload)
@@ -84,10 +82,10 @@ class DashboardHTTPServer:
 
     def __init__(
         self,
-        analysis_store: AnalysisStore,
+        tick_store: TickTraceStore,
         requested_port: int = 0,
     ):
-        self._analysis_store = analysis_store
+        self._tick_store = tick_store
         self._requested_port = requested_port
         self._httpd: _ThreadingWSGIServer | None = None
         self._thread: threading.Thread | None = None
@@ -95,7 +93,7 @@ class DashboardHTTPServer:
 
     def start(self) -> None:
         os.makedirs(_resolve_static_root(), exist_ok=True)
-        app = _build_app(self._analysis_store)
+        app = _build_app(self._tick_store)
 
         try:
             self._httpd = make_server(

@@ -1,13 +1,7 @@
 from __future__ import annotations
 
-import threading
 import time
-from collections import deque
-from dataclasses import dataclass
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
+from typing import TYPE_CHECKING, Any
 
 from core.models.context import WeatherData
 from core.models.playlist import Playlists
@@ -16,12 +10,17 @@ from core.models.trace import (
     ActivityEvaluation,
     Blocker,
     BlockerEvaluation,
+    DecisionMode,
     PolicyEvaluation,
     SeasonEvaluation,
     TickTrace,
     TimeEvaluation,
     WeatherEvaluation,
 )
+from ui.dto.base import ApiDto
+
+if TYPE_CHECKING:
+    from ui.tick_trace_store import TickTraceWindow
 
 
 def _round_float(value: float | None, digits: int = 4) -> float | None:
@@ -37,16 +36,12 @@ def _playlist_or_none(playlist: str | None) -> str | None:
     return playlist
 
 
+def _playlist_names(playlists: Playlists) -> list[str]:
+    return [name for name in playlists.names() if name]
+
+
 def _sorted_tag_items(items: dict[str, float]) -> list[tuple[str, float]]:
     return sorted(items.items(), key=lambda item: (-item[1], item[0]))
-
-
-class ApiDto(BaseModel):
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        extra="forbid",
-    )
 
 
 class TagWeightDto(ApiDto):
@@ -57,6 +52,35 @@ class TagWeightDto(ApiDto):
 class ResolvedTagWeightDto(ApiDto):
     resolved_tag: str
     weight: float
+
+
+class PlaylistCatalogItemDto(ApiDto):
+    name: str
+    display: str
+    color: str | None
+    item_count: int
+
+
+class CatalogDto(ApiDto):
+    playlists: list[PlaylistCatalogItemDto]
+
+    @classmethod
+    def from_managed_playlists(cls) -> CatalogDto:
+        managed = Playlists.managed()
+        displays = managed.displays()
+        colors = managed.colors()
+        item_counts = managed.item_counts()
+        return cls(
+            playlists=[
+                PlaylistCatalogItemDto(
+                    name=name,
+                    display=displays.get(name, name),
+                    color=colors.get(name),
+                    item_count=item_counts.get(name, 0),
+                )
+                for name in managed.names()
+            ],
+        )
 
 
 class WindowSnapshotDto(ApiDto):
@@ -162,27 +186,8 @@ class BlockerEvaluationDto(ApiDto):
     force_after_remaining: float | None
 
 
-class ControllerDto(ApiDto):
-    evaluation: BlockerEvaluationDto | None
-
-
-class PlaylistRefDto(ApiDto):
-    name: str
-    display: str  # fallback from name if no display
-    color: str | None  # canonical config playlists have a color; unknown historical refs may not
-
-
-class ActionDecisionDto(ApiDto):
-    action: Action
-    executed: bool
-    active_playlists: list[PlaylistRefDto]
-    target_playlists: list[PlaylistRefDto]
-    matched_playlists: list[PlaylistRefDto]
-    target_playlist: PlaylistRefDto | None
-
-
 class TopMatchDto(ApiDto):
-    playlist: PlaylistRefDto
+    playlist: str
     score: float
 
 
@@ -195,26 +200,42 @@ class SenseSnapshotDto(ApiDto):
     clock: ClockSnapshotDto
 
 
-class ThinkSnapshotDto(ApiDto):
+class MatchSnapshotDto(ApiDto):
+    best_playlists: list[str]
+    top_matches: list[TopMatchDto]
     raw_context_vector: list[TagWeightDto]
     resolved_context_vector: list[TagWeightDto]
     fallback_expansions: dict[str, list[ResolvedTagWeightDto]]
     policies: list[EvaluationDto]
-    controller: ControllerDto
-    decision: ActionDecisionDto
+    max_policy_magnitude: float
+    similarity: float
+    similarity_gap: float
+
+
+class PlanSnapshotDto(ApiDto):
+    mode: DecisionMode
+    active_playlists: list[str]
+
+
+class DecideSnapshotDto(ApiDto):
+    action: Action
+    target_playlists: list[str]
+    evaluation: BlockerEvaluationDto | None
 
 
 class ActSnapshotDto(ApiDto):
-    top_matches: list[TopMatchDto]
+    target_playlist: str | None
+    executed: bool
 
 
 class TickSummaryDto(ApiDto):
     tick_id: int
     ts: float
+    pause_until: float
     similarity: float
     similarity_gap: float
-    active_playlists: list[PlaylistRefDto]
-    matched_playlists: list[PlaylistRefDto]
+    active_playlists: list[str]
+    matched_playlists: list[str]
     action: Action
     paused: bool
     executed: bool
@@ -224,61 +245,16 @@ class TickSummaryDto(ApiDto):
 class TickSnapshotDto(ApiDto):
     summary: TickSummaryDto
     sense: SenseSnapshotDto
-    think: ThinkSnapshotDto
+    match: MatchSnapshotDto
+    plan: PlanSnapshotDto
+    decide: DecideSnapshotDto
     act: ActSnapshotDto
 
 
 class TickWindowResponseDto(ApiDto):
     live_tick_id: int | None
+    catalog: CatalogDto
     ticks: list[TickSnapshotDto]
-
-
-@dataclass(frozen=True)
-class AnalysisTraceWindow:
-    live_tick_id: int | None
-    traces: list[TickTrace]
-
-
-def _playlist_ref_from_name(playlist: str) -> PlaylistRefDto:
-    managed = Playlists.managed()
-    displays = managed.displays()
-    colors = managed.colors()
-    return PlaylistRefDto(
-        name=playlist,
-        display=displays.get(playlist, playlist),
-        color=colors.get(playlist),
-    )
-
-
-def _playlist_refs(playlists: Playlists) -> list[PlaylistRefDto]:
-    return [_playlist_ref_from_name(name) for name in playlists.names() if name]
-
-
-def _playlist_ref(playlist: str | None) -> PlaylistRefDto | None:
-    normalized_playlist = _playlist_or_none(playlist)
-    if normalized_playlist is None:
-        return None
-    return _playlist_ref_from_name(normalized_playlist)
-
-
-class AnalysisStore:
-    def __init__(self, tick_history: int = 1200):
-        self._lock = threading.Lock()
-        self._ticks: deque[TickTrace] = deque(maxlen=tick_history)
-        self._live_tick_id: int | None = None
-
-    def update(self, trace: TickTrace) -> None:
-        with self._lock:
-            self._ticks.append(trace)
-            self._live_tick_id = trace.tick_id
-
-    def read_window(self, count: int | None = None) -> AnalysisTraceWindow:
-        with self._lock:
-            items = list(self._ticks)
-            live_tick_id = self._live_tick_id
-            if count is not None:
-                items = items[-count:]
-        return AnalysisTraceWindow(live_tick_id=live_tick_id, traces=items)
 
 
 def _tag_weights(values: dict[str, float]) -> list[TagWeightDto]:
@@ -334,8 +310,7 @@ def _policy_base_dto(policy: PolicyEvaluation) -> BaseEvaluationDto:
 
 
 def _policy_diagnostic(policy: PolicyEvaluation) -> EvaluationDto:
-    base_dto = _policy_base_dto(policy)
-    base_kwargs = base_dto.model_dump()
+    base_kwargs = _policy_base_dto(policy).model_dump()
     if isinstance(policy, ActivityEvaluation):
         return ActivityEvaluationDto(
             **base_kwargs,
@@ -400,21 +375,17 @@ def _controller_evaluation(
 
 
 def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
-    matched_playlist_refs = _playlist_refs(trace.match.best_playlists)
-    action_matched_playlist_refs = _playlist_refs(trace.decision.target)
-    target_refs = _playlist_refs(trace.target)
-    active_playlists_refs = _playlist_refs(trace.active_playlists)
-    target_playlist_ref = _playlist_ref(trace.action.target_playlist)
     has_event = trace.decision.action in {Action.SWITCH, Action.CYCLE}
 
     return TickSnapshotDto(
         summary=TickSummaryDto(
             tick_id=trace.tick_id,
             ts=trace.ts,
+            pause_until=trace.pause_until,
             similarity=_round_float(trace.match.similarity),
             similarity_gap=_round_float(trace.match.similarity_gap),
-            active_playlists=target_refs,
-            matched_playlists=matched_playlist_refs,
+            active_playlists=_playlist_names(trace.target),
+            matched_playlists=_playlist_names(trace.match.best_playlists),
             action=trace.decision.action,
             paused=trace.paused,
             executed=trace.action.executed,
@@ -431,31 +402,38 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             weather=_weather_snapshot(trace.context.weather),
             clock=_clock_snapshot(trace.context.time),
         ),
-        think=ThinkSnapshotDto(
+        match=MatchSnapshotDto(
+            best_playlists=_playlist_names(trace.match.best_playlists),
+            top_matches=[
+                TopMatchDto(
+                    playlist=playlist,
+                    score=_round_float(score),
+                )
+                for playlist, score in trace.match.playlist_matches[:5]
+                if playlist
+            ],
             raw_context_vector=_tag_weights(trace.match.raw_context_vector),
             resolved_context_vector=_tag_weights(trace.match.resolved_context_vector),
             fallback_expansions={
                 source_tag: _resolved_tag_weights(expansions) for source_tag, expansions in sorted(trace.match.fallback_expansions.items())
             },
             policies=[_policy_diagnostic(policy) for policy in trace.match.policy_evaluations],
-            controller=ControllerDto(evaluation=_controller_evaluation(trace.decision.evaluation)),
-            decision=ActionDecisionDto(
-                action=trace.decision.action,
-                executed=trace.action.executed,
-                active_playlists=active_playlists_refs,
-                target_playlists=target_refs,
-                matched_playlists=action_matched_playlist_refs,
-                target_playlist=target_playlist_ref,
-            ),
+            max_policy_magnitude=_round_float(trace.match.max_policy_magnitude),
+            similarity=_round_float(trace.match.similarity),
+            similarity_gap=_round_float(trace.match.similarity_gap),
+        ),
+        plan=PlanSnapshotDto(
+            mode=trace.plan.mode,
+            active_playlists=_playlist_names(trace.plan.active_playlists),
+        ),
+        decide=DecideSnapshotDto(
+            action=trace.decision.action,
+            target_playlists=_playlist_names(trace.decision.target),
+            evaluation=_controller_evaluation(trace.decision.evaluation),
         ),
         act=ActSnapshotDto(
-            top_matches=[
-                TopMatchDto(
-                    playlist=_playlist_ref_from_name(playlist),
-                    score=_round_float(score),
-                )
-                for playlist, score in trace.match.playlist_matches[:5]
-            ],
+            target_playlist=_playlist_or_none(trace.action.target_playlist),
+            executed=trace.action.executed,
         ),
     )
 
@@ -465,9 +443,10 @@ def build_tick_snapshot(trace: TickTrace) -> dict[str, Any]:
     return snapshot.model_dump(mode="json", by_alias=True)
 
 
-def build_tick_window_response(window: AnalysisTraceWindow) -> dict[str, Any]:
+def build_tick_window_response(window: TickTraceWindow) -> dict[str, Any]:
     response = TickWindowResponseDto(
         live_tick_id=window.live_tick_id,
+        catalog=CatalogDto.from_managed_playlists(),
         ticks=[map_tick_snapshot(trace) for trace in window.traces],
     )
     return response.model_dump(mode="json", by_alias=True)

@@ -5,7 +5,7 @@ import {
   DIAGNOSTIC_POLL_INTERVAL_MS,
   fetchDiagnosticWindow,
 } from '@/features/diagnostic/api'
-import type { DiagnosticTickSnapshot } from '@/features/diagnostic/types'
+import type { DiagnosticCatalog, DiagnosticTickSnapshot } from '@/features/diagnostic/types'
 
 const DIAGNOSTIC_ERROR_POLL_INTERVAL_MS = 5000
 
@@ -35,6 +35,7 @@ function findTickById(
 }
 
 export const useDiagnosticStore = defineStore('diagnostic', () => {
+  const catalog = ref<DiagnosticCatalog>({ playlists: [] })
   const liveTicks = ref<DiagnosticTickSnapshot[]>([])
   const snapshotTicks = ref<DiagnosticTickSnapshot[] | null>(null)
   const liveTickId = ref<number | null>(null)
@@ -77,6 +78,9 @@ export const useDiagnosticStore = defineStore('diagnostic', () => {
   const activeTickId = computed<number | null>(() => activeTick.value?.summary.tickId ?? null)
   const latestTickId = computed<number | null>(() => getLatestTickId(liveTicks.value))
   const tickCount = computed(() => activeTicks.value.length)
+  const playlistCatalogByName = computed(
+    () => new Map(catalog.value.playlists.map((playlist) => [playlist.name, playlist])),
+  )
   const isLocked = computed(() => mode.value === 'snapshot' && lockedTickId.value !== null)
   const hasUnseenLiveTicks = computed(() => isLocked.value && newTicksSinceLocked.value > 0)
   const isDisconnected = computed(() => hasLoadedOnce.value && error.value !== null)
@@ -127,6 +131,7 @@ export const useDiagnosticStore = defineStore('diagnostic', () => {
       const response = await fetchDiagnosticWindow(signal)
       const nextLiveTickId = response.liveTickId ?? getLatestTickId(response.ticks)
 
+      catalog.value = response.catalog
       liveTicks.value = response.ticks
       liveTickId.value = nextLiveTickId
       error.value = null
@@ -259,6 +264,7 @@ export const useDiagnosticStore = defineStore('diagnostic', () => {
 
   return {
     liveTicks,
+    catalog,
     snapshotTicks,
     liveTickId,
     selectedTickId,
@@ -273,6 +279,7 @@ export const useDiagnosticStore = defineStore('diagnostic', () => {
     activeTickId,
     latestTickId,
     tickCount,
+    playlistCatalogByName,
     workspaceState,
     isLocked,
     isDisconnected,
