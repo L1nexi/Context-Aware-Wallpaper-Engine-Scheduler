@@ -13,6 +13,12 @@
 | `archived/deprecated/` | 明确放弃的产品或架构路线                    | 用于说明为什么不应按原路线继续。                                                                              |
 | `archived/reference/`  | 事实参考、POC、外部行为记录或推迟的架构备忘 | 可作为背景材料引用                                                                                            |
 
+## Active Specs
+
+| 文档                                      | 作用                                             |
+| ----------------------------------------- | ------------------------------------------------ |
+| `DIAGNOSTIC_FRONTEND_MATCH_FIRST_SPEC.md` | 新前端诊断页 Match-first 信息架构与图表语义规格。 |
+
 ## Half-Finished
 
 | 文档                                                    | 作用                                          |
