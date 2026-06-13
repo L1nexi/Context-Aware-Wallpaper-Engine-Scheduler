@@ -220,10 +220,11 @@ def _expected_counts(
     for scenario, result in zip(scenarios, results):
         if scenario.expected is None:
             continue
-        if result.expected_status == "pass":
-            pass_count += 1
-        elif result.expected_status == "fail":
-            fail_count += 1
+        match result.expected_status:
+            case "pass":
+                pass_count += 1
+            case "fail":
+                fail_count += 1
     return pass_count, fail_count
 
 

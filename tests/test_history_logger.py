@@ -97,6 +97,6 @@ def test_write_failure_rolls_back_event_id(logger, monkeypatch):
     assert logger.write(EventType.PAUSE, {}) == 1
 
 
-def test_history_logger_satisfies_event_logger_protocol():
-    logger = HistoryLogger("/tmp/fake")
+def test_history_logger_satisfies_event_logger_protocol(tmp_path):
+    logger = HistoryLogger(str(tmp_path))
     assert isinstance(logger, EventLogger)

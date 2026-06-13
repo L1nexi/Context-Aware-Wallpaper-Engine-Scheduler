@@ -33,31 +33,31 @@ def _inspect_node(
     visited.add(node_id)
 
     issues: list[ConfigIssue] = []
-    if isinstance(node, MappingNode):
-        seen_keys: set[str] = set()
-        for key_node, value_node in node.value:
-            if isinstance(key_node, ScalarNode):
-                key = str(key_node.value)
-                if key in seen_keys:
-                    issues.append(
-                        ConfigIssue(
-                            source_file=source_file,
-                            field_path=path + (key,),
-                            message=f"duplicate YAML key '{key}'",
-                            code="yaml_duplicate_key",
-                            line=key_node.start_mark.line + 1,
-                            column=key_node.start_mark.column + 1,
+    match node:
+        case MappingNode():
+            seen_keys: set[str] = set()
+            for key_node, value_node in node.value:
+                if isinstance(key_node, ScalarNode):
+                    key = str(key_node.value)
+                    if key in seen_keys:
+                        issues.append(
+                            ConfigIssue(
+                                source_file=source_file,
+                                field_path=path + (key,),
+                                message=f"duplicate YAML key '{key}'",
+                                code="yaml_duplicate_key",
+                                line=key_node.start_mark.line + 1,
+                                column=key_node.start_mark.column + 1,
+                            )
                         )
-                    )
-                else:
-                    seen_keys.add(key)
+                    else:
+                        seen_keys.add(key)
 
-            issues.extend(_inspect_node(value_node, source_file, _node_child_path(path, key_node), visited))
-        return issues
-
-    if isinstance(node, SequenceNode):
-        for index, child in enumerate(node.value):
-            issues.extend(_inspect_node(child, source_file, path + (index,), visited))
+                issues.extend(_inspect_node(value_node, source_file, _node_child_path(path, key_node), visited))
+            return issues
+        case SequenceNode():
+            for index, child in enumerate(node.value):
+                issues.extend(_inspect_node(child, source_file, path + (index,), visited))
 
     return issues
 

@@ -21,34 +21,35 @@ class ActionHistoryWriter:
         match = trace.match
         decision = trace.decision
 
-        if decision.action == Action.SWITCH and result.executed:
-            self._history.write(
-                EventType.PLAYLISTS_SWITCH,
-                {
-                    "playlists_from": trace.active_playlists.names(),
-                    "playlists_to": trace.target.names(),
-                    "target_playlist": result.target_playlist,
-                    "tags": _tag_dict(match.raw_context_vector),
-                    "similarity": round(match.similarity, 4),
-                    "similarity_gap": round(match.similarity_gap, 4),
-                    "max_policy_magnitude": round(match.max_policy_magnitude, 4),
-                },
-            )
-        elif decision.action == Action.CYCLE and result.executed:
-            self._history.write(
-                EventType.PLAYLISTS_CYCLE,
-                {
-                    "playlists": trace.active_playlists.names(),
-                    "target_playlist": result.target_playlist,
-                    "tags": _tag_dict(match.raw_context_vector),
-                },
-            )
-        elif decision.action in {Action.SWITCH, Action.CYCLE} and not result.executed:
-            self._history.write(
-                EventType.ACTUATION_FAILED,
-                {
-                    "action": decision.action.value,
-                    "matched_playlists": decision.target.names(),
-                    "active_playlists": trace.active_playlists.names(),
-                },
-            )
+        match decision.action, result.executed:
+            case Action.SWITCH, True:
+                self._history.write(
+                    EventType.PLAYLISTS_SWITCH,
+                    {
+                        "playlists_from": trace.active_playlists.names(),
+                        "playlists_to": trace.target.names(),
+                        "target_playlist": result.target_playlist,
+                        "tags": _tag_dict(match.raw_context_vector),
+                        "similarity": round(match.similarity, 4),
+                        "similarity_gap": round(match.similarity_gap, 4),
+                        "max_policy_magnitude": round(match.max_policy_magnitude, 4),
+                    },
+                )
+            case Action.CYCLE, True:
+                self._history.write(
+                    EventType.PLAYLISTS_CYCLE,
+                    {
+                        "playlists": trace.active_playlists.names(),
+                        "target_playlist": result.target_playlist,
+                        "tags": _tag_dict(match.raw_context_vector),
+                    },
+                )
+            case ((Action.SWITCH | Action.CYCLE), False):
+                self._history.write(
+                    EventType.ACTUATION_FAILED,
+                    {
+                        "action": decision.action.value,
+                        "matched_playlists": decision.target.names(),
+                        "active_playlists": trace.active_playlists.names(),
+                    },
+                )

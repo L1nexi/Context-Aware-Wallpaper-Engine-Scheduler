@@ -225,22 +225,24 @@ class Controller:
         time_since_last = current_time - self.last_action_time
         force_after_remaining = max(0.0, self.force_after - time_since_last)
 
-        if intent == Intent.SWITCH:
-            cooldown_remaining = 0.0
-        else:
-            cooldown_remaining = max(0.0, self.cycle_cooldown - time_since_last)
+        match intent:
+            case Intent.SWITCH:
+                cooldown_remaining = 0.0
+            case Intent.CYCLE:
+                cooldown_remaining = max(0.0, self.cycle_cooldown - time_since_last)
 
         if cooldown_remaining > 0 and Blocker.COOLDOWN not in blocked_by:
             blocked_by.append(Blocker.COOLDOWN)
 
         idle_seconds = context.idle
-        if intent == Intent.SWITCH:
-            idle_ready = idle_seconds >= self.idle_threshold
-            force_ready = time_since_last >= self.force_after
-            if not idle_ready and not force_ready:
+        match intent:
+            case Intent.SWITCH:
+                idle_ready = idle_seconds >= self.idle_threshold
+                force_ready = time_since_last >= self.force_after
+                if not idle_ready and not force_ready:
+                    blocked_by.append(Blocker.IDLE)
+            case Intent.CYCLE if idle_seconds < self.idle_threshold:
                 blocked_by.append(Blocker.IDLE)
-        elif idle_seconds < self.idle_threshold:
-            blocked_by.append(Blocker.IDLE)
 
         return BlockerEvaluation(
             blocked_by=blocked_by,

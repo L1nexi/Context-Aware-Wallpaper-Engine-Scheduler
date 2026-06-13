@@ -21,18 +21,19 @@ def run_config_tools_tui(config_dir: str) -> int:
             print()
             return 0
 
-        if choice in ("q", "Q"):
-            return 0
-        if choice == "1":
-            _run_validate(config_dir)
-        elif choice == "2":
-            _run_detect(config_dir)
-        elif choice == "3":
-            _run_scan(config_dir)
-        elif choice == "":
-            continue
-        else:
-            print(t("config_tools_unknown_option"))
+        match choice:
+            case "q" | "Q":
+                return 0
+            case "1":
+                _run_validate(config_dir)
+            case "2":
+                _run_detect(config_dir)
+            case "3":
+                _run_scan(config_dir)
+            case "":
+                continue
+            case _:
+                print(t("config_tools_unknown_option"))
 
 
 def _print_menu() -> None:
@@ -140,21 +141,22 @@ def _run_scan(config_dir: str) -> None:
 def _print_scan_error(result: PlaylistScanResult) -> None:
     error = result.error or "unknown error"
 
-    if error == "configured_wallpaper_engine_path_read_failed":
-        print(t("config_tools_error_configured_path_read_failed"))
-    elif error == "wallpaper_engine_executable_not_found":
-        print(t("config_tools_error_we_exe_not_found"))
-        print()
-        print(t("config_tools_error_we_exe_hint"))
-    elif error == "wallpaper_engine_config_not_found":
-        print(t("config_tools_error_we_config_not_found"))
-        print()
-        print(t("config_tools_error_we_config_hint"))
-    elif error == "wallpaper_engine_config_read_failed":
-        print(t("config_tools_error_we_config_read_failed"))
-        print(f"  {result.we_config_json or t('config_tools_not_found')}")
-    elif error == "unexpected_wallpaper_engine_config_format":
-        print(t("config_tools_error_we_config_unexpected_format"))
-        print(f"  {result.we_config_json or t('config_tools_not_found')}")
-    else:
-        print(t("config_tools_error_unknown", error=error))
+    match error:
+        case "configured_wallpaper_engine_path_read_failed":
+            print(t("config_tools_error_configured_path_read_failed"))
+        case "wallpaper_engine_executable_not_found":
+            print(t("config_tools_error_we_exe_not_found"))
+            print()
+            print(t("config_tools_error_we_exe_hint"))
+        case "wallpaper_engine_config_not_found":
+            print(t("config_tools_error_we_config_not_found"))
+            print()
+            print(t("config_tools_error_we_config_hint"))
+        case "wallpaper_engine_config_read_failed":
+            print(t("config_tools_error_we_config_read_failed"))
+            print(f"  {result.we_config_json or t('config_tools_not_found')}")
+        case "unexpected_wallpaper_engine_config_format":
+            print(t("config_tools_error_we_config_unexpected_format"))
+            print(f"  {result.we_config_json or t('config_tools_not_found')}")
+        case _:
+            print(t("config_tools_error_unknown", error=error))

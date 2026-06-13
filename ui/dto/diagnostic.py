@@ -311,49 +311,51 @@ def _policy_base_dto(policy: PolicyEvaluation) -> BaseEvaluationDto:
 
 def _policy_diagnostic(policy: PolicyEvaluation) -> EvaluationDto:
     base_kwargs = _policy_base_dto(policy).model_dump()
-    if isinstance(policy, ActivityEvaluation):
-        return ActivityEvaluationDto(
-            **base_kwargs,
-            details=ActivityDetailsDto(
-                match_source=policy.details.match_source,
-                matched_rule=policy.details.matched_rule,
-                matched_tag=policy.details.matched_tag,
-                window_title=policy.details.window_title,
-                process=policy.details.process,
-                ema_active=policy.details.ema_active,
-            ),
-        )
-    if isinstance(policy, TimeEvaluation):
-        return TimeEvaluationDto(
-            **base_kwargs,
-            details=TimeDetailsDto(
-                auto=policy.details.auto,
-                hour=_round_float(policy.details.hour),
-                virtual_hour=_round_float(policy.details.virtual_hour),
-                day_start_hour=_round_float(policy.details.day_start_hour),
-                night_start_hour=_round_float(policy.details.night_start_hour),
-                peaks={key: _round_float(value) for key, value in sorted(policy.details.peaks.items())},
-            ),
-        )
-    if isinstance(policy, SeasonEvaluation):
-        return SeasonEvaluationDto(
-            **base_kwargs,
-            details=SeasonDetailsDto(
-                day_of_year=policy.details.day_of_year,
-                peaks=dict(sorted(policy.details.peaks.items())),
-            ),
-        )
-    if isinstance(policy, WeatherEvaluation):
-        return WeatherEvaluationDto(
-            **base_kwargs,
-            details=WeatherDetailsDto(
-                weather_id=policy.details.weather_id,
-                weather_main=policy.details.weather_main,
-                available=policy.details.available,
-                mapped=policy.details.mapped,
-            ),
-        )
-    raise TypeError(f"Unsupported policy evaluation type: {type(policy)!r}")
+    match policy:
+        case ActivityEvaluation():
+            return ActivityEvaluationDto(
+                **base_kwargs,
+                details=ActivityDetailsDto(
+                    match_source=policy.details.match_source,
+                    matched_rule=policy.details.matched_rule,
+                    matched_tag=policy.details.matched_tag,
+                    window_title=policy.details.window_title,
+                    process=policy.details.process,
+                    ema_active=policy.details.ema_active,
+                ),
+            )
+        case TimeEvaluation():
+            return TimeEvaluationDto(
+                **base_kwargs,
+                details=TimeDetailsDto(
+                    auto=policy.details.auto,
+                    hour=_round_float(policy.details.hour),
+                    virtual_hour=_round_float(policy.details.virtual_hour),
+                    day_start_hour=_round_float(policy.details.day_start_hour),
+                    night_start_hour=_round_float(policy.details.night_start_hour),
+                    peaks={key: _round_float(value) for key, value in sorted(policy.details.peaks.items())},
+                ),
+            )
+        case SeasonEvaluation():
+            return SeasonEvaluationDto(
+                **base_kwargs,
+                details=SeasonDetailsDto(
+                    day_of_year=policy.details.day_of_year,
+                    peaks=dict(sorted(policy.details.peaks.items())),
+                ),
+            )
+        case WeatherEvaluation():
+            return WeatherEvaluationDto(
+                **base_kwargs,
+                details=WeatherDetailsDto(
+                    weather_id=policy.details.weather_id,
+                    weather_main=policy.details.weather_main,
+                    available=policy.details.available,
+                    mapped=policy.details.mapped,
+                ),
+            )
+        case _:
+            raise TypeError(f"Unsupported policy evaluation type: {type(policy)!r}")
 
 
 def _controller_evaluation(
