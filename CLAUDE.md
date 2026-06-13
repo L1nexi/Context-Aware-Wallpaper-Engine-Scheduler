@@ -36,10 +36,10 @@ python -m ruff format .
 .\scripts\build.bat
 ```
 
-### Dashboard 前端（Vue 3 + Vite + TypeScript）
+### 前端（Vue 3 + Vite + TypeScript）
 
 ```bash
-cd dashboard
+cd frontend
 npm run dev           # 开发服务器
 npm run build         # 生产构建
 npm run type-check    # TypeScript 类型检查
@@ -47,11 +47,11 @@ npm run lint          # ESLint + oxlint
 npm run format        # Prettier
 ```
 
-Dashboard 联调（避免完整托盘流程）：
+Frontend 联调（避免完整托盘流程）：
 
 ```bash
 python main.py --dashboard-api-port 38417
-cd dashboard && npm run dev
+cd Frontend && npm run dev
 ```
 
 后端端口需与前端 `DASHBOARD_API_PORT=<port>` 保持一致，默认端口 `38417`。
@@ -89,9 +89,9 @@ TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
 ### UI 层 (`ui/`)
 
 - **Tray**：pystray 系统托盘，支持 i18n（中文/英文）
-- **Dashboard HTTP**：Bottle 服务器，`GET /api/analysis/window` 提供 tick 诊断数据
+- **Frontend HTTP**：Bottle 服务器，`GET /api/analysis/window` 提供 tick 诊断数据
 - **Dashboard Analysis**：`AnalysisStore`（最多 1200 条 trace 的 deque），Pydantic DTO（camelCase 别名）
-- **Dashboard 前端** (`dashboard/`)：Vue 3 SPA，Pinia + ECharts + Tailwind CSS v4
+- **前端** (`Frontend/`)：Vue 3 SPA，Pinia + ECharts + Tailwind CSS v4
 
 ### 配置层 (`configurations/`)
 
@@ -114,7 +114,7 @@ TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
 - Python：完整类型注解，`from __future__ import annotations`，使用 Python 3.13 现代特性（StrEnum、dataclasses、Pydantic v2）
 - 会抛出异常的函数必须用 docstring 说明异常类型和触发条件
 - 项目处于 `0.x` — 允许 breaking change，不要堆兼容层
-- 前端：遵循现有 Vue SFC 模式、Tailwind token、Pinia store 和 `dashboard/src/components/ui/workbench/*` 原语。不要把 Diagnostics 扩成通用管理后台
+- 前端：遵循现有 Vue SFC 模式、Tailwind token、Pinia store 和 `Frontend/src/components/ui/workbench/*` 原语。
 - 保持 Vite `base: './'`、hash router、URL query locale、pywebview 本地加载
 
 ## 测试
@@ -129,5 +129,4 @@ pytest 配置以 `pytest.ini` 为准。推荐通过 `.\scripts\test.ps1 -q` 或 
 
 - 真实运行配置读 `config/`；测试或样例用 `config.example/` 或测试 fixture，不要无提示改写真实配置
 - 不要新增 include 或隐藏配置层
-- Diagnostics 消费基于 `TickTrace` 的 `GET /api/analysis/window` DTO，不要恢复旧 dashboard summary 契约
 - `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格
