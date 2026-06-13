@@ -133,7 +133,7 @@ nextWallpaper
 - `core/actuator.py`：在 cycle 分支尝试 smart cycle，失败时 fallback。
 - `core/scheduler.py`：根据环境变量构建 optional ranker。
 - `core/diagnostics.py`：增加 wallpaper selection trace。
-- `ui/dashboard_analysis.py`：把 trace 映射到 API DTO。
+- `ui/dto/diagnostic.py`：把 trace 映射到 API DTO。
 
 ## 7. Runtime 行为
 
@@ -181,7 +181,7 @@ ranker 构建失败、bias cache 缺失、候选不足、`openWallpaper()` 失�
 4. `core/wallpaper_ranker.py`：实现 ranking。
 5. `core/executor.py` / `core/actuator.py`：接入 cycle 分支。
 6. `core/scheduler.py`：按环境变量构建 ranker。
-7. `core/diagnostics.py` / `ui/dashboard_analysis.py`：补 trace 和 DTO。
+7. `core/models/trace.py` / `ui/dto/diagnostic.py`：补 trace 和 DTO。
 8. 跑相关 pytest。
 
 ## 10. 最该测什么

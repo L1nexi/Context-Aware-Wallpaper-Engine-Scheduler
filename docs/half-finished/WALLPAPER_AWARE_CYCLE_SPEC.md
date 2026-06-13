@@ -410,8 +410,8 @@ ActuationOutcome.wallpaper_selection
 
 可能不动：
 
-- `ui/dashboard.py`
-- `dashboard/`
+- `ui/frontend.py`
+- `frontend/`
 
 一期不做 UI。
 
@@ -463,12 +463,11 @@ POC 验证：
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-如触及 dashboard 前端，再补：
+如触及 frontend 前端，再补：
 
 ```bash
-cd dashboard
-npm run type-check
-npm run build-only
+cd frontend
+npm run build
 ```
 
 ## 13. 风险

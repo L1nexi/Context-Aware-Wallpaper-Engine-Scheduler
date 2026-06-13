@@ -10,7 +10,7 @@ import type { DiagnosticCatalog, DiagnosticTickSnapshot } from '@/features/diagn
 const DIAGNOSTIC_ERROR_POLL_INTERVAL_MS = 5000
 
 export type DiagnosticViewMode = 'live' | 'snapshot'
-export type DiagnosticWorkspaceState = 'loading' | 'error' | 'empty' | 'live'
+export type DiagnosticLoadState = 'loading' | 'error' | 'empty' | 'live'
 
 function getLatestTickId(ticks: DiagnosticTickSnapshot[]): number | null {
   return ticks[ticks.length - 1]?.summary.tickId ?? null
@@ -85,7 +85,7 @@ export const useDiagnosticStore = defineStore('diagnostic', () => {
   const hasUnseenLiveTicks = computed(() => isLocked.value && newTicksSinceLocked.value > 0)
   const isDisconnected = computed(() => hasLoadedOnce.value && error.value !== null)
 
-  const workspaceState = computed<DiagnosticWorkspaceState>(() => {
+  const loadState = computed<DiagnosticLoadState>(() => {
     if (loading.value && !hasLoadedOnce.value) {
       return 'loading'
     }
@@ -280,7 +280,7 @@ export const useDiagnosticStore = defineStore('diagnostic', () => {
     latestTickId,
     tickCount,
     playlistCatalogByName,
-    workspaceState,
+    loadState,
     isLocked,
     isDisconnected,
     hasUnseenLiveTicks,

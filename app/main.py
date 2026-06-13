@@ -20,12 +20,12 @@ def _parse_args() -> argparse.Namespace:
     Host-mode flags (user-facing):
         --config               Path to the config directory
         --no-tray              Run without system tray icon (console mode)
-        --dashboard-api-port   Local dashboard HTTP server port (0 = dynamic)
+        --server-port   Local frontend HTTP server port (0 = dynamic)
 
-    Dashboard subprocess flags (internal — suppressed from help):
-        --dashboard   Launch the dashboard webview window
+    GUI subprocess flags (internal — suppressed from help):
+        --gui         Launch the GUI webview window
         --port        API port of the in-process HTTP server
-        --locale      UI language for the dashboard client
+        --locale      UI language for the GUI client
 
     """
     parser = argparse.ArgumentParser(description="Context Aware Wallpaper Engine Scheduler")
@@ -40,12 +40,12 @@ def _parse_args() -> argparse.Namespace:
         help="Run without system tray icon (console mode)",
     )
     parser.add_argument(
-        "--dashboard-api-port",
+        "--server-port",
         type=int,
         default=0,
-        help="Local dashboard HTTP server port (0 = dynamic)",
+        help="Local frontend HTTP server port (0 = dynamic)",
     )
-    parser.add_argument("--dashboard", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--gui", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--port", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--locale", default="en", help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -75,26 +75,26 @@ def _ensure_console_for_config_mode() -> None:
 # ── Mode runners ────────────────────────────────────────────────
 
 
-def _spawn_dashboard_subprocess(port: int) -> None:
-    """Spawn a detached dashboard subprocess loading the local host URL."""
+def _spawn_gui_subprocess(port: int) -> None:
+    """Spawn a detached GUI subprocess loading the local host URL."""
     from ui.i18n import current_lang
 
     if getattr(sys, "frozen", False):
         exe = sys.executable
-        cmd = [exe, "--dashboard", f"--port={port}", f"--locale={current_lang}"]
+        cmd = [exe, "--gui", f"--port={port}", f"--locale={current_lang}"]
         subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
     else:
         exe = sys.executable
         script = os.path.join(get_app_root(), "main.py")
-        cmd = [exe, script, "--dashboard", f"--port={port}", f"--locale={current_lang}"]
+        cmd = [exe, script, "--gui", f"--port={port}", f"--locale={current_lang}"]
         subprocess.Popen(cmd, creationflags=0)
 
 
-def _run_dashboard(port: int, locale: str) -> None:
-    """Dashboard subprocess entry point."""
-    from ui.webview import DashboardWindow
+def _run_gui(port: int, locale: str) -> None:
+    """GUI subprocess entry point."""
+    from ui.webview import GuiWindow
 
-    DashboardWindow(port, locale).create_and_block()
+    GuiWindow(port, locale).create_and_block()
 
 
 def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
@@ -125,8 +125,8 @@ def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
         scheduler.stop()
 
 
-def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: int = 0) -> None:
-    """Create scheduler, start the local dashboard API server, and block on
+def _run_tray_mode(config_dir: str, logger: logging.Logger, server_port: int = 0) -> None:
+    """Create scheduler, start the local frontend API server, and block on
     the system tray icon.
 
     Error handling: log + native error dialog so the user sees it even
@@ -135,7 +135,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     from app.context import get_data_dir
     from app.history_logger import HistoryLogger
     from core.runtime.scheduler import WEScheduler
-    from ui.dashboard import DashboardHTTPServer
+    from ui.frontend import FrontendHTTPServer
     from ui.tick_trace_store import TickTraceStore
     from ui.tray import TrayIcon
 
@@ -152,9 +152,9 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
 
     scheduler.add_tick_listener(tick_store.update)
     scheduler.start()
-    httpd = DashboardHTTPServer(
+    httpd = FrontendHTTPServer(
         tick_store,
-        requested_port=dashboard_api_port,
+        requested_port=server_port,
     )
     try:
         httpd.start()
@@ -166,7 +166,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
         sys.exit(1)
 
     tray = TrayIcon(scheduler)
-    tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
+    tray.on_show_gui = lambda: _spawn_gui_subprocess(httpd.port)
     tray.run()
 
 
@@ -196,8 +196,8 @@ def main() -> None:
 
     args = _parse_args()
 
-    if args.dashboard:
-        _run_dashboard(args.port, args.locale)
+    if args.gui:
+        _run_gui(args.port, args.locale)
         return
 
     config_dir = _resolve_config_path(args.config)
@@ -205,7 +205,7 @@ def main() -> None:
     if args.no_tray:
         _run_console_mode(config_dir, logger)
     else:
-        _run_tray_mode(config_dir, logger, args.dashboard_api_port)
+        _run_tray_mode(config_dir, logger, args.server_port)
 
 
 if __name__ == "__main__":

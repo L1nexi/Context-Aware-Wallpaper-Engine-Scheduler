@@ -132,7 +132,7 @@ class TrayIcon:
         self.scheduler = scheduler
         self.icon = None
         self._last_paused_state: bool | None = None
-        self.on_show_dashboard: Callable[[], None] | None = None
+        self.on_show_gui: Callable[[], None] | None = None
         # Let the scheduler notify us when a timed pause auto-expires.
         self.scheduler.on_auto_resume = self._sync_icon
 
@@ -218,9 +218,9 @@ class TrayIcon:
         log_path = os.path.join(get_app_root(), "logs", "scheduler.log")
         self._open_file(log_path)
 
-    def _on_show_dashboard(self, icon, item):
-        if self.on_show_dashboard:
-            self.on_show_dashboard()
+    def _on_show_gui(self, icon, item):
+        if self.on_show_gui:
+            self.on_show_gui()
 
     def _on_apply_current_match_now(self, icon, item):
         self.scheduler.apply_current_match_now()
@@ -339,9 +339,9 @@ class TrayIcon:
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                t("dashboard_show"),
-                self._on_show_dashboard,
-                visible=lambda item: self.on_show_dashboard is not None,
+                t("gui_show"),
+                self._on_show_gui,
+                visible=lambda item: self.on_show_gui is not None,
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("open_logs"), self._on_open_logs),

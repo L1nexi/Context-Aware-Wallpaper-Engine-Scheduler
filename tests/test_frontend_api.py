@@ -27,14 +27,14 @@ from core.models.trace import (
     WeatherDetails,
     WeatherEvaluation,
 )
-from ui.dashboard import (
-    DASHBOARD_STATIC_APP_DIR,
-    DASHBOARD_STATIC_DIST_DIR,
-    DashboardHTTPServer,
+from ui.dto.diagnostic import build_tick_snapshot
+from ui.frontend import (
+    FRONTEND_STATIC_APP_DIR,
+    FRONTEND_STATIC_DIST_DIR,
+    FrontendHTTPServer,
     _build_app,
     _resolve_static_root,
 )
-from ui.dto.diagnostic import build_tick_snapshot
 from ui.tick_trace_store import TickTraceStore
 
 
@@ -183,7 +183,7 @@ def test_tick_trace_store_read_window_returns_recent(tick_store):
     assert [trace.tick_id for trace in window.traces] == [4, 5]
 
 
-def test_build_tick_snapshot_maps_analysis_fields():
+def test_build_tick_snapshot_maps_diagnostic_fields():
     evaluation = BlockerEvaluation(
         blocked_by=[],
         cooldown_remaining=15.0,
@@ -336,8 +336,8 @@ def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
     assert snapshot["plan"]["activePlaylists"] == ["unknown_active"]
 
 
-def test_api_analysis_window_empty(app):
-    status, body = wsgi_get(app, "/api/analysis/window")
+def test_api_tick_traces_window_empty(app):
+    status, body = wsgi_get(app, "/api/tick-traces/window")
     assert "200" in status
     assert body == {
         "liveTickId": None,
@@ -352,18 +352,18 @@ def test_api_analysis_window_empty(app):
     }
 
 
-def test_api_analysis_window_returns_recent(tick_store):
+def test_api_tick_traces_window_returns_recent(tick_store):
     app = _build_app(tick_store)
     for tick_id in range(1, 5):
         tick_store.update(_make_trace(tick_id=tick_id))
 
-    status, body = wsgi_request(app, "GET", "/api/analysis/window", query="count=2")
+    status, body = wsgi_request(app, "GET", "/api/tick-traces/window", query="count=2")
     assert "200" in status
     assert body["liveTickId"] == 4
     assert [tick["summary"]["tickId"] for tick in body["ticks"]] == [3, 4]
 
 
-def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
+def test_api_tick_traces_window_projects_traces_with_current_playlist_metadata(
     tick_store,
 ):
     Playlists.configure(
@@ -384,7 +384,7 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
         )
     )
 
-    status, body = wsgi_get(app, "/api/analysis/window")
+    status, body = wsgi_get(app, "/api/tick-traces/window")
 
     assert "200" in status
     tick = body["ticks"][0]
@@ -398,12 +398,12 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
     assert tick["match"]["topMatches"][0] == {"playlist": "focus", "score": 0.91}
 
 
-def test_api_analysis_window_invalid_count(app):
-    status, body = wsgi_request(app, "GET", "/api/analysis/window", query="count=abc")
+def test_api_tick_traces_window_invalid_count(app):
+    status, body = wsgi_request(app, "GET", "/api/tick-traces/window", query="count=abc")
     assert "400" in status
     assert body["error"] == "invalid_count"
 
-    status, body = wsgi_request(app, "GET", "/api/analysis/window", query="count=0")
+    status, body = wsgi_request(app, "GET", "/api/tick-traces/window", query="count=0")
     assert "400" in status
     assert body["error"] == "invalid_count"
 
@@ -414,9 +414,9 @@ def test_api_health(app):
     assert body == {"ok": True}
 
 
-def test_dashboard_http_server_binds_requested_port(tick_store):
+def test_frontend_http_server_binds_requested_port(tick_store):
     requested_port = _find_free_port()
-    server = DashboardHTTPServer(
+    server = FrontendHTTPServer(
         tick_store,
         requested_port=requested_port,
     )
@@ -433,16 +433,16 @@ def test_dashboard_http_server_binds_requested_port(tick_store):
         server.stop()
 
 
-def test_parse_args_accepts_dashboard_api_port(monkeypatch):
+def test_parse_args_accepts_server_port(monkeypatch):
     from app.main import _parse_args
 
-    monkeypatch.setattr("sys.argv", ["main.py", "--dashboard-api-port", "38417"])
+    monkeypatch.setattr("sys.argv", ["main.py", "--server-port", "38417"])
 
     args = _parse_args()
 
-    assert args.dashboard_api_port == 38417
+    assert args.server_port == 38417
 
 
-def test_resolve_static_root_targets_dashboard_dist():
+def test_resolve_static_root_targets_frontend_dist():
     static_root = _resolve_static_root()
-    assert static_root.endswith(os.path.join(DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR))
+    assert static_root.endswith(os.path.join(FRONTEND_STATIC_APP_DIR, FRONTEND_STATIC_DIST_DIR))

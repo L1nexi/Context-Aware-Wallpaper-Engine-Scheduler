@@ -1,6 +1,6 @@
 @echo off
-set DASHBOARD_APP_DIR=dashboard
-set DASHBOARD_DIST_DIR=%DASHBOARD_APP_DIR%\dist
+set FRONTEND_APP_DIR=frontend
+set FRONTEND_DIST_DIR=%FRONTEND_APP_DIR%\dist
 
 echo ==========================================
 echo      WEScheduler Build Script
@@ -14,12 +14,12 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
-echo [2/5] Building dashboard...
-pushd %DASHBOARD_APP_DIR%
-call npm run build-only
+echo [2/5] Building frontend...
+pushd %FRONTEND_APP_DIR%
+call npm run build
 if %errorlevel% neq 0 (
     popd
-    echo Failed to build dashboard.
+    echo Failed to build frontend.
     pause
     exit /b %errorlevel%
 )
@@ -32,7 +32,7 @@ if exist dist rmdir /s /q dist
 echo [4/5] Running PyInstaller...
 pyinstaller --noconsole --onefile --name "WEScheduler" ^
     --icon "packaging\AppIcon.ico" ^
-    --add-data "%DASHBOARD_DIST_DIR%;%DASHBOARD_DIST_DIR%" ^
+    --add-data "%FRONTEND_DIST_DIR%;%FRONTEND_DIST_DIR%" ^
     --hidden-import=pystray ^
     --hidden-import=PIL ^
     --hidden-import=psutil ^

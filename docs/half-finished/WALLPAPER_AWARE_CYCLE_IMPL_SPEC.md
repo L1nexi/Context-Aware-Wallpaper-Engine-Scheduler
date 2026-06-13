@@ -53,7 +53,7 @@ matched playlist == active playlist && cycle allowed
 - Policy 输出 context vector，Matcher 在 playlist vectors 中选择 matched playlist。
 - Controller 当前区分 playlist switch 与 wallpaper cycle。
 - Actuator 当前在 cycle 分支调用 `WEExecutor.next_wallpaper()`。
-- Dashboard / Diagnostics 的事实源是 `SchedulerTickTrace`，不是长期 History 产品。
+- Diagnostics 的事实源是 `SchedulerTickTrace`，不是长期 History 产品。
 
 WE config / project metadata 事实：
 
@@ -529,7 +529,7 @@ class ActuationOutcome:
     wallpaper_selection: WallpaperSelectionTrace | None = None
 ```
 
-`ui/dashboard_analysis.py` 中的 DTO mapping 将其包含在 `act.wallpaperSelection` 下。第一 slice 通过 API 暴露它，但不渲染专门的前端 UI。
+`ui/dto/diagnostic.py` 中的 DTO mapping 将其包含在 `act.wallpaperSelection` 下。第一 slice 通过 API 暴露它，但不渲染专门的前端 UI。
 
 ### 7.6 History 事件数据
 
@@ -707,7 +707,7 @@ def get_wallpaper(self) -> str | None:
 - 在 env flag 下构建可选 ranker。
 - 将 ranker 注入 `Actuator`。
 
-`ui/dashboard_analysis.py`
+`ui/dto/diagnostic.py`
 
 - 增加 wallpaper selection trace 的 DTO。
 - 映射 `ActuationOutcome.wallpaper_selection`。
@@ -728,8 +728,8 @@ def get_wallpaper(self) -> str | None:
 
 ### 9.3 第一 slice 中不变
 
-- `dashboard/src/**`
-- `ui/dashboard.py`
+- `frontend/src/**`
+- `ui/frontend.py`
 - `utils/runtime_config.py`
 - `utils/config_documents.py`
 - Release config examples。
@@ -905,8 +905,8 @@ def get_wallpaper(self) -> str | None:
 文件：
 
 - `core/diagnostics.py`
-- `ui/dashboard_analysis.py`
-- `tests/test_dashboard_api.py`
+- `ui/dto/diagnostic.py`
+- `tests/test_frontend_api.py`
 - `tests/test_core_diagnostics.py`
 
 行为：
@@ -919,7 +919,7 @@ def get_wallpaper(self) -> str | None:
 验证：
 
 ```bash
-.\.venv\Scripts\python.exe -m pytest tests/test_dashboard_api.py tests/test_core_diagnostics.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_frontend_api.py tests/test_core_diagnostics.py -q
 ```
 
 依赖：
@@ -934,7 +934,7 @@ def get_wallpaper(self) -> str | None:
 
 行为：
 
-- 确认没有 unrelated Dashboard / config editor behavior changes。
+- 确认没有 unrelated Diagnostics / config editor behavior changes。
 
 验证：
 
@@ -942,12 +942,11 @@ def get_wallpaper(self) -> str | None:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-如果 dashboard TypeScript types 被修改：
+如果 frontend TypeScript types 被修改：
 
 ```bash
-cd dashboard
-npm run type-check
-npm run build-only
+cd frontend
+npm run build
 ```
 
 依赖：
@@ -992,7 +991,7 @@ POC：
 - `tests/test_wallpaper_index.py`
 - `tests/test_wallpaper_ranker.py`
 - focused `tests/test_core_diagnostics.py`
-- focused `tests/test_dashboard_api.py`
+- focused `tests/test_frontend_api.py`
 
 回归：
 
@@ -1022,7 +1021,7 @@ $env:WESCHEDULER_EXPERIMENTAL_WALLPAPER_CYCLE="1"
 - 未归一化的 `v_i` 会让强语义样本占优。第一 slice 用 recency penalty 和 top-k sampling 控制曝光，而不是扭曲向量。
 - Bias cache load failure 绝不能破坏 scheduler startup 或 hot reload。
 - 如果 trace 过薄，ranking 会很难调试；top candidates 必须包含 score components。
-- 过早引入 public config 会把产品重新拉向 management-dashboard complexity。
+- 过早引入 public config 会把产品重新拉向管理型界面复杂度。
 
 ## 14. 开放问题
 

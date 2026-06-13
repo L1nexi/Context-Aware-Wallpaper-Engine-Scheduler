@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 
-const dashboardApiPort = process.env.DASHBOARD_API_PORT?.trim() || "38417";
+const frontendApiPort = process.env.SERVER_PORT?.trim() || "38417";
 
 export default defineConfig({
   base: "./",
@@ -11,7 +11,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: `http://127.0.0.1:${dashboardApiPort}`,
+        target: `http://127.0.0.1:${frontendApiPort}`,
       },
     },
   },

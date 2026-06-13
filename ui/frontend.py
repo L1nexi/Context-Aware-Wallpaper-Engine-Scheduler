@@ -14,10 +14,10 @@ from app.context import get_app_root
 from ui.dto.diagnostic import build_tick_window_response
 from ui.tick_trace_store import TickTraceStore
 
-logger = logging.getLogger("WEScheduler.Dashboard")
+logger = logging.getLogger("WEScheduler.Frontend")
 
-DASHBOARD_STATIC_APP_DIR = "dashboard"
-DASHBOARD_STATIC_DIST_DIR = "dist"
+FRONTEND_STATIC_APP_DIR = "frontend"
+FRONTEND_STATIC_DIST_DIR = "dist"
 
 
 class _ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
@@ -26,8 +26,8 @@ class _ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
 
 def _resolve_static_root() -> str:
     if getattr(sys, "frozen", False):
-        return os.path.join(sys._MEIPASS, DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR)
-    return os.path.join(get_app_root(), DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR)
+        return os.path.join(sys._MEIPASS, FRONTEND_STATIC_APP_DIR, FRONTEND_STATIC_DIST_DIR)
+    return os.path.join(get_app_root(), FRONTEND_STATIC_APP_DIR, FRONTEND_STATIC_DIST_DIR)
 
 
 def _parse_positive_count(raw_value: str) -> int:
@@ -40,8 +40,8 @@ def _parse_positive_count(raw_value: str) -> int:
 def _build_app(tick_store: TickTraceStore) -> bottle.Bottle:
     app = bottle.Bottle()
 
-    @app.route("/api/analysis/window")
-    def api_analysis_window():
+    @app.route("/api/tick-traces/window")
+    def api_tick_traces_window():
         raw_count = bottle.request.query.get("count", "900")
         try:
             count = _parse_positive_count(raw_count)
@@ -77,8 +77,8 @@ def _build_app(tick_store: TickTraceStore) -> bottle.Bottle:
     return app
 
 
-class DashboardHTTPServer:
-    """Bottle-powered HTTP server for the dashboard SPA."""
+class FrontendHTTPServer:
+    """Bottle-powered HTTP server for the frontend SPA."""
 
     def __init__(
         self,
@@ -104,14 +104,14 @@ class DashboardHTTPServer:
             )
         except OSError as exc:
             if self._requested_port > 0:
-                raise OSError(f"Failed to bind dashboard API server to 127.0.0.1:{self._requested_port}") from exc
+                raise OSError(f"Failed to bind frontend API server to 127.0.0.1:{self._requested_port}") from exc
             raise
 
         self.port = self._httpd.server_address[1]
 
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
-        logger.info("Dashboard HTTP server (bottle) on http://127.0.0.1:%d", self.port)
+        logger.info("Frontend HTTP server (bottle) on http://127.0.0.1:%d", self.port)
 
     def stop(self) -> None:
         if self._httpd:

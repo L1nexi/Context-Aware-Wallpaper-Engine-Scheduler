@@ -63,12 +63,12 @@ python main.py config --config <config_dir>
 Frontend 联调可避免完整托盘流程：
 
 ```bash
-python main.py --dashboard-api-port 38417
+python main.py --server-port 38417
 cd frontend
 npm run dev
 ```
 
-如需其他端口，保持后端端口与前端 `DASHBOARD_API_PORT=<port>` 一致；默认端口是 `38417`。前端还可运行 `npm run lint`、`npm run type-check`、`npm run build-only`、`npm run format`、`npm run preview`。若组合构建遇到派生进程问题，分开跑 `type-check` 和 `build-only`。
+如需其他端口，保持后端端口与前端 `SERVER_PORT=<port>` 一致；默认端口是 `38417`。当前新前端脚本以 `npm run build` 为准，它包含 `vue-tsc -b` 与 `vite build`；另可运行 `npm run dev`、`npm run preview`。
 
 Python 文件修改完毕后，用 Ruff 格式化
 
@@ -85,7 +85,7 @@ Python 代码使用完整类型注解。代码应尽量自解释；会抛出异�
 
 pytest 配置以 `pytest.ini` 为准，`testpaths = tests`、`norecursedirs = data .pytest_tmp`。优先通过 `.\scripts\test.ps1 -q` 或 `.\scripts\test.ps1 tests/test_foo.py -q` 运行测试；脚本会为每次运行分配 `.pytest_tmp/<run-id>/tmp` 和 `.pytest_tmp/<run-id>/cache`，让多个 pytest 进程可以并行运行且测试产物仍集中在 `.pytest_tmp/`。
 
-新增测试应验证行为、边界条件或非显然回归。不要为了简单属性透传、平凡分支或无算法价值的断言写测试。前端改动至少验证 `npm run type-check` 和 `npm run build-only`。
+新增测试应验证行为、边界条件或非显然回归。不要为了简单属性透传、平凡分支或无算法价值的断言写测试。前端改动至少验证 `npm run build`；如果后续拆分脚本，再分别跑类型检查和构建。
 
 ## 配置与架构约束
 
