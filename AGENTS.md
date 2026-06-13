@@ -17,7 +17,7 @@
 - `core/policies/` 放 Policy 基类及具体实现。
 - `core/sensors/` 放 Sensor 基类及具体实现。
 - `ui/` 放托盘 UI、Bottle API、pywebview 窗口、DTO 转换、i18n 和图标生成。
-- `frontend/` 是 Shadcn-vue + Tailwind CSSv4 + Vite + TypeScript 的未完成工作区。
+- `frontend/` 基于 Shadcn-vue + Tailwind CSSv4 + Vite + TypeScript 。前端以中文文案优先完成，中文信息架构稳定后再迁移英文。
 - `config/` 是本机真实运行配置，可用于真实运行与手工验证；不要当作 disposable fixture 覆盖或清空。
 - `config.example/` 是发布与示例配置；`tests/` 放 pytest 测试。
 - `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格
