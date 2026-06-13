@@ -492,6 +492,36 @@ def test_controller_partial_overlap_decays_continuity_by_time_only():
     assert controller.semantic_continuity_score == pytest.approx(CONTINUITY_DECAY_PER_TICK)
 
 
+def test_controller_marks_semantic_continuity_when_overlap_keeps_current_pool():
+    Playlists._configs.update(
+        {
+            "A": PlaylistInfo(display="A", color="#FF0000", item_count=1),
+            "B": PlaylistInfo(display="B", color="#00FF00", item_count=1),
+            "C": PlaylistInfo(display="C", color="#0000FF", item_count=1),
+        }
+    )
+    controller = Controller(
+        SchedulingConfig(
+            startup_delay=0,
+            force_after=0,
+            cycle_cooldown=0,
+            idle_threshold=0,
+            cpu_threshold=0,
+            pause_on_fullscreen=False,
+        )
+    )
+
+    decision = _decide_normal(
+        controller,
+        Context(idle=999.0),
+        Match(best_playlists=Playlists(["A", "C"]), playlist_matches=[("A", 0.9), ("C", 0.8)]),
+        Playlists(["A", "B"]),
+    )
+
+    assert decision.action == Action.CYCLE
+    assert decision.semantic_continuity is True
+
+
 def test_controller_no_match_resets_continuity_without_switching():
     clock = _MutableClock(1000.0)
     controller = Controller(

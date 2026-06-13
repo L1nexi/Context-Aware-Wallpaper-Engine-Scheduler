@@ -169,6 +169,7 @@ export interface DiagnosticPlanSnapshot {
 export interface DiagnosticDecideSnapshot {
   action: DiagnosticAction
   targetPlaylists: string[]
+  semanticContinuity: boolean
   evaluation: DiagnosticBlockerEvaluation | null
 }
 

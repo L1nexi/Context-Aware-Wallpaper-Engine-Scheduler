@@ -220,6 +220,7 @@ class PlanSnapshotDto(ApiDto):
 class DecideSnapshotDto(ApiDto):
     action: Action
     target_playlists: list[str]
+    semantic_continuity: bool
     evaluation: BlockerEvaluationDto | None
 
 
@@ -431,6 +432,7 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
         decide=DecideSnapshotDto(
             action=trace.decision.action,
             target_playlists=_playlist_names(trace.decision.target),
+            semantic_continuity=trace.decision.semantic_continuity,
             evaluation=_controller_evaluation(trace.decision.evaluation),
         ),
         act=ActSnapshotDto(

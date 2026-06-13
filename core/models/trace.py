@@ -149,6 +149,9 @@ class Decision:
     action: Action
     target: Playlists
     evaluation: BlockerEvaluation | None = None
+    # TODO 用更好的方式来表示语义连续性
+    # 语义连续性影响的是 Intent，与原有 Blocker 不完全一致（Block SWTICH 和 CYCLE 动作）
+    semantic_continuity: bool = False
 
 
 @dataclass

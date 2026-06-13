@@ -67,11 +67,13 @@ class Decisions:
         action: Action,
         target: Playlists,
         evaluation: BlockerEvaluation | None = None,
+        semantic_continuity: bool = False,
     ) -> Decision:
         return Decision(
             action=action,
             target=target,
             evaluation=evaluation,
+            semantic_continuity=semantic_continuity,
         )
 
     @classmethod
@@ -88,10 +90,11 @@ class Decisions:
         matched: Playlists,
         evaluation: BlockerEvaluation,
         active_playlists: Playlists,
+        semantic_continuity: bool = False,
     ) -> Decision:
         target = matched if intent == Intent.SWITCH else active_playlists
         action = Action.SWITCH if intent == Intent.SWITCH else Action.CYCLE
-        return cls.make(action, target, evaluation)
+        return cls.make(action, target, evaluation, semantic_continuity)
 
     @classmethod
     def blocked(
@@ -100,9 +103,10 @@ class Decisions:
         matched: Playlists,
         evaluation: BlockerEvaluation,
         active_playlists: Playlists,
+        semantic_continuity: bool = False,
     ) -> Decision:
         target = matched if intent == Intent.SWITCH else active_playlists
-        return cls.make(Action.HOLD, target, evaluation)
+        return cls.make(Action.HOLD, target, evaluation, semantic_continuity)
 
     @classmethod
     def pause(cls, target: Playlists) -> Decision:
@@ -160,16 +164,18 @@ class Controller:
         if matched == active_playlists:
             self.semantic_continuity_score = 1.0
             intent = Intent.CYCLE
+            semantic_continuity = False
         else:
             overlap_score = weighted_jaccard(matched, active_playlists)
             self.semantic_continuity_score *= CONTINUITY_DECAY_PER_TICK
             is_continuous = self.semantic_continuity_score * overlap_score > CONTINUITY_SWITCH_BOUNDARY
             intent = Intent.CYCLE if is_continuous else Intent.SWITCH
+            semantic_continuity = is_continuous
 
         evaluation = self._evaluate_blockers(context, intent)
         if evaluation.allowed:
-            return Decisions.allowed(intent, matched, evaluation, active_playlists)
-        return Decisions.blocked(intent, matched, evaluation, active_playlists)
+            return Decisions.allowed(intent, matched, evaluation, active_playlists, semantic_continuity)
+        return Decisions.blocked(intent, matched, evaluation, active_playlists, semantic_continuity)
 
     def _decide_manual(
         self,

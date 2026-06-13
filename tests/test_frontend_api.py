@@ -115,6 +115,7 @@ def _make_trace(
     target_playlist: str | None = None,
     executed: bool = False,
     action_kind: Action = Action.HOLD,
+    semantic_continuity: bool = False,
     evaluation: BlockerEvaluation | None = None,
     weather: WeatherData | None = None,
     policy_evaluations: list | None = None,
@@ -150,6 +151,7 @@ def _make_trace(
             decision=Decision(
                 action=action_kind,
                 target=best_playlists,
+                semantic_continuity=semantic_continuity,
                 evaluation=evaluation,
             ),
             action=ActionResult(
@@ -240,6 +242,7 @@ def test_build_tick_snapshot_maps_diagnostic_fields():
         matched_playlist="focus",
         executed=False,
         action_kind=Action.HOLD,
+        semantic_continuity=True,
         evaluation=evaluation,
         weather=WeatherData(
             id=501,
@@ -274,6 +277,8 @@ def test_build_tick_snapshot_maps_diagnostic_fields():
     assert snapshot["match"]["topMatches"][1] == {"playlist": "rainy", "score": 0.66}
     assert snapshot["plan"] == {"mode": "normal", "activePlaylists": ["idle"]}
     assert snapshot["decide"]["targetPlaylists"] == ["focus"]
+    assert snapshot["decide"]["semanticContinuity"] is True
+    assert "semanticContinuity" not in snapshot["decide"]["evaluation"]
     assert snapshot["act"] == {"targetPlaylist": None, "executed": False}
 
 
