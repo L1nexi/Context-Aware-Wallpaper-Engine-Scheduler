@@ -28,7 +28,7 @@ from core.models.trace import (
     WeatherEvaluation,
 )
 from ui.dto.diagnostic import build_tick_snapshot
-from ui.frontend import (
+from ui.http_server import (
     FRONTEND_STATIC_APP_DIR,
     FRONTEND_STATIC_DIST_DIR,
     FrontendHTTPServer,
@@ -273,8 +273,8 @@ def test_build_tick_snapshot_maps_diagnostic_fields():
     assert snapshot["match"]["policies"][1]["details"]["mapped"] is True
     assert snapshot["match"]["policies"] is not None
     assert snapshot["match"]["bestPlaylists"] == ["focus"]
-    assert snapshot["match"]["topMatches"][0] == {"playlist": "focus", "score": 0.91}
-    assert snapshot["match"]["topMatches"][1] == {"playlist": "rainy", "score": 0.66}
+    assert snapshot["match"]["playlistMatches"][0] == {"playlist": "focus", "score": 0.91}
+    assert snapshot["match"]["playlistMatches"][1] == {"playlist": "rainy", "score": 0.66}
     assert snapshot["plan"] == {"mode": "normal", "activePlaylists": ["idle"]}
     assert snapshot["decide"]["targetPlaylists"] == ["focus"]
     assert snapshot["decide"]["semanticContinuity"] is True
@@ -400,7 +400,7 @@ def test_api_tick_traces_window_projects_traces_with_current_playlist_metadata(
     ]
     assert tick["summary"]["activePlaylists"] == ["test_pl"]
     assert tick["summary"]["matchedPlaylists"] == ["missing_playlist"]
-    assert tick["match"]["topMatches"][0] == {"playlist": "focus", "score": 0.91}
+    assert tick["match"]["playlistMatches"][0] == {"playlist": "focus", "score": 0.91}
 
 
 def test_api_tick_traces_window_invalid_count(app):

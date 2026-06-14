@@ -135,7 +135,7 @@ export interface DiagnosticBlockerEvaluation {
   forceAfterRemaining: number | null
 }
 
-export interface DiagnosticTopMatch {
+export interface DiagnosticPlaylistMatch {
   playlist: string
   score: number
 }
@@ -151,7 +151,7 @@ export interface DiagnosticSenseSnapshot {
 
 export interface DiagnosticMatchSnapshot {
   bestPlaylists: string[]
-  topMatches: DiagnosticTopMatch[]
+  playlistMatches: DiagnosticPlaylistMatch[]
   rawContextVector: DiagnosticTagWeight[]
   resolvedContextVector: DiagnosticTagWeight[]
   fallbackExpansions: Record<string, DiagnosticResolvedTagWeight[]>

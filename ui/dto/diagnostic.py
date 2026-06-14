@@ -186,7 +186,7 @@ class BlockerEvaluationDto(ApiDto):
     force_after_remaining: float | None
 
 
-class TopMatchDto(ApiDto):
+class PlaylistMatchDto(ApiDto):
     playlist: str
     score: float
 
@@ -202,7 +202,7 @@ class SenseSnapshotDto(ApiDto):
 
 class MatchSnapshotDto(ApiDto):
     best_playlists: list[str]
-    top_matches: list[TopMatchDto]
+    playlist_matches: list[PlaylistMatchDto]
     raw_context_vector: list[TagWeightDto]
     resolved_context_vector: list[TagWeightDto]
     fallback_expansions: dict[str, list[ResolvedTagWeightDto]]
@@ -407,12 +407,12 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
         ),
         match=MatchSnapshotDto(
             best_playlists=_playlist_names(trace.match.best_playlists),
-            top_matches=[
-                TopMatchDto(
+            playlist_matches=[
+                PlaylistMatchDto(
                     playlist=playlist,
                     score=_round_float(score),
                 )
-                for playlist, score in trace.match.playlist_matches[:5]
+                for playlist, score in trace.match.playlist_matches
                 if playlist
             ],
             raw_context_vector=_tag_weights(trace.match.raw_context_vector),

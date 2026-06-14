@@ -729,7 +729,7 @@ def get_wallpaper(self) -> str | None:
 ### 9.3 第一 slice 中不变
 
 - `frontend/src/**`
-- `ui/frontend.py`
+- `ui/http_server.py`
 - `utils/runtime_config.py`
 - `utils/config_documents.py`
 - Release config examples。

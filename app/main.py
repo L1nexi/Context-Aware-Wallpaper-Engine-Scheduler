@@ -135,7 +135,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, server_port: int = 0
     from app.context import get_data_dir
     from app.history_logger import HistoryLogger
     from core.runtime.scheduler import WEScheduler
-    from ui.frontend import FrontendHTTPServer
+    from ui.http_server import FrontendHTTPServer
     from ui.tick_trace_store import TickTraceStore
     from ui.tray import TrayIcon
 

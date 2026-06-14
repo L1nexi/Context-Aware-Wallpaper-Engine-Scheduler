@@ -410,7 +410,7 @@ ActuationOutcome.wallpaper_selection
 
 可能不动：
 
-- `ui/frontend.py`
+- `ui/http_server.py`
 - `frontend/`
 
 一期不做 UI。
