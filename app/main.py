@@ -135,6 +135,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, server_port: int = 0
     from app.context import get_data_dir
     from app.history_logger import HistoryLogger
     from core.runtime.scheduler import WEScheduler
+    from ui.aggregation import TraceBucketStore
     from ui.http_server import FrontendHTTPServer
     from ui.tick_trace_store import TickTraceStore
     from ui.tray import TrayIcon
@@ -148,12 +149,14 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, server_port: int = 0
         sys.exit(1)
     scheduler.on_reload_error = lambda exc: TrayIcon.show_reload_error(str(exc))
 
+    bucket_store = TraceBucketStore()
     tick_store = TickTraceStore()
-
     scheduler.add_tick_listener(tick_store.update)
+    scheduler.add_tick_listener(bucket_store.update)
     scheduler.start()
     httpd = FrontendHTTPServer(
         tick_store,
+        bucket_store,
         requested_port=server_port,
     )
     try:

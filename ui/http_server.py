@@ -11,6 +11,8 @@ from wsgiref.simple_server import WSGIServer, make_server
 import bottle
 
 from app.context import get_app_root
+from ui.aggregation import TraceBucketStore
+from ui.dto.aggregation import build_trace_bucket_response
 from ui.dto.diagnostic import build_tick_window_response
 from ui.tick_trace_store import TickTraceStore
 
@@ -37,7 +39,7 @@ def _parse_positive_count(raw_value: str) -> int:
     return count
 
 
-def _build_app(tick_store: TickTraceStore) -> bottle.Bottle:
+def _build_app(tick_store: TickTraceStore, bucket_store: TraceBucketStore) -> bottle.Bottle:
     app = bottle.Bottle()
 
     @app.route("/api/tick-traces/window")
@@ -52,6 +54,21 @@ def _build_app(tick_store: TickTraceStore) -> bottle.Bottle:
 
         window = tick_store.read_window(count)
         payload = build_tick_window_response(window)
+        bottle.response.content_type = "application/json; charset=utf-8"
+        return json.dumps(payload)
+
+    @app.route("/api/tick-traces/aggregated")
+    def api_tick_traces_aggregated():
+        raw_count = bottle.request.query.get("count", "120")
+        try:
+            count = _parse_positive_count(raw_count)
+        except (TypeError, ValueError):
+            bottle.response.status = 400
+            bottle.response.content_type = "application/json; charset=utf-8"
+            return json.dumps({"error": "invalid_count"})
+
+        window = bucket_store.read_window(count)
+        payload = build_trace_bucket_response(window)
         bottle.response.content_type = "application/json; charset=utf-8"
         return json.dumps(payload)
 
@@ -83,9 +100,11 @@ class FrontendHTTPServer:
     def __init__(
         self,
         tick_store: TickTraceStore,
+        bucket_store: TraceBucketStore,
         requested_port: int = 0,
     ):
         self._tick_store = tick_store
+        self._bucket_store = bucket_store
         self._requested_port = requested_port
         self._httpd: _ThreadingWSGIServer | None = None
         self._thread: threading.Thread | None = None
@@ -93,7 +112,7 @@ class FrontendHTTPServer:
 
     def start(self) -> None:
         os.makedirs(_resolve_static_root(), exist_ok=True)
-        app = _build_app(self._tick_store)
+        app = _build_app(self._tick_store, self._bucket_store)
 
         try:
             self._httpd = make_server(

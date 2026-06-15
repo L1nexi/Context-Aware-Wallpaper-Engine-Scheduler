@@ -10,3 +10,9 @@ class ApiDto(BaseModel):
         populate_by_name=True,
         extra="forbid",
     )
+
+
+def format_float(value: float | None, digits: int = 4) -> float | None:
+    if value is None:
+        return None
+    return round(float(value), digits)

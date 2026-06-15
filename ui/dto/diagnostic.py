@@ -17,32 +17,10 @@ from core.models.trace import (
     TimeEvaluation,
     WeatherEvaluation,
 )
-from ui.dto.base import ApiDto
+from ui.dto.base import ApiDto, format_float
 
 if TYPE_CHECKING:
     from ui.tick_trace_store import TickTraceWindow
-
-
-def _round_float(value: float | None, digits: int = 4) -> float | None:
-    if value is None:
-        return None
-    return round(float(value), digits)
-
-
-def _playlist_or_none(playlist: str | None) -> str | None:
-    """Scheduler internals use empty string for "no playlist"; API uses null."""
-    if not playlist:
-        return None
-    return playlist
-
-
-def _playlist_names(playlists: Playlists) -> list[str]:
-    return [name for name in playlists.names() if name]
-
-
-def _sorted_tag_items(items: dict[str, float]) -> list[tuple[str, float]]:
-    return sorted(items.items(), key=lambda item: (-item[1], item[0]))
-
 
 class TagWeightDto(ApiDto):
     tag: str
@@ -259,11 +237,13 @@ class TickWindowResponseDto(ApiDto):
 
 
 def _tag_weights(values: dict[str, float]) -> list[TagWeightDto]:
-    return [TagWeightDto(tag=tag, weight=_round_float(weight)) for tag, weight in _sorted_tag_items(values)]
+    sorted_tags = sorted(values.items(), key=lambda item: (-item[1], item[0]))
+    return [TagWeightDto(tag=tag, weight=format_float(weight)) for tag, weight in sorted_tags]
 
 
 def _resolved_tag_weights(values: dict[str, float]) -> list[ResolvedTagWeightDto]:
-    return [ResolvedTagWeightDto(resolved_tag=tag, weight=_round_float(weight)) for tag, weight in _sorted_tag_items(values)]
+    sorted_tags = sorted(values.items(), key=lambda item: (-item[1], item[0]))
+    return [ResolvedTagWeightDto(resolved_tag=tag, weight=format_float(weight)) for tag, weight in sorted_tags]
 
 
 def _weather_snapshot(weather: WeatherData | None) -> WeatherSnapshotDto:
@@ -299,10 +279,10 @@ def _policy_base_dto(policy: PolicyEvaluation) -> BaseEvaluationDto:
         policy_id=policy.policy_id,
         enabled=policy.enabled,
         active=policy.active,
-        weight=_round_float(policy.weight),
-        salience=_round_float(policy.salience),
-        intensity=_round_float(policy.intensity),
-        effective_magnitude=_round_float(policy.effective_magnitude),
+        weight=format_float(policy.weight),
+        salience=format_float(policy.salience),
+        intensity=format_float(policy.intensity),
+        effective_magnitude=format_float(policy.effective_magnitude),
         direction=_tag_weights(policy.direction),
         raw_contribution=_tag_weights(policy.raw_contribution),
         resolved_contribution=_tag_weights(policy.resolved_contribution),
@@ -330,11 +310,11 @@ def _policy_diagnostic(policy: PolicyEvaluation) -> EvaluationDto:
                 **base_kwargs,
                 details=TimeDetailsDto(
                     auto=policy.details.auto,
-                    hour=_round_float(policy.details.hour),
-                    virtual_hour=_round_float(policy.details.virtual_hour),
-                    day_start_hour=_round_float(policy.details.day_start_hour),
-                    night_start_hour=_round_float(policy.details.night_start_hour),
-                    peaks={key: _round_float(value) for key, value in sorted(policy.details.peaks.items())},
+                    hour=format_float(policy.details.hour),
+                    virtual_hour=format_float(policy.details.virtual_hour),
+                    day_start_hour=format_float(policy.details.day_start_hour),
+                    night_start_hour=format_float(policy.details.night_start_hour),
+                    peaks={key: format_float(value) for key, value in sorted(policy.details.peaks.items())},
                 ),
             )
         case SeasonEvaluation():
@@ -367,13 +347,13 @@ def _controller_evaluation(
     return BlockerEvaluationDto(
         allowed=evaluation.allowed,
         blocked_by=list(evaluation.blocked_by),
-        cooldown_remaining=_round_float(evaluation.cooldown_remaining),
-        idle_seconds=_round_float(evaluation.idle_seconds),
-        idle_threshold=_round_float(evaluation.idle_threshold),
-        cpu_percent=_round_float(evaluation.cpu_percent),
-        cpu_threshold=_round_float(evaluation.cpu_threshold),
+        cooldown_remaining=format_float(evaluation.cooldown_remaining),
+        idle_seconds=format_float(evaluation.idle_seconds),
+        idle_threshold=format_float(evaluation.idle_threshold),
+        cpu_percent=format_float(evaluation.cpu_percent),
+        cpu_threshold=format_float(evaluation.cpu_threshold),
         fullscreen=evaluation.fullscreen,
-        force_after_remaining=_round_float(evaluation.force_after_remaining),
+        force_after_remaining=format_float(evaluation.force_after_remaining),
     )
 
 
@@ -385,10 +365,10 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             tick_id=trace.tick_id,
             ts=trace.ts,
             pause_until=trace.pause_until,
-            similarity=_round_float(trace.match.similarity),
-            similarity_gap=_round_float(trace.match.similarity_gap),
-            active_playlists=_playlist_names(trace.target),
-            matched_playlists=_playlist_names(trace.match.best_playlists),
+            similarity=format_float(trace.match.similarity),
+            similarity_gap=format_float(trace.match.similarity_gap),
+            active_playlists=trace.target.names(),
+            matched_playlists=trace.match.best_playlists.names(),
             action=trace.decision.action,
             paused=trace.paused,
             executed=trace.action.executed,
@@ -399,18 +379,18 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
                 process=trace.context.window.process or "",
                 title=trace.context.window.title or "",
             ),
-            idle=IdleSnapshotDto(seconds=_round_float(trace.context.idle)),
-            cpu=CpuSnapshotDto(average_percent=_round_float(trace.context.cpu)),
+            idle=IdleSnapshotDto(seconds=format_float(trace.context.idle)),
+            cpu=CpuSnapshotDto(average_percent=format_float(trace.context.cpu)),
             fullscreen=trace.context.fullscreen,
             weather=_weather_snapshot(trace.context.weather),
             clock=_clock_snapshot(trace.context.time),
         ),
         match=MatchSnapshotDto(
-            best_playlists=_playlist_names(trace.match.best_playlists),
+            best_playlists=trace.match.best_playlists.names(),
             playlist_matches=[
                 PlaylistMatchDto(
                     playlist=playlist,
-                    score=_round_float(score),
+                    score=format_float(score),
                 )
                 for playlist, score in trace.match.playlist_matches
                 if playlist
@@ -421,22 +401,22 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
                 source_tag: _resolved_tag_weights(expansions) for source_tag, expansions in sorted(trace.match.fallback_expansions.items())
             },
             policies=[_policy_diagnostic(policy) for policy in trace.match.policy_evaluations],
-            max_policy_magnitude=_round_float(trace.match.max_policy_magnitude),
-            similarity=_round_float(trace.match.similarity),
-            similarity_gap=_round_float(trace.match.similarity_gap),
+            max_policy_magnitude=format_float(trace.match.max_policy_magnitude),
+            similarity=format_float(trace.match.similarity),
+            similarity_gap=format_float(trace.match.similarity_gap),
         ),
         plan=PlanSnapshotDto(
             mode=trace.plan.mode,
-            active_playlists=_playlist_names(trace.plan.active_playlists),
+            active_playlists=trace.plan.active_playlists.names(),
         ),
         decide=DecideSnapshotDto(
             action=trace.decision.action,
-            target_playlists=_playlist_names(trace.decision.target),
+            target_playlists=trace.decision.target.names(),
             semantic_continuity=trace.decision.semantic_continuity,
             evaluation=_controller_evaluation(trace.decision.evaluation),
         ),
         act=ActSnapshotDto(
-            target_playlist=_playlist_or_none(trace.action.target_playlist),
+            target_playlist=trace.action.target_playlist,
             executed=trace.action.executed,
         ),
     )
