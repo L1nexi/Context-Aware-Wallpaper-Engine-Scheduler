@@ -347,6 +347,43 @@ def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
     assert snapshot["plan"]["activePlaylists"] == ["unknown_active"]
 
 
+def test_api_tick_traces_window_empty(app):
+    status, body = wsgi_get(app, "/api/tick-traces/window")
+    assert "200" in status
+    assert body == {
+        "liveTickId": None,
+        "catalog": {
+            "playlists": [
+                {"name": "focus", "display": "Focus Flow", "color": "#F5C518", "itemCount": 10},
+                {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9", "itemCount": 5},
+                {"name": "idle", "display": "idle", "color": "#2E5F8A", "itemCount": 3},
+            ],
+        },
+        "ticks": [],
+    }
+
+
+def test_api_tick_traces_window_returns_recent(tick_store, bucket_store):
+    app = _build_app(tick_store, bucket_store)
+    for tick_id in range(1, 5):
+        tick_store.update(_make_trace(tick_id=tick_id))
+
+    status, body = wsgi_request(app, "GET", "/api/tick-traces/window", query="count=2")
+    assert "200" in status
+    assert body["liveTickId"] == 4
+    assert [tick["summary"]["tickId"] for tick in body["ticks"]] == [3, 4]
+
+
+def test_api_tick_traces_window_invalid_count(app):
+    status, body = wsgi_request(app, "GET", "/api/tick-traces/window", query="count=abc")
+    assert "400" in status
+    assert body["error"] == "invalid_count"
+
+    status, body = wsgi_request(app, "GET", "/api/tick-traces/window", query="count=0")
+    assert "400" in status
+    assert body["error"] == "invalid_count"
+
+
 def test_api_tick_traces_aggregated_empty(app):
     status, body = wsgi_get(app, "/api/tick-traces/aggregated")
     assert "200" in status

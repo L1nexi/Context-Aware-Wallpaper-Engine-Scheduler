@@ -217,7 +217,7 @@ class TraceBucketStore:
     def __init__(
         self,
         max_buckets: int = 180,
-        persist: bool = False,
+        persist: bool = True,
     ) -> None:
         self.lock = threading.Lock()
         self.buffer: list[TickTrace] = []
