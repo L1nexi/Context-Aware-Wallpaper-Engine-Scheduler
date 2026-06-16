@@ -79,6 +79,7 @@ class SchedulerState:
 
         next_cached = trace.cache_update
         if next_cached is not None and next_cached != self.cached_playlists:
+            logger.info("Active playlists updated: %s → %s", self.cached_playlists.names(), next_cached.names())
             self.cached_playlists = next_cached
             self.save()
 

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import getpass
 import json
+import logging
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
 from core.runtime.we_path import find_we_config_json
+
+logger = logging.getLogger("WEScheduler.WEConfig")
 
 
 class FactualPlaylistStatus(StrEnum):
@@ -60,6 +63,7 @@ class WEConfigProber:
                 source=config_json,
             )
         if len(names) > 1:
+            logger.warning("WE config probe: AMBIGUOUS (multiple wallpaper playlists)")
             return FactualPlaylistState(
                 status=FactualPlaylistStatus.AMBIGUOUS,
                 source=config_json,
