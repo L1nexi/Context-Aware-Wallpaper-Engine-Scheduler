@@ -1,5 +1,7 @@
 # 新前端诊断页 Match-first 规格
 
+> 状态： outdated / deprecated。经原型测试发现图表效果不及预期。
+
 ## Goal
 
 诊断页应以 Playlist Score 的时间变化为绝对重点，帮助用户快速理解最近一段时间多个候选播单的得分结构、实际 Active Playlists 轨迹、调度事件和少量关键 Policy 事实。
