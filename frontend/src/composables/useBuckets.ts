@@ -35,8 +35,8 @@ export interface AggBucket {
 const data = rawBuckets as RawBucket[];
 
 export function useBuckets() {
-  const aggSize = ref(1);
-  const viewportSize = ref(30);
+  const aggSize = ref(8);
+  const viewportSize = ref(15);
   const powerExponent = ref([1]);
   const viewportStart = ref([0]);
 
