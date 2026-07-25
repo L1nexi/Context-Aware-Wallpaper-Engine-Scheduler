@@ -31,8 +31,10 @@ if exist dist rmdir /s /q dist
 
 echo [4/5] Running PyInstaller...
 pyinstaller --noconsole --onefile --name "WEScheduler" ^
-    --icon "packaging\AppIcon.ico" ^
-    --add-data "%DASHBOARD_DIST_DIR%;%DASHBOARD_DIST_DIR%" ^
+    --icon "%CD%\packaging\AppIcon.ico" ^
+    --add-data "%CD%\%DASHBOARD_DIST_DIR%;%DASHBOARD_DIST_DIR%" ^
+    --add-data "%CD%\packaging\AppIcon.ico;." ^
+    --specpath build ^
     --hidden-import=pystray ^
     --hidden-import=PIL ^
     --hidden-import=psutil ^

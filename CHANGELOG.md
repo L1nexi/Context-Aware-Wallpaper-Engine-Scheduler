@@ -7,6 +7,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-07-26
+
+**新的调度流水线范式**
+
+### Added
+
+- **托盘版本信息**：可从“关于”查看当前版本，便于反馈试用问题。
+
+### Changed
+
+- **调度流程梳理**：让上下文感知、匹配、决策与实际切换的职责更清晰，诊断信息也更容易理解。
+- **试用包构建流程**：发布包会一并带上诊断界面与应用图标。
+
+### Fixed
+
+- **Wallpaper Engine 启动与空闲判断**：改善异常启动后的恢复行为，并提高空闲状态判断的可靠性。
+
+## [0.8.2] - 2026-06-06
+
+**运行稳定性与诊断体验优化**
+
+### Changed
+
+- **诊断界面体验**：精简展示内容，改善主题、语言与时间线的可读性。
+- **天气感知**：支持沿用系统代理设置，便于在更多网络环境下获取天气信息。
+
+### Fixed
+
+- **切换执行稳定性**：减少 Wallpaper Engine 启动与发送切换命令互相冲突的情况。
+
+## [0.8.0] - 2026-06-02
+
+**播单池调度**
+
+### Added
+
+- **播单池匹配**：相近的候选播单可共同参与当前场景，减少在语义接近时的生硬跳转。
+
+### Changed
+
+- **更贴合实际状态的切换**：调度器会结合 Wallpaper Engine 当前播单状态，选择切换、保持或在播单内轮播。
+
+## [0.7.2] - 2026-06-01
+
+### Fixed
+
+- **运行时稳定性**：改善 Wallpaper Engine 启动与执行命令时的竞态和超时处理。
+
+## [0.7.1] - 2026-05-18
+
+### Fixed
+
+- **配置恢复与托盘状态**：配置更新失败时可更稳定地保留已有运行状态，并改善托盘中的状态反馈。
+
 ## [0.7.0] - 2026-05-15
 
 配置工作流完成
@@ -354,7 +408,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-[Unreleased]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.8.2...v0.8.3
+[0.8.2]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.8.0...v0.8.2
+[0.8.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.7.2...v0.8.0
+[0.7.2]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.7.0...v0.7.1
 [0.6.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.5.0...v0.5.1
 [0.4.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.3.3...v0.4.0

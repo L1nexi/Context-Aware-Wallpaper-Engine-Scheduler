@@ -8,6 +8,7 @@ from tkinter import ttk
 import pystray
 
 from app.context import get_app_root
+from app.version import VERSION
 from core.models.playlist import Playlists
 from core.runtime.scheduler import WEScheduler
 from ui.i18n import t
@@ -218,6 +219,21 @@ class TrayIcon:
         log_path = os.path.join(get_app_root(), "logs", "scheduler.log")
         self._open_file(log_path)
 
+    def _on_show_about(self, icon, item):
+        def _show() -> None:
+            try:
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                from tkinter import messagebox
+
+                messagebox.showinfo(t("about_title"), t("about_body", version=VERSION))
+                root.destroy()
+            except Exception:
+                logger.exception("Failed to show about dialog")
+
+        threading.Thread(target=_show, daemon=True).start()
+
     def _on_show_dashboard(self, icon, item):
         if self.on_show_dashboard:
             self.on_show_dashboard()
@@ -345,6 +361,7 @@ class TrayIcon:
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("open_logs"), self._on_open_logs),
+            pystray.MenuItem(t("about"), self._on_show_about),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("exit"), self._on_exit),
         ]
