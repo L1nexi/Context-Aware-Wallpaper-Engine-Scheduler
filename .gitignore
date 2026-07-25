@@ -45,3 +45,4 @@ config/
 # Internal tuning tool outputs
 tools/tuning/runs/*
 !tools/tuning/runs/.gitkeep
+frontend/dist/*
