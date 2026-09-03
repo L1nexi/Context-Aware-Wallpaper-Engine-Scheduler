@@ -16,9 +16,10 @@
 
 ## Active Specs
 
-| 文档                      | 作用                                                   | 状态   |
-| ------------------------- | ------------------------------------------------------ | ------ |
-| `TUNING-SIMPLIFY-SPEC.md` | 简化 tuning 输出，让 `tools/tuning` 更容易使用和维护。 | Active |
+| 文档                           | 作用                                                        | 状态   |
+| ------------------------------ | ----------------------------------------------------------- | ------ |
+| `PRODUCTIZATION_PHASE_PLAN.md` | 配置 profile、history dump 与 setup GUI 的产品化阶段规划。  | Draft  |
+| `TUNING-SIMPLIFY-SPEC.md`      | 简化 tuning 输出，让 `tools/tuning` 更容易使用和维护。      | Active |
 
 ## Half-Finished
 
@@ -29,6 +30,7 @@
 | `half-finished/WALLPAPER_AWARE_CYCLE_IMPL_SPEC.md`      | Wallpaper-aware cycle 的实现规格。            |
 | `half-finished/WALLPAPER_AWARE_CYCLE_IMPL_BRIEF.md`     | Wallpaper-aware cycle 的短版实现说明。        |
 | `half-finished/WALLPAPER_AWARE_SCHEDULING_INTERVIEW.md` | Wallpaper-aware scheduling 的访谈和研究记录。 |
+| `half-finished/WALLPAPER_CLUSTER_CALIBRATION.md`        | Wallpaper 聚类与用户校准的早期方向记录。      |
 
 ## Archived: Done
 
