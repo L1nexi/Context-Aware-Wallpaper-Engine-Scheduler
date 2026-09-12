@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from configurations.errors import ConfigLoadError
-from configurations.loader import ConfigLoader
 from configurations.runtime_models import SchedulerConfig
 from core.models.context import ContextManager
 from core.models.playlist import Playlists
@@ -23,7 +21,7 @@ logger = logging.getLogger("WEScheduler.Runtime")
 
 
 @dataclass(frozen=True)
-class _BuiltEngine:
+class EngineReplacement:
     executor: WEExecutor
     context_manager: ContextManager
     matcher: Matcher
@@ -36,42 +34,43 @@ class _BuiltEngine:
 class Engine:
     """Config-bound runtime for sensing, matching, probing, and acting."""
 
-    def __init__(self, config_dir: str) -> None:
-        self.config_dir = config_dir
-        self.config_loader = ConfigLoader(config_dir)
-        self.executor: WEExecutor | None = None
-        self.context_manager: ContextManager | None = None
-        self.matcher: Matcher | None = None
-        self.actuator: Actuator | None = None
-        self.controller: Controller | None = None
-        self.we_config_prober: WEConfigProber | None = None
-        self.config_fingerprint: tuple[tuple[str, bool, int], ...] = ()
+    def __init__(self, replacement: EngineReplacement) -> None:
+        self.install_replacement(replacement)
 
     @classmethod
-    def load(cls, config_dir: str) -> Engine:
-        """Load verified config and build the initial runtime.
+    def from_config(cls, config: SchedulerConfig) -> Engine:
+        """Build and install a complete runtime from a verified config."""
+
+        engine = cls(cls._build_components(config))
+        logger.info("Built runtime with %d playlists.", len(config.playlists))
+        return engine
+
+    def prepare_replacement(self, config: SchedulerConfig) -> EngineReplacement:
+        """Build a replacement and import state without changing this engine.
 
         Raises:
-            ConfigLoadError: If config files are invalid.
-            OSError: If config files cannot be read by the config loader.
+            RuntimeError: If a runtime component rejects the imported state.
         """
-        runtime = cls(config_dir)
-        config = runtime.config_loader.load_verified_config()
-        runtime.config_fingerprint = runtime.config_loader.fingerprint()
-        logger.info("Loaded %d playlists.", len(config.playlists))
-        runtime._install_components(runtime._build_components(config))
-        return runtime
 
-    def reload_if_changed(self) -> None:
-        """Reload changed config while preserving runtime state.
+        matcher_state = self.matcher.export_state()
+        controller_state = self.controller.export_state()
+        prepared = self._build_components(config)
+        prepared.matcher.import_state(matcher_state)
+        prepared.controller.import_state(controller_state)
+        return prepared
 
-        Raises:
-            ConfigLoadError: If changed config files are invalid.
-        """
-        fingerprint = self.config_loader.fingerprint()
-        if fingerprint == self.config_fingerprint:
-            return
-        self._hot_reload(fingerprint)
+    def install_replacement(self, replacement: EngineReplacement) -> None:
+        """Install a prepared replacement at the caller's safe boundary."""
+
+        self.executor = replacement.executor
+        self.context_manager = replacement.context_manager
+        self.matcher = replacement.matcher
+        self.actuator = replacement.actuator
+        self.controller = replacement.controller
+        self.we_config_prober = replacement.we_config_prober
+        Playlists.configure(replacement.config.playlists)
+        set_language(replacement.config.language)
+        self.config = replacement.config
 
     def schedule(
         self,
@@ -104,7 +103,8 @@ class Engine:
             return
         self.executor.keep_alive()
 
-    def _build_components(self, config: SchedulerConfig) -> _BuiltEngine:
+    @staticmethod
+    def _build_components(config: SchedulerConfig) -> EngineReplacement:
         executor = WEExecutor(config.wallpaper_engine_path)
 
         context_manager = ContextManager()
@@ -117,7 +117,7 @@ class Engine:
         controller = Controller(config.scheduling)
         actuator = Actuator(executor)
 
-        return _BuiltEngine(
+        return EngineReplacement(
             executor=executor,
             context_manager=context_manager,
             matcher=matcher,
@@ -126,40 +126,3 @@ class Engine:
             config=config,
             we_config_prober=WEConfigProber(config.wallpaper_engine_path),
         )
-
-    def _install_components(self, runtime: _BuiltEngine) -> None:
-        self.executor = runtime.executor
-        self.context_manager = runtime.context_manager
-        self.matcher = runtime.matcher
-        self.actuator = runtime.actuator
-        self.controller = runtime.controller
-        self.we_config_prober = runtime.we_config_prober
-        Playlists.configure(runtime.config.playlists)
-        set_language(runtime.config.language)
-
-    def _hot_reload(self, fingerprint: tuple[tuple[str, bool, int], ...]) -> None:
-        previous_config = self.config_loader.config
-        try:
-            matcher_state = self.matcher.export_state()
-            controller_state = self.controller.export_state()
-
-            config = self.config_loader.load_verified_config()
-            logger.info("Hot reload: config changed, rebuilding components.")
-
-            next_runtime = self._build_components(config)
-
-            next_runtime.matcher.import_state(matcher_state)
-            next_runtime.controller.import_state(controller_state)
-            self._install_components(next_runtime)
-
-            logger.info("Hot reload complete. %d playlists loaded.", len(config.playlists))
-        except ConfigLoadError as exc:
-            self.config_loader.config = previous_config
-            logger.warning("Hot reload rejected. Keeping previous runtime.\n%s", exc)
-            raise
-        except Exception:
-            self.config_loader.config = previous_config
-            logger.exception("Hot reload failed unexpectedly, keeping previous runtime")
-        finally:
-            # In all cases, update fingerprint to avoid repeated reloads.
-            self.config_fingerprint = fingerprint

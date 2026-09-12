@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import threading
 import time
-from collections import deque
-from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -22,6 +19,7 @@ from core.models.trace import (
     TimeEvaluation,
     WeatherEvaluation,
 )
+from core.state.tick_history import TickHistoryWindow
 
 
 def _round_float(value: float | None, digits: int = 4) -> float | None:
@@ -233,12 +231,6 @@ class TickWindowResponseDto(ApiDto):
     ticks: list[TickSnapshotDto]
 
 
-@dataclass(frozen=True)
-class AnalysisTraceWindow:
-    live_tick_id: int | None
-    traces: list[TickTrace]
-
-
 def _playlist_ref_from_name(playlist: str) -> PlaylistRefDto:
     managed = Playlists.managed()
     displays = managed.displays()
@@ -259,26 +251,6 @@ def _playlist_ref(playlist: str | None) -> PlaylistRefDto | None:
     if normalized_playlist is None:
         return None
     return _playlist_ref_from_name(normalized_playlist)
-
-
-class AnalysisStore:
-    def __init__(self, tick_history: int = 1200):
-        self._lock = threading.Lock()
-        self._ticks: deque[TickTrace] = deque(maxlen=tick_history)
-        self._live_tick_id: int | None = None
-
-    def update(self, trace: TickTrace) -> None:
-        with self._lock:
-            self._ticks.append(trace)
-            self._live_tick_id = trace.tick_id
-
-    def read_window(self, count: int | None = None) -> AnalysisTraceWindow:
-        with self._lock:
-            items = list(self._ticks)
-            live_tick_id = self._live_tick_id
-            if count is not None:
-                items = items[-count:]
-        return AnalysisTraceWindow(live_tick_id=live_tick_id, traces=items)
 
 
 def _tag_weights(values: dict[str, float]) -> list[TagWeightDto]:
@@ -333,7 +305,7 @@ def _policy_base_dto(policy: PolicyEvaluation) -> BaseEvaluationDto:
     )
 
 
-def _policy_diagnostic(policy: PolicyEvaluation) -> EvaluationDto:
+def _policy_snapshot(policy: PolicyEvaluation) -> EvaluationDto:
     base_dto = _policy_base_dto(policy)
     base_kwargs = base_dto.model_dump()
     if isinstance(policy, ActivityEvaluation):
@@ -437,7 +409,7 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             fallback_expansions={
                 source_tag: _resolved_tag_weights(expansions) for source_tag, expansions in sorted(trace.match.fallback_expansions.items())
             },
-            policies=[_policy_diagnostic(policy) for policy in trace.match.policy_evaluations],
+            policies=[_policy_snapshot(policy) for policy in trace.match.policy_evaluations],
             controller=ControllerDto(evaluation=_controller_evaluation(trace.decision.evaluation)),
             decision=ActionDecisionDto(
                 action=trace.decision.action,
@@ -465,7 +437,7 @@ def build_tick_snapshot(trace: TickTrace) -> dict[str, Any]:
     return snapshot.model_dump(mode="json", by_alias=True)
 
 
-def build_tick_window_response(window: AnalysisTraceWindow) -> dict[str, Any]:
+def build_tick_window_response(window: TickHistoryWindow) -> dict[str, Any]:
     response = TickWindowResponseDto(
         live_tick_id=window.live_tick_id,
         ticks=[map_tick_snapshot(trace) for trace in window.traces],

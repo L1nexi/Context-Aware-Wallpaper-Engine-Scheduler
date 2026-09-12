@@ -1,25 +1,30 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 from core.models.context import ContextManager, WindowData
+from core.sensors import Sensor
+
+
+class SequenceWindowSensor(Sensor):
+    key = "window"
+
+    def __init__(self) -> None:
+        self._titles = iter(("before", "after"))
+
+    def collect(self) -> WindowData:
+        return WindowData(title=next(self._titles), process="proc")
+
+    @classmethod
+    def create(cls, _config):
+        return cls()
 
 
 def test_sense_returns_independent_snapshot():
     """Mutating the live context after sense() must not affect the snapshot."""
     cm = ContextManager()
-    sensor = MagicMock()
-    sensor.key = "window"
-    # First call: return a known value
-    sensor.collect.return_value = WindowData(title="before", process="proc")
-    cm.register_sensor(sensor)
+    cm.register_sensor(SequenceWindowSensor())
 
     snapshot = cm.sense()
     assert snapshot.window.title == "before"
 
-    # Mutate the live context via a subsequent refresh
-    sensor.collect.return_value = WindowData(title="after", process="proc")
     cm.refresh()
-
-    # Snapshot must still hold the old value
     assert snapshot.window.title == "before"

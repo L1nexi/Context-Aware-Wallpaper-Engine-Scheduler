@@ -6,10 +6,10 @@ import os
 import threading
 from datetime import UTC, datetime
 
-logger = logging.getLogger("WEScheduler.History")
+logger = logging.getLogger("WEScheduler.Events")
 
 
-class HistoryLogger:
+class JsonlEventLogger:
     def __init__(self, data_dir: str) -> None:
         self._data_dir = data_dir
         os.makedirs(data_dir, exist_ok=True)
@@ -34,11 +34,11 @@ class HistoryLogger:
                     f.write(line)
             except OSError:
                 self._event_id -= 1
-                logger.warning("Failed to write history event", exc_info=True)
+                logger.warning("Failed to write event", exc_info=True)
             return self._event_id
 
     def _ensure_file(self) -> None:
         month_key = datetime.now(UTC).strftime("%Y-%m")
         if month_key != self._current_month:
             self._current_month = month_key
-            self._filepath = os.path.join(self._data_dir, f"history-{month_key}.jsonl")
+            self._filepath = os.path.join(self._data_dir, f"events-{month_key}.jsonl")

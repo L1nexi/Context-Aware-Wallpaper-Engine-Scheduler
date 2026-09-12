@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from core.models.playlist import PlaylistInfo, Playlists
+from configurations.runtime_models import PlaylistConfig
+from core.models.playlist import Playlists
 from core.models.trace import DecisionMode
 from core.runtime.act_plan import plan_actuation
 from core.runtime.we_config import FactualPlaylistState, FactualPlaylistStatus
@@ -10,14 +11,15 @@ from core.runtime.we_config import FactualPlaylistState, FactualPlaylistStatus
 
 @pytest.fixture(autouse=True)
 def _managed_playlists():
-    """Register A, B, C as managed playlists for all tests."""
-    Playlists._configs = {
-        "A": PlaylistInfo(display="A", color="#ffffff", item_count=5),
-        "B": PlaylistInfo(display="B", color="#aaaaaa", item_count=3),
-        "C": PlaylistInfo(display="C", color="#bbbbbb", item_count=8),
-    }
+    Playlists.configure(
+        {
+            "A": PlaylistConfig(display="A", color="#ffffff", item_count=5),
+            "B": PlaylistConfig(display="B", color="#aaaaaa", item_count=3),
+            "C": PlaylistConfig(display="C", color="#bbbbbb", item_count=8),
+        }
+    )
     yield
-    Playlists._configs = {}
+    Playlists.configure({})
 
 
 # --- Mode priority tests ---

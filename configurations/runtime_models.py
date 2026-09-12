@@ -117,7 +117,7 @@ class SchedulingConfig(BaseModel):
 class SchedulerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     wallpaper_engine_path: str = ""
-    language: str | None = None
+    language: Literal["zh", "en"] | None = None
     tags: dict[str, TagSpec] = Field(default_factory=dict)
     playlists: dict[str, PlaylistConfig] = Field(default_factory=dict)
     policies: PoliciesConfig = Field(default_factory=PoliciesConfig)

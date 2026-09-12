@@ -9,16 +9,16 @@
 本仓库是 Windows-only Python 桌面应用：托盘宿主进程、本地 HTTP API，以及 Vue 3 Diagnostics 前端。
 
 - `main.py` 是启动 shim，负责 DPI 初始化并委托 `app/main.py`。
-- `app/` 放应用入口、应用路径、日志和历史记录。
-- `configurations/` 放配置加载、校验和配置模型。
+- `app/` 放应用入口、应用路径和持久事件日志。
+- `configurations/` 放用户 Profile、Profile Compiler、原子持久化以及内部运行时配置模型；旧 YAML loader 尚待清理。
 - `core/models/` 放数据模型。
 - `core/state/` 放运行时状态。
-- `core/runtime/` 放 Scheduler 的运行时组件。
+- `core/runtime/` 放 Scheduler、Engine 及 Profile 运行时应用组件。
 - `core/policies/` 放 Policy 基类及具体实现。
 - `core/sensors/` 放 Sensor 基类及具体实现。
-- `ui/` 放托盘 UI、Bottle API、pywebview 窗口、Diagnostics DTO 转换、i18n 和图标生成。
+- `ui/` 放托盘 UI、Bottle API、pywebview 窗口、Tick History 与 DTO 转换、i18n 和图标生成。
 - `dashboard/` 是 Vue 3 + Vite + TypeScript 前端工作区，当前主线只聚焦 Diagnostics。
-- `config/` 是本机真实运行配置，可用于真实运行与手工验证；不要当作 disposable fixture 覆盖或清空。
+- `config/` 是本机真实运行配置目录，正式用户契约是其中的 `profile.json`；可用于真实运行与手工验证，不要当作 disposable fixture 覆盖或清空。
 - `config.example/` 是发布与示例配置；`tests/` 放 pytest 测试。
 - `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格
 
@@ -33,10 +33,16 @@ Execute:  Actuator.act()               -> ActionResult
 Commit:   SchedulerState.commit()      -> cache persist
 ```
 
-`Engine.schedule()` 接管完整调度流程：sense、match、plan、decide、execute，并返回 `ScheduleTrace`。`WEScheduler` 负责热重载、暂停恢复、keep_alive、添加 tick 元信息、提交状态和通知 listener。`Actuator` 是纯执行器：接收 `Decision` 做 target selection + CLI 调用。
+`Engine.schedule()` 接管完整调度流程：sense、match、plan、decide、execute，并返回 `ScheduleTrace`。`ProfileManager` 负责 Profile 加载、编译、持久化和应用队列，但不持有或代理 Engine；`WEScheduler` 根据配置目录创建并公开其 `profile_manager`，同时持有活动 `engine`，并编排生命周期、tick、暂停恢复、keep_alive、状态提交和 listener 通知。Profile 更新由 `ProfileManager` 入队，并且只由调度线程在两个 tick 之间应用到 Engine，不再通过文件热重载进入运行时。`Actuator` 是纯执行器：接收 `Decision` 做 target selection + CLI 调用。
 
 关键组件：
 
+- `core/runtime/engine.py` — 配置绑定的调度执行对象及候选替换边界
+- `core/runtime/profile_manager.py` — Profile 读取、编译、持久化和单写者应用队列
+- `app/event_logger.py` — 稀疏运行事件的持久化 JSONL 日志
+- `core/state/tick_history.py` — 近期 `TickTrace` 的线程安全有界内存记录
+- `ui/tick_history.py` — Tick History 的 HTTP DTO 转换
+- `ui/tick_history_export.py` — Tick History 的脱敏、JSON formatter 和文件导出
 - `core/runtime/act_plan.py` — WE 状态探测，输出 `ActPlan`
 - `core/runtime/controller.py` — 调度决策器，输出 `Decision`
 - `core/runtime/actuator.py` — 纯执行器
@@ -91,6 +97,8 @@ pytest 配置以 `pytest.ini` 为准，这是测试隔离契约的一部分：`t
 
 ## 配置与架构约束
 
-运行时配置固定为 `config/` 下 6 个 YAML 文件：`scheduler.yaml`、`playlists.yaml`、`tags.yaml`、`activity.yaml`、`context.yaml`、`scheduling.yaml`。当任务需要真实配置时，读取 `config/`，不要用 `config.example/` 代替；测试或重写样例时优先使用测试 fixture、`.pytest_tmp/` 或 `config.example/`，不要无提示改写真实配置。不要新增 include 或隐藏配置层。
+正式配置入口是 `<config_dir>/profile.json`。`ProfileStore` 负责原子替换，`ProfileCompiler` 负责生成完整的内部 `SchedulerConfig`，`ProfileManager` 是 Profile 读取和应用的唯一入口；不要让 Sensor、Policy、Engine 或 `WEScheduler` 直接读取和操作 Profile，也不要绕过单写者应用队列修改运行时。Profile 不使用 revision 乐观锁；`version` 只表示数据结构版本。打扰档位是 setup 的填值快捷方式，Profile 只保存四个确定时间值。旧 6 个 YAML、`ConfigLoader` 和配置 CLI 是产品化切换期间尚待删除的旧路径，不要继续扩展。当任务需要真实配置时读取 `config/`，不要用 `config.example/` 代替；测试或重写样例时优先使用测试 fixture、`.pytest_tmp/` 或 `config.example/`，不要无提示改写真实配置。
 
-Diagnostics 应消费基于 `SchedulerTickTrace` 的 `GET /api/analysis/window` DTO，不要恢复旧 dashboard summary 契约。
+Diagnostics 应消费由 `TickHistoryStore` 提供的 `GET /api/tick-history/window` DTO，不要恢复旧 dashboard summary 契约。
+
+Tick History 是密集、近期、仅在内存中有界保留的逐 tick 调度记录；Event Log 是稀疏、持久化的启动、暂停、切换和执行失败事件，不要混用两者的命名。Tick History 导出读取 `TickHistoryStore` 的不可变窗口快照，复用现有 DTO，并由 JSON formatter 负责序列化和敏感字段裁剪。首版只脱敏 API Key 与地理位置，不裁剪活动窗口、进程、playlist 或本机路径。

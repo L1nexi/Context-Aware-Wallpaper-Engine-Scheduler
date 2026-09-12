@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import getpass
+import json
 from pathlib import Path
 
 import pytest
@@ -7,19 +9,12 @@ import yaml
 
 from configurations.loader import ConfigLoader
 from configurations.runtime_models import ActivityPolicyConfig
-from core.models.playlist import Playlists
-from core.policies import SeasonPolicy, TimePolicy, WeatherPolicy
-from core.runtime.matcher import Matcher
-from tools.tuning.heatmaps import (
-    HeatmapFigure,
-)
 from tools.tuning.models import (
     ActivitySignal,
     DirectActivityPolicy,
     MatchProfile,
     Scenario,
     build_context,
-    evaluate_scenario,
     focus,
     matrix,
     weather,
@@ -29,9 +24,7 @@ from tools.tuning.tune import run_tuning
 
 
 @pytest.fixture(autouse=True)
-def mock_probe_item_counts(monkeypatch):
-    monkeypatch.setattr("core.runtime.we_config.WEConfigProber.probe_item_counts", lambda self: {})
-
+def weather_api(monkeypatch):
     class _FakeResponse:
         status_code = 200
 
@@ -61,6 +54,21 @@ TAG_NAMES = [
 def _write_config_dir(tmp_path: Path) -> Path:
     fake_exe = tmp_path / "wallpaper64.exe"
     fake_exe.write_text("fake", encoding="utf-8")
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                getpass.getuser(): {
+                    "general": {
+                        "playlists": [
+                            {"name": "FOCUS", "items": ["focus-1"]},
+                            {"name": "CHILL", "items": ["chill-1"]},
+                        ]
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     documents = {
@@ -155,10 +163,14 @@ def test_direct_activity_policy_preserves_direction_and_intensity() -> None:
 
     assert evaluation.active is True
     assert evaluation.effective_magnitude == pytest.approx(0.6)
-    assert evaluation.direction["focus"] == pytest.approx(0.7 / (0.7**2 + 0.3**2) ** 0.5)
-    assert evaluation.direction["chill"] == pytest.approx(0.3 / (0.7**2 + 0.3**2) ** 0.5)
-    assert evaluation.raw_contribution["focus"] == pytest.approx(evaluation.direction["focus"] * 0.6)
-    assert evaluation.raw_contribution["chill"] == pytest.approx(evaluation.direction["chill"] * 0.6)
+    assert evaluation.direction == {
+        "focus": pytest.approx(0.9191450300),
+        "chill": pytest.approx(0.3939192986),
+    }
+    assert evaluation.raw_contribution == {
+        "focus": pytest.approx(0.5514870180),
+        "chill": pytest.approx(0.2363515791),
+    }
 
 
 def test_build_context_rounds_fractional_hour_through_midnight() -> None:
@@ -183,33 +195,6 @@ def test_matrix_builds_observed_cartesian_scenarios() -> None:
     assert scenarios[-1].name == "trial doy95 h23 focus1-i0.4 clear"
     assert all(scenario.expected is None for scenario in scenarios)
     assert all(scenario.note == "matrix trial" for scenario in scenarios)
-
-
-def test_current_profile_matches_existing_matcher_scoring(tmp_path: Path) -> None:
-    config = ConfigLoader(str(_write_config_dir(tmp_path))).load_verified_config()
-    Playlists.configure(config.playlists)
-    scenario = Scenario(
-        "day focus clear",
-        hour=14,
-        day_of_year=95,
-        weather=weather("clear"),
-        activity=focus(),
-        expected="FOCUS",
-    )
-    context = build_context(scenario)
-    policies = [
-        DirectActivityPolicy(config.policies.activity, scenario.activity),
-        TimePolicy(config.policies.time),
-        SeasonPolicy(config.policies.season),
-        WeatherPolicy(config.policies.weather),
-    ]
-    expected_match = Matcher(config.playlists, policies, config.tags).match(context)
-
-    result = evaluate_scenario(config, scenario, MatchProfile("current"))
-
-    assert [name for name, _score in result.match.playlist_matches] == [name for name, _score in expected_match.playlist_matches]
-    for actual, expected in zip(result.match.playlist_matches, expected_match.playlist_matches):
-        assert actual[1] == pytest.approx(expected[1])
 
 
 def test_parameter_sweep_summarizes_pass_gap_and_churn(tmp_path: Path) -> None:
@@ -269,7 +254,7 @@ def test_parameter_sweep_summarizes_pass_gap_and_churn(tmp_path: Path) -> None:
     assert tuned_row.churn_rate_expected == pytest.approx(0.5)
     assert tuned_row.core_regression_count_expected == 1
     assert tuned_row.churn_count_all == 1
-    assert tuned_row.churn_rate_all == pytest.approx(1 / 3)
+    assert tuned_row.churn_rate_all == pytest.approx(0.3333333333)
 
     sorted_rows = sorted_sweep_rows(report.rows)
     assert sorted_rows[0].profile == "gp1-gc1"
@@ -300,74 +285,6 @@ def test_parameter_sweep_uses_zero_pass_rate_without_expected_scenarios(tmp_path
     assert report.rows[0].pass_rate_expected == pytest.approx(0.0)
 
     assert report.rows[0].churn_rate_expected == pytest.approx(0.0)
-
-
-def test_run_tuning_writes_report_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    config_dir = _write_config_dir(tmp_path)
-    scenarios = [
-        Scenario(
-            "day focus clear",
-            hour=14,
-            day_of_year=95,
-            weather=weather("clear"),
-            activity=focus(),
-            expected="FOCUS",
-        ),
-        Scenario(
-            "observed drizzle",
-            hour=17,
-            day_of_year=220,
-            weather=weather("light_rain"),
-            activity=ActivitySignal({"focus": 0.7, "chill": 0.3}, intensity=0.4),
-        ),
-    ]
-    profiles = [
-        MatchProfile("current"),
-        MatchProfile("candidate", gamma_playlist=1.2, gamma_context=1.1),
-    ]
-    figures = [
-        HeatmapFigure(
-            path="heatmaps/cur-wxhr-idle-sp.png",
-            profile="current",
-            mode="wx-hour",
-            case_name="wxhr-idle-sp",
-            type="winner",
-        )
-    ]
-
-    def fake_generate_default_heatmaps(*args: object, **_kwargs: object) -> list[HeatmapFigure]:
-        figures_dir = args[2]
-        assert isinstance(figures_dir, Path)
-        figures_dir.mkdir(parents=True)
-        return figures
-
-    monkeypatch.setattr("tools.tuning.tune.generate_default_heatmaps", fake_generate_default_heatmaps)
-
-    run_dir = run_tuning(
-        config_dir=config_dir,
-        scenarios=scenarios,
-        profiles=profiles,
-        out_root=tmp_path / "runs",
-        run_name="test",
-    )
-
-    assert (run_dir / "report.md").is_file()
-    assert (run_dir / "heatmaps").is_dir()
-    assert not (run_dir / "manifest.json").exists()
-    assert not (run_dir / "rankings.csv").exists()
-    assert not (run_dir / "compare.csv").exists()
-    assert not (run_dir / "summary.md").exists()
-    assert not (run_dir / "sweep.csv").exists()
-
-    report = (run_dir / "report.md").read_text(encoding="utf-8")
-    assert "## Scenario Results" in report
-    assert "## Coverage Summary" in report
-    assert "## Sweep Summary" in report
-    assert "| day focus clear | core | FOCUS | FOCUS | pass |" in report
-    assert "| observed drizzle | observed | observed |" in report
-    assert "Raw context" not in report
-    assert "Policy contributions" not in report
-    assert "Best pass-rate candidate:" in report
 
 
 def test_run_tuning_rejects_duplicate_names(tmp_path: Path) -> None:

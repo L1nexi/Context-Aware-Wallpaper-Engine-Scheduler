@@ -115,7 +115,7 @@ class Match:
     best_playlists: Playlists
     playlist_matches: list[tuple[str, float]] = field(default_factory=list)
     # Direct policy outputs keyed by tag name, before fallback expansion.
-    # Used by action_history for user-facing log entries.
+    # Used by action_events for user-facing event records.
     raw_context_vector: dict[str, float] = field(default_factory=dict)
     # Same data after fallback expansion — fed into cosine-similarity scoring.
     resolved_context_vector: dict[str, float] = field(default_factory=dict)

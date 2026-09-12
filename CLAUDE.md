@@ -68,8 +68,8 @@ Decide:   Controller.decide_action()   -> Decision
 Execute:  Actuator.act()               -> ActionResult
 Commit:   SchedulerState.commit()      -> cache persist
 
-TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
-                                        HistoryLogger.write() -> history-{YYYY}-{MM}.jsonl
+TickTrace -> TickHistoryStore -> HTTP :0 -> Diagnostics SPA
+                                        JsonlEventLogger.write() -> events-{YYYY}-{MM}.jsonl
 ```
 
 `Engine.schedule()` 接管完整调度流程：sense、match、plan、decide、execute，并返回 `ScheduleTrace`。`WEScheduler` 只负责热重载、暂停恢复、keep_alive、添加 tick 元信息、提交状态和通知 listener。Execute 阶段是纯执行（target selection + CLI 调用）。
@@ -84,13 +84,13 @@ TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
 - **Executor** (`core/runtime/executor.py`)：Wallpaper Engine CLI 命令（`-control openPlaylist`、`-control nextWallpaper`），内置 keep_alive 保活（每 5 tick 发 `getWallpaper`）
 - **Scheduler** (`core/runtime/scheduler.py`)：生命周期编排器，tick 循环中调用 `Engine.schedule()`、添加 tick 元信息、提交状态、通知 listeners，并处理热重载、暂停/恢复、状态持久化
 - **Models** (`core/models/trace.py`)：`ScheduleTrace`、`TickTrace`、`ActionResult`、`Decision`、`ActPlan`、`BlockerEvaluation` 等 dataclass 层级，用于调度内省
-- **State** (`core/state/`)：`PersistedState`、`SchedulerState`、`ActionHistory` 等运行时状态管理
+- **State** (`core/state/`)：`PersistedState`、`SchedulerState`、`ActionEventWriter` 等运行时状态管理
 
 ### UI 层 (`ui/`)
 
 - **Tray**：pystray 系统托盘，支持 i18n（中文/英文）
-- **Dashboard HTTP**：Bottle 服务器，`GET /api/analysis/window` 提供 tick 诊断数据
-- **Dashboard Analysis**：`AnalysisStore`（最多 1200 条 trace 的 deque），Pydantic DTO（camelCase 别名）
+- **Dashboard HTTP**：Bottle 服务器，`GET /api/tick-history/window` 提供近期 tick 数据
+- **Tick History**：`core/state/tick_history.py` 的 `TickHistoryStore`（最多 1200 条 trace 的 deque），由 `ui/tick_history.py` 转换为 Pydantic DTO（camelCase 别名）
 - **Dashboard 前端** (`dashboard/`)：Vue 3 SPA，Pinia + ECharts + Tailwind CSS v4
 
 ### 配置层 (`configurations/`)
@@ -99,7 +99,7 @@ TickTrace -> AnalysisStore -> HTTP :0 -> Diagnostics SPA
 
 ### 应用层 (`app/`)
 
-- `history_logger`：JSONL 事件日志，按月分片
+- `event_logger`：JSONL 事件日志，按月分片
 - `i18n`：根据系统语言自动切换中文/英文
 
 ## 配置
@@ -129,5 +129,5 @@ pytest 配置以 `pytest.ini` 为准。推荐通过 `.\scripts\test.ps1 -q` 或 
 
 - 真实运行配置读 `config/`；测试或样例用 `config.example/` 或测试 fixture，不要无提示改写真实配置
 - 不要新增 include 或隐藏配置层
-- Diagnostics 消费基于 `TickTrace` 的 `GET /api/analysis/window` DTO，不要恢复旧 dashboard summary 契约
+- Diagnostics 消费基于 `TickTrace` 的 `GET /api/tick-history/window` DTO，不要恢复旧 dashboard summary 契约
 - `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格

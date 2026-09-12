@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import json
 import os
 
@@ -20,14 +21,13 @@ def _write_we_config(tmp_path, data: object) -> str:
 
 def _user_config(general: dict) -> dict:
     return {
-        "test-user": {
+        getpass.getuser(): {
             "general": general,
         }
     }
 
 
-def test_probe_playlist_reads_current_playlist(monkeypatch, tmp_path):
-    monkeypatch.setattr("core.runtime.we_config.getpass.getuser", lambda: "test-user")
+def test_probe_playlist_reads_current_playlist(tmp_path):
     exe = _write_we_config(
         tmp_path,
         _user_config(
@@ -48,8 +48,7 @@ def test_probe_playlist_reads_current_playlist(monkeypatch, tmp_path):
     assert state.source == os.path.join(str(tmp_path), "config.json")
 
 
-def test_probe_playlist_reports_no_playlist_for_single_wallpaper(monkeypatch, tmp_path):
-    monkeypatch.setattr("core.runtime.we_config.getpass.getuser", lambda: "test-user")
+def test_probe_playlist_reports_no_playlist_for_single_wallpaper(tmp_path):
     exe = _write_we_config(
         tmp_path,
         _user_config(
@@ -69,8 +68,7 @@ def test_probe_playlist_reports_no_playlist_for_single_wallpaper(monkeypatch, tm
     assert state.playlist is None
 
 
-def test_probe_playlist_reports_no_playlist_without_wallpaperconfig(monkeypatch, tmp_path):
-    monkeypatch.setattr("core.runtime.we_config.getpass.getuser", lambda: "test-user")
+def test_probe_playlist_reports_no_playlist_without_wallpaperconfig(tmp_path):
     exe = _write_we_config(
         tmp_path,
         _user_config({"playlists": [{"name": "Focus"}]}),
@@ -92,8 +90,7 @@ def test_probe_playlist_reports_unknown_for_unreadable_json(tmp_path):
     assert state.issue == "wallpaper_engine_config_read_failed"
 
 
-def test_probe_playlist_accepts_same_playlist_on_multiple_displays(monkeypatch, tmp_path):
-    monkeypatch.setattr("core.runtime.we_config.getpass.getuser", lambda: "test-user")
+def test_probe_playlist_accepts_same_playlist_on_multiple_displays(tmp_path):
     exe = _write_we_config(
         tmp_path,
         _user_config(
@@ -115,10 +112,8 @@ def test_probe_playlist_accepts_same_playlist_on_multiple_displays(monkeypatch, 
 
 
 def test_probe_playlist_reports_ambiguous_for_different_display_playlists(
-    monkeypatch,
     tmp_path,
 ):
-    monkeypatch.setattr("core.runtime.we_config.getpass.getuser", lambda: "test-user")
     exe = _write_we_config(
         tmp_path,
         _user_config(
@@ -139,8 +134,7 @@ def test_probe_playlist_reports_ambiguous_for_different_display_playlists(
     assert state.issue == "multiple_wallpaper_playlists"
 
 
-def test_scan_playlist_names_reads_playlist_list(monkeypatch, tmp_path):
-    monkeypatch.setattr("core.runtime.we_config.getpass.getuser", lambda: "test-user")
+def test_scan_playlist_names_reads_playlist_list(tmp_path):
     exe = _write_we_config(
         tmp_path,
         _user_config(
@@ -160,8 +154,7 @@ def test_scan_playlist_names_reads_playlist_list(monkeypatch, tmp_path):
     assert names == ["Focus", "Rain"]
 
 
-def test_probe_item_counts_returns_item_count_per_playlist(monkeypatch, tmp_path):
-    monkeypatch.setattr("core.runtime.we_config.getpass.getuser", lambda: "test-user")
+def test_probe_item_counts_returns_item_count_per_playlist(tmp_path):
     exe = _write_we_config(
         tmp_path,
         _user_config(
@@ -179,8 +172,7 @@ def test_probe_item_counts_returns_item_count_per_playlist(monkeypatch, tmp_path
     assert counts == {"Focus": 3, "Rain": 1}
 
 
-def test_probe_item_counts_skips_entries_without_items(monkeypatch, tmp_path):
-    monkeypatch.setattr("core.runtime.we_config.getpass.getuser", lambda: "test-user")
+def test_probe_item_counts_skips_entries_without_items(tmp_path):
     exe = _write_we_config(
         tmp_path,
         _user_config(

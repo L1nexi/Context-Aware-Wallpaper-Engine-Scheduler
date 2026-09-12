@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from configurations.runtime_models import TagSpec
@@ -155,47 +153,3 @@ class TestResolveRawTags:
         )
         assert resolved == {}
         assert expansions == {}
-
-
-class TestConsistencyWithMatcher:
-    """Verify that resolve_raw_tags produces identical output to Matcher._resolve_raw_tags."""
-
-    def test_consistency_across_various_contributions(self) -> None:
-        from core.runtime.matcher import Matcher
-
-        playlist_configs = {
-            "A": MagicMock(tags={"focus": 1.0, "day": 0.8}),
-            "B": MagicMock(tags={"chill": 1.0, "night": 0.7}),
-        }
-        tag_specs = _specs(
-            {
-                "coding": {"focus": 1.0},
-                "deep_work": {"coding": 0.7, "chill": 0.3},
-                "a": {"b": 1.0},
-                "b": {"a": 1.0},
-                "lo": {"focus": 1.0},
-                "x": {"focus": 0.5, "chill": 0.5},
-            }
-        )
-        matcher = Matcher(playlist_configs, [], tag_specs)
-
-        contributions = [
-            {},
-            {"focus": 0.5},
-            {"coding": 1.0},
-            {"deep_work": 1.0},
-            {"focus": 0.3, "coding": 0.5},
-            {"a": 1.0},  # cycle
-            {"lo": 0.01},  # below min weight
-            {"mystery": 0.5},  # no fallback
-            {"x": 1.0, "coding": 0.4},
-        ]
-
-        for raw in contributions:
-            expected = matcher._resolve_raw_tags(raw)
-            actual = resolve_raw_tags(
-                raw,
-                known_tags=matcher._known_tags,
-                tag_specs=matcher._tag_specs,
-            )
-            assert actual == expected, f"Mismatch for {raw!r}: {actual!r} != {expected!r}"

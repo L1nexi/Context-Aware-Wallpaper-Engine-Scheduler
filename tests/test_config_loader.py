@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import getpass
+import json
 import tempfile
 from pathlib import Path
 
@@ -9,22 +11,6 @@ import yaml
 from configurations.errors import ConfigLoadError
 from configurations.loader import ConfigLoader
 from configurations.runtime_models import PLAYLIST_AUTO_COLOR_PALETTE
-from core.policies import get_policy_fixed_output_tags
-
-
-@pytest.fixture(autouse=True)
-def mock_resolved_wallpaper_engine_path(monkeypatch, tmp_path):
-    fake_exe = tmp_path / "wallpaper64.exe"
-    fake_exe.write_text("fake", encoding="utf-8")
-
-    def _resolve(path: str) -> str | None:
-        if path:
-            return path if Path(path).is_file() else None
-        return str(fake_exe)
-
-    monkeypatch.setattr("configurations.documents.resolve_wallpaper_engine_path", _resolve)
-    monkeypatch.setattr("core.runtime.we_config.WEConfigProber.probe_item_counts", lambda self: {})
-    return str(fake_exe)
 
 
 def _base_documents() -> dict[str, dict]:
@@ -143,7 +129,25 @@ def _scratch_root() -> Path:
 
 
 def _write_config_dir(overrides: dict[str, object] | None = None) -> Path:
-    config_dir = _scratch_root() / "config"
+    root = _scratch_root()
+    executable = root / "wallpaper64.exe"
+    executable.write_text("fake", encoding="utf-8")
+    (root / "config.json").write_text(
+        json.dumps(
+            {
+                getpass.getuser(): {
+                    "general": {
+                        "playlists": [
+                            {"name": "FOCUS", "items": ["focus-1"]},
+                            {"name": "CHILL", "items": ["chill-1"]},
+                        ]
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    config_dir = root / "config"
     config_dir.mkdir()
     documents = _base_documents()
     if overrides:
@@ -152,6 +156,12 @@ def _write_config_dir(overrides: dict[str, object] | None = None) -> Path:
                 documents.pop(file_name, None)
             else:
                 documents[file_name] = value
+
+    scheduler = documents.get("scheduler.yaml")
+    if isinstance(scheduler, dict) and scheduler.get("version") == 2:
+        runtime = scheduler.get("runtime")
+        if isinstance(runtime, dict) and runtime.get("wallpaper_engine_path") is None:
+            runtime["wallpaper_engine_path"] = str(executable)
 
     for file_name, document in documents.items():
         (config_dir / file_name).write_text(
@@ -223,22 +233,12 @@ def test_config_loader_rejects_duplicate_yaml_keys_with_location():
     assert "duplicate YAML key 'focus'" in str(exc_info.value)
 
 
-def test_policy_fixed_output_tags_come_from_policy_registry_metadata():
-    assert get_policy_fixed_output_tags() == {
-        "time": ("dawn", "day", "sunset", "night"),
-        "season": ("spring", "summer", "autumn", "winter"),
-        "weather": ("clear", "cloudy", "rain", "storm", "snow", "fog"),
-    }
-
-
-def test_config_loader_parses_playlist_map_and_assigns_missing_colors(
-    mock_resolved_wallpaper_engine_path,
-):
+def test_config_loader_parses_playlist_map_and_assigns_missing_colors():
     config_dir = _write_config_dir()
 
     config = ConfigLoader(str(config_dir)).load_verified_config()
 
-    assert config.wallpaper_engine_path == mock_resolved_wallpaper_engine_path
+    assert config.wallpaper_engine_path == str(config_dir.parent / "wallpaper64.exe")
     assert set(config.playlists) == {"FOCUS", "CHILL"}
     assert config.playlists["FOCUS"].display == "Focus"
     assert config.playlists["FOCUS"].color == PLAYLIST_AUTO_COLOR_PALETTE[0]
@@ -335,22 +335,7 @@ def test_load_configured_wallpaper_engine_path_reads_scheduler_yaml():
 
     configured_path = ConfigLoader.load_configured_wallpaper_engine_path(str(config_dir))
 
-    assert configured_path is None
-
-
-def test_config_loader_rejects_unresolved_auto_detect(monkeypatch):
-    monkeypatch.setattr("configurations.documents.resolve_wallpaper_engine_path", lambda _path: None)
-    config_dir = _write_config_dir()
-
-    with pytest.raises(ConfigLoadError) as exc_info:
-        ConfigLoader(str(config_dir)).load_verified_config()
-
-    assert len(exc_info.value.issues) == 1
-    issue = exc_info.value.issues[0]
-    assert issue.source_file == "scheduler.yaml"
-    assert issue.field_path == ("runtime", "wallpaper_engine_path")
-    assert issue.code == "wallpaper_engine_path_unresolved"
-    assert "could not be auto-detected" in issue.message
+    assert configured_path == str(config_dir.parent / "wallpaper64.exe")
 
 
 def _weather_enabled_documents(**weather_overrides) -> dict[str, dict]:

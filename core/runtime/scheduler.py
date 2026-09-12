@@ -5,12 +5,12 @@ import threading
 import time
 from collections.abc import Callable
 
-from configurations.errors import ConfigLoadError
 from core.models.event import EventLogger, EventType
 from core.models.playlist import Playlists
 from core.models.trace import TickTrace
 from core.runtime.engine import Engine
-from core.state.action_history import ActionHistoryWriter
+from core.runtime.profile_manager import ProfileManager
+from core.state.action_events import ActionEventWriter
 from core.state.persisted import PersistedState
 from core.state.scheduler import SchedulerState
 
@@ -19,25 +19,20 @@ type TickListener = Callable[[TickTrace], None]
 
 
 class WEScheduler:
-    def __init__(
-        self,
-        config_dir: str,
-        history_logger: EventLogger,
-    ):
-        self.config_dir = config_dir
-        self.history_logger = history_logger
+    def __init__(self, config_dir: str, event_logger: EventLogger):
+        self.event_logger = event_logger
         self.initialized = False
         self.running = False
         self.thread: threading.Thread | None = None
         self.stop_event = threading.Event()
-        self._runtime_lock = threading.RLock()
+        self._state_lock = threading.RLock()
+        self.profile_manager = ProfileManager(config_dir)
+        self.engine: Engine
 
         self.on_auto_resume: Callable[[], None] | None = None
-        self.on_reload_error: Callable[[ConfigLoadError], None] | None = None
         self._tick_listeners: list[TickListener] = []
-        self.add_tick_listener(ActionHistoryWriter(history_logger).on_tick)
+        self.add_tick_listener(ActionEventWriter(event_logger).on_tick)
 
-        self.engine: Engine | None = None
         self.state = SchedulerState()
 
     @property
@@ -53,7 +48,8 @@ class WEScheduler:
         return self.state.last_tick_trace
 
     def initialize(self) -> bool:
-        self.engine = Engine.load(self.config_dir)
+        config = self.profile_manager.load_initial_config()
+        self.engine = Engine.from_config(config)
         self.state.restore_persisted(PersistedState.load())
 
         logger.info("Scheduler initialized successfully.")
@@ -67,9 +63,10 @@ class WEScheduler:
 
         assert self.initialized, "Scheduler must be initialized before start."
 
+        self.profile_manager.accept_updates()
         self.running = True
         self.stop_event.clear()
-        self.history_logger.write(EventType.START, {})
+        self.event_logger.write(EventType.START, {})
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
         logger.info("Scheduler started.")
@@ -77,24 +74,25 @@ class WEScheduler:
     def stop(self) -> None:
         if not self.running:
             return
+        self.profile_manager.reject_updates()
         self.running = False
         self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=2)
         self.state.save()
-        self.history_logger.write(EventType.STOP, {})
+        self.event_logger.write(EventType.STOP, {})
         logger.info("Scheduler stopped.")
 
     def pause(self, seconds: int | None = None) -> None:
-        with self._runtime_lock:
+        with self._state_lock:
             self.state.pause(seconds)
             self.state.save()
-            self.history_logger.write(EventType.PAUSE, {"duration": seconds})
+            self.event_logger.write(EventType.PAUSE, {"duration": seconds})
 
     def resume(self) -> None:
-        with self._runtime_lock:
+        with self._state_lock:
             self.state.resume()
-            self.history_logger.write(EventType.RESUME, {})
+            self.event_logger.write(EventType.RESUME, {})
             self.state.save()
 
     def add_tick_listener(self, listener: TickListener) -> None:
@@ -106,8 +104,8 @@ class WEScheduler:
     def _run_loop(self) -> None:
         while not self.stop_event.is_set():
             try:
-                with self._runtime_lock:
-                    self._check_hot_reload()
+                with self._state_lock:
+                    self.profile_manager.process_pending(self.engine)
                     self._maybe_auto_resume()
                     self.engine.ensure_we_alive(paused=self.state.paused)
                     schedule = self.engine.schedule(
@@ -124,21 +122,11 @@ class WEScheduler:
 
             time.sleep(1)
 
-    def _check_hot_reload(self) -> None:
-        try:
-            self.engine.reload_if_changed()
-        except ConfigLoadError as exc:
-            if self.on_reload_error is not None:
-                try:
-                    self.on_reload_error(exc)
-                except Exception:
-                    logger.exception("on_reload_error hook failed")
-
     def _maybe_auto_resume(self) -> None:
         if not self.state.maybe_auto_resume():
             return
 
-        self.history_logger.write(EventType.RESUME, {})
+        self.event_logger.write(EventType.RESUME, {})
         self.state.save()
         if self.on_auto_resume:
             try:

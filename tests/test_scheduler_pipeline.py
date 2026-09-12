@@ -13,11 +13,6 @@ def test_manual_apply_request_is_consumed_once():
     assert s.consume_manual_apply_request() is False
 
 
-def test_consume_without_request_returns_false():
-    s = SchedulerState()
-    assert s.consume_manual_apply_request() is False
-
-
 def test_cache_update_only_on_executed_switch():
     """cache_update returns playlists only for executed switch actions."""
     decision = Decision(

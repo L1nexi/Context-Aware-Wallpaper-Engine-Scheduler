@@ -228,7 +228,7 @@ export async function fetchDashboardAnalysisWindow(
   signal?: AbortSignal,
 ): Promise<TickWindowResponse> {
   const response = await fetch(
-    resolveApiUrl(`/api/analysis/window?count=${DASHBOARD_ANALYSIS_WINDOW_COUNT}`),
+    resolveApiUrl(`/api/tick-history/window?count=${DASHBOARD_ANALYSIS_WINDOW_COUNT}`),
     {
       headers: {
         Accept: 'application/json',

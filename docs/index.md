@@ -18,7 +18,7 @@
 
 | 文档                           | 作用                                                        | 状态   |
 | ------------------------------ | ----------------------------------------------------------- | ------ |
-| `PRODUCTIZATION_PHASE_PLAN.md` | 配置 profile、history dump 与 setup GUI 的产品化阶段规划。  | Draft  |
+| `PRODUCTIZATION_PHASE_PLAN.md` | 配置 profile、Tick History 与 setup GUI 的产品化阶段规划。 | Active |
 | `TUNING-SIMPLIFY-SPEC.md`      | 简化 tuning 输出，让 `tools/tuning` 更容易使用和维护。      | Active |
 
 ## Half-Finished

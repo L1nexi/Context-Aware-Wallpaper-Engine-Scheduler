@@ -1,22 +1,24 @@
 from __future__ import annotations
 
+import getpass
 import io
 import json
-import os
 import socket
+import threading
 import time
 import urllib.request
+from pathlib import Path
 
 import pytest
 
+from configurations.profile import Profile
+from configurations.profile_store import ProfileStore
 from configurations.runtime_models import PlaylistConfig
 from core.models.context import Context, WeatherData, WindowData
 from core.models.playlist import Playlists
 from core.models.trace import (
     Action,
     ActionResult,
-    ActivityDetails,
-    ActivityEvaluation,
     ActPlan,
     BlockerEvaluation,
     Decision,
@@ -24,17 +26,14 @@ from core.models.trace import (
     Match,
     ScheduleTrace,
     TickTrace,
-    WeatherDetails,
-    WeatherEvaluation,
 )
+from core.runtime.engine import Engine
+from core.runtime.profile_manager import ProfileManager
+from core.state.tick_history import TickHistoryStore
 from ui.dashboard import (
-    DASHBOARD_STATIC_APP_DIR,
-    DASHBOARD_STATIC_DIST_DIR,
     DashboardHTTPServer,
-    _build_app,
-    _resolve_static_root,
+    build_dashboard_app,
 )
-from ui.dashboard_analysis import AnalysisStore, build_tick_snapshot
 
 
 @pytest.fixture(autouse=True)
@@ -52,16 +51,69 @@ def _configure_playlists():
 
 
 @pytest.fixture
-def analysis_store():
-    return AnalysisStore(tick_history=300)
+def tick_history():
+    return TickHistoryStore(capacity=300)
+
+
+@pytest.fixture(autouse=True)
+def weather_api(monkeypatch):
+    class Response:
+        ok = True
+
+        @staticmethod
+        def json():
+            return {
+                "weather": [{"id": 800, "main": "Clear"}],
+                "sys": {"sunrise": 1, "sunset": 2},
+            }
+
+    monkeypatch.setattr("core.sensors.weather.requests.get", lambda *_args, **_kwargs: Response())
+
+
+def _wallpaper_engine_path(tmp_path: Path) -> str:
+    executable = tmp_path / "wallpaper64.exe"
+    executable.write_text("fake", encoding="utf-8")
+    data = {
+        getpass.getuser(): {
+            "general": {
+                "playlists": [
+                    {"name": "WORK", "items": ["work-1"]},
+                    {"name": "NEW", "items": ["new-1", "new-2"]},
+                ]
+            }
+        }
+    }
+    (tmp_path / "config.json").write_text(json.dumps(data), encoding="utf-8")
+    return str(executable)
 
 
 @pytest.fixture
-def app(analysis_store):
-    return _build_app(analysis_store)
+def profile_manager(tmp_path):
+    manager = ProfileManager(str(tmp_path))
+    ProfileStore(str(tmp_path)).commit(Profile.model_validate(_profile_payload(_wallpaper_engine_path(tmp_path))))
+    engine = Engine.from_config(manager.load_initial_config())
+    manager.accept_updates()
+    stopped = threading.Event()
+
+    def process_profile_updates() -> None:
+        while not stopped.is_set():
+            manager.process_pending(engine)
+            stopped.wait(0.001)
+
+    worker = threading.Thread(target=process_profile_updates, daemon=True)
+    worker.start()
+    yield manager
+    stopped.set()
+    worker.join(timeout=1)
+    manager.reject_updates()
 
 
-def _make_wsgi_environ(method, path, query="", body=None):
+@pytest.fixture
+def app(tick_history, profile_manager):
+    return build_dashboard_app(tick_history, profile_manager)
+
+
+def _make_wsgi_environ(method, path, query="", body=None, content_type="application/json"):
     body_bytes = body if body is not None else b""
     env = {
         "REQUEST_METHOD": method,
@@ -74,13 +126,13 @@ def _make_wsgi_environ(method, path, query="", body=None):
         "wsgi.errors": io.StringIO(),
     }
     if body_bytes:
-        env["CONTENT_TYPE"] = "application/json"
+        env["CONTENT_TYPE"] = content_type
         env["CONTENT_LENGTH"] = str(len(body_bytes))
     return env
 
 
-def wsgi_request(app, method, path, query="", body=None):
-    env = _make_wsgi_environ(method, path, query, body)
+def wsgi_request(app, method, path, query="", body=None, content_type="application/json"):
+    env = _make_wsgi_environ(method, path, query, body, content_type)
     result = {}
 
     def start_response(status, headers, exc_info=None):
@@ -103,6 +155,29 @@ def wsgi_get(app, path):
 def wsgi_post(app, path, data=None):
     body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
     return wsgi_request(app, "POST", path, body=body_bytes)
+
+
+def _profile_payload(wallpaper_engine_path: str, *, playlist: str = "WORK") -> dict:
+    return Profile.model_validate(
+        {
+            "wallpaper_engine_path": wallpaper_engine_path,
+            "weather": {
+                "api_key": "test-key",
+                "location": {
+                    "name": "上海",
+                    "latitude": 31.2304,
+                    "longitude": 121.4737,
+                },
+            },
+            "scenes": {"day_work": playlist},
+        }
+    ).model_dump(mode="json")
+
+
+def _profile_payload_for(manager: ProfileManager, *, playlist: str = "WORK") -> dict:
+    profile = manager.get_profile()
+    assert profile is not None
+    return _profile_payload(profile.wallpaper_engine_path, playlist=playlist)
 
 
 def _make_trace(
@@ -165,230 +240,26 @@ def _find_free_port() -> int:
         return sock.getsockname()[1]
 
 
-def test_analysis_store_read_window_empty(analysis_store):
-    window = analysis_store.read_window()
-
-    assert window.live_tick_id is None
-    assert window.traces == []
-
-
-def test_analysis_store_read_window_returns_recent(analysis_store):
-    for tick_id in range(1, 6):
-        analysis_store.update(_make_trace(tick_id=tick_id))
-
-    window = analysis_store.read_window(2)
-
-    assert window.live_tick_id == 5
-    assert [trace.tick_id for trace in window.traces] == [4, 5]
-
-
-def test_build_tick_snapshot_maps_analysis_fields():
-    evaluation = BlockerEvaluation(
-        blocked_by=[],
-        cooldown_remaining=15.0,
-        idle_seconds=12.5,
-        idle_threshold=60.0,
-        cpu_percent=27.25,
-        cpu_threshold=85.0,
-        fullscreen=False,
-        force_after_remaining=120.0,
-    )
-    activity_policy = ActivityEvaluation(
-        policy_id="activity",
-        enabled=True,
-        active=True,
-        weight=1.0,
-        salience=1.0,
-        intensity=0.5,
-        effective_magnitude=0.5,
-        direction={"focus": 1.0},
-        raw_contribution={"focus": 0.5},
-        resolved_contribution={"focus": 0.5},
-        dominant_tag="focus",
-        details=ActivityDetails(
-            match_source="title",
-            matched_rule="code",
-            matched_tag="focus",
-            window_title="Code Review",
-            process="chrome.exe",
-            ema_active=True,
-        ),
-    )
-    weather_policy = WeatherEvaluation(
-        policy_id="weather",
-        enabled=True,
-        active=True,
-        weight=1.0,
-        salience=1.0,
-        intensity=0.4,
-        effective_magnitude=0.4,
-        direction={"rain": 1.0},
-        raw_contribution={"rain": 0.4},
-        resolved_contribution={"rain": 0.4},
-        dominant_tag="rain",
-        details=WeatherDetails(
-            weather_id=501,
-            weather_main="Rain",
-            available=True,
-            mapped=True,
-        ),
-    )
-    trace = _make_trace(
-        tick_id=7,
-        active_playlist_before="idle",
-        matched_playlist="focus",
-        executed=False,
-        action_kind=Action.HOLD,
-        evaluation=evaluation,
-        weather=WeatherData(
-            id=501,
-            main="Rain",
-            sunrise=1714770000,
-            sunset=1714820000,
-            fetched_at=1714799400.0,
-            stale=True,
-        ),
-        policy_evaluations=[activity_policy, weather_policy],
-    )
-
-    snapshot = build_tick_snapshot(trace)
-
-    assert snapshot["summary"]["tickId"] == 7
-    assert snapshot["summary"]["activePlaylists"] == [
-        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
-    ]
-    assert snapshot["summary"]["matchedPlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
-    assert "activePlaylistDisplay" not in snapshot["summary"]
-    assert "activePlaylistColor" not in snapshot["summary"]
-    assert "matchedPlaylistDisplay" not in snapshot["summary"]
-    assert "matchedPlaylistColor" not in snapshot["summary"]
-    assert "enabled" not in snapshot["sense"]["weather"]
-    assert snapshot["sense"]["weather"]["available"] is True
-    assert snapshot["sense"]["weather"]["stale"] is True
-    assert snapshot["think"]["fallbackExpansions"]["storm"][0]["resolvedTag"] == "rain"
-    assert snapshot["think"]["policies"][0]["policyId"] == "activity"
-    assert snapshot["think"]["policies"][1]["details"]["mapped"] is True
-    assert snapshot["think"]["policies"] is not None
-    assert snapshot["act"]["topMatches"][0]["playlist"] == {
-        "name": "focus",
-        "display": "Focus Flow",
-        "color": "#F5C518",
-    }
-    assert snapshot["act"]["topMatches"][0]["score"] == 0.91
-    assert snapshot["act"]["topMatches"][1]["playlist"] == {
-        "name": "rainy",
-        "display": "Rainy Mood",
-        "color": "#4A90D9",
-    }
-    assert snapshot["think"]["decision"]["activePlaylists"] == [
-        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
-    ]
-    assert snapshot["think"]["decision"]["targetPlaylists"] == [
-        {"name": "idle", "display": "idle", "color": "#2E5F8A"},
-    ]
-    assert snapshot["think"]["decision"]["matchedPlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
-    assert snapshot["think"]["decision"]["targetPlaylist"] is None
-
-
-def test_build_tick_snapshot_maps_target_playlist():
-    trace = _make_trace(
-        tick_id=10,
-        active_playlist_before="idle",
-        matched_playlist="focus",
-        target_playlist="focus",
-        executed=True,
-        action_kind=Action.SWITCH,
-    )
-
-    snapshot = build_tick_snapshot(trace)
-
-    assert snapshot["think"]["decision"]["targetPlaylist"] == {
-        "name": "focus",
-        "display": "Focus Flow",
-        "color": "#F5C518",
-    }
-
-
-def test_build_tick_snapshot_maps_paused_tick():
-    trace = _make_trace(
-        tick_id=8,
-        paused=True,
-        active_playlist_before="focus",
-        matched_playlist="rainy",
-        executed=False,
-        action_kind=Action.PAUSE,
-        evaluation=None,
-        weather=None,
-    )
-
-    snapshot = build_tick_snapshot(trace)
-
-    assert snapshot["summary"]["action"] == "pause"
-    assert snapshot["summary"]["paused"] is True
-    assert snapshot["summary"]["hasEvent"] is False
-    assert snapshot["summary"]["activePlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
-    assert snapshot["summary"]["matchedPlaylists"] == [
-        {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9"},
-    ]
-    assert snapshot["sense"]["weather"]["available"] is False
-    assert snapshot["think"]["controller"]["evaluation"] is None
-    assert snapshot["think"]["decision"]["targetPlaylists"] == [
-        {"name": "focus", "display": "Focus Flow", "color": "#F5C518"},
-    ]
-    assert snapshot["think"]["decision"]["matchedPlaylists"] == [
-        {"name": "rainy", "display": "Rainy Mood", "color": "#4A90D9"},
-    ]
-
-
-def test_build_tick_snapshot_maps_unknown_playlist_ref_with_null_color():
-    trace = _make_trace(
-        tick_id=9,
-        active_playlist_before="unknown_active",
-        matched_playlist="unknown_match",
-        executed=False,
-        action_kind=Action.HOLD,
-        evaluation=None,
-        weather=None,
-    )
-
-    snapshot = build_tick_snapshot(trace)
-
-    assert snapshot["summary"]["activePlaylists"] == [
-        {"name": "unknown_active", "display": "unknown_active", "color": None},
-    ]
-    assert snapshot["summary"]["matchedPlaylists"] == [
-        {"name": "unknown_match", "display": "unknown_match", "color": None},
-    ]
-    assert snapshot["think"]["decision"]["activePlaylists"] == [
-        {"name": "unknown_active", "display": "unknown_active", "color": None},
-    ]
-
-
-def test_api_analysis_window_empty(app):
-    status, body = wsgi_get(app, "/api/analysis/window")
+def test_api_tick_history_window_empty(app):
+    status, body = wsgi_get(app, "/api/tick-history/window")
     assert "200" in status
     assert body == {"liveTickId": None, "ticks": []}
 
 
-def test_api_analysis_window_returns_recent(analysis_store):
-    app = _build_app(analysis_store)
+def test_api_tick_history_window_returns_recent(tick_history, profile_manager):
+    app = build_dashboard_app(tick_history, profile_manager)
     for tick_id in range(1, 5):
-        analysis_store.update(_make_trace(tick_id=tick_id))
+        tick_history.update(_make_trace(tick_id=tick_id))
 
-    status, body = wsgi_request(app, "GET", "/api/analysis/window", query="count=2")
+    status, body = wsgi_request(app, "GET", "/api/tick-history/window", query="count=2")
     assert "200" in status
     assert body["liveTickId"] == 4
     assert [tick["summary"]["tickId"] for tick in body["ticks"]] == [3, 4]
 
 
-def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
-    analysis_store,
+def test_api_tick_history_window_projects_current_playlist_metadata(
+    tick_history,
+    profile_manager,
 ):
     Playlists.configure(
         {
@@ -397,8 +268,8 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
             "test_pl": PlaylistConfig(display="Test Playlist", color="#5BB8D4", item_count=1),
         }
     )
-    app = _build_app(analysis_store)
-    analysis_store.update(
+    app = build_dashboard_app(tick_history, profile_manager)
+    tick_history.update(
         _make_trace(
             tick_id=1,
             active_playlist_before="test_pl",
@@ -408,7 +279,7 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
         )
     )
 
-    status, body = wsgi_get(app, "/api/analysis/window")
+    status, body = wsgi_get(app, "/api/tick-history/window")
 
     assert "200" in status
     tick = body["ticks"][0]
@@ -425,26 +296,102 @@ def test_api_analysis_window_projects_traces_with_current_playlist_metadata(
     }
 
 
-def test_api_analysis_window_invalid_count(app):
-    status, body = wsgi_request(app, "GET", "/api/analysis/window", query="count=abc")
+def test_api_tick_history_window_invalid_count(app):
+    status, body = wsgi_request(app, "GET", "/api/tick-history/window", query="count=abc")
     assert "400" in status
     assert body["error"] == "invalid_count"
 
-    status, body = wsgi_request(app, "GET", "/api/analysis/window", query="count=0")
+    status, body = wsgi_request(app, "GET", "/api/tick-history/window", query="count=0")
     assert "400" in status
     assert body["error"] == "invalid_count"
 
 
-def test_api_health(app):
-    status, body = wsgi_get(app, "/api/health")
+def test_api_profile_returns_current_committed_profile(tick_history, profile_manager):
+    app = build_dashboard_app(tick_history, profile_manager)
+
+    status, body = wsgi_get(app, "/api/profile")
+
     assert "200" in status
-    assert body == {"ok": True}
+    assert "revision" not in body["profile"]
+    assert body["profile"]["scenes"] == {"day_work": "WORK"}
 
 
-def test_dashboard_http_server_binds_requested_port(analysis_store):
+def test_api_apply_profile_returns_normalized_committed_profile(tick_history, profile_manager):
+    draft = _profile_payload_for(profile_manager, playlist="NEW")
+    committed = Profile.model_validate(draft)
+    app = build_dashboard_app(tick_history, profile_manager)
+
+    status, body = wsgi_post(app, "/api/profile/apply", draft)
+
+    assert "200" in status
+    assert body == {
+        "status": "applied",
+        "profile": committed.model_dump(mode="json"),
+    }
+
+    profile_status, profile_body = wsgi_get(app, "/api/profile")
+    assert "200" in profile_status
+    assert profile_body["profile"]["scenes"] == {"day_work": "NEW"}
+
+
+def test_api_apply_profile_rejects_invalid_payload(tick_history, profile_manager):
+    app = build_dashboard_app(tick_history, profile_manager)
+    payload = _profile_payload_for(profile_manager)
+    payload["disturbance"]["avoid_fullscreen"] = False
+
+    status, body = wsgi_post(app, "/api/profile/apply", payload)
+
+    assert "400" in status
+    assert body["error"] == "invalid_profile"
+    assert body["issues"][0]["path"] == ["disturbance", "avoid_fullscreen"]
+    assert profile_manager.get_profile().scenes == {"day_work": "WORK"}
+
+
+def test_api_apply_profile_rejects_malformed_json(tick_history, profile_manager):
+    app = build_dashboard_app(tick_history, profile_manager)
+
+    status, body = wsgi_request(app, "POST", "/api/profile/apply", body=b"{invalid")
+
+    assert "400" in status
+    assert body["error"] == "invalid_profile"
+    assert profile_manager.get_profile().scenes == {"day_work": "WORK"}
+
+
+def test_api_apply_profile_rejects_non_json_content_type(tick_history, profile_manager):
+    app = build_dashboard_app(tick_history, profile_manager)
+    body_bytes = json.dumps(_profile_payload_for(profile_manager)).encode("utf-8")
+
+    status, body = wsgi_request(
+        app,
+        "POST",
+        "/api/profile/apply",
+        body=body_bytes,
+        content_type="text/plain",
+    )
+
+    assert "415" in status
+    assert body == {"error": "unsupported_media_type"}
+    assert profile_manager.get_profile().scenes == {"day_work": "WORK"}
+
+
+def test_api_apply_profile_reports_failed_stage(tick_history, profile_manager):
+    app = build_dashboard_app(tick_history, profile_manager)
+    invalid_runtime = _profile_payload(r"Z:\missing\wallpaper64.exe", playlist="NEW")
+
+    status, body = wsgi_post(app, "/api/profile/apply", invalid_runtime)
+
+    assert "500" in status
+    assert body == {
+        "error": "profile_apply_failed",
+        "stage": "compile",
+        "detail": "wallpaper_engine_config_not_found",
+    }
+
+
+def test_dashboard_http_server_binds_requested_port(app):
     requested_port = _find_free_port()
     server = DashboardHTTPServer(
-        analysis_store,
+        app,
         requested_port=requested_port,
     )
 
@@ -458,18 +405,3 @@ def test_dashboard_http_server_binds_requested_port(analysis_store):
             assert json.loads(response.read().decode("utf-8")) == {"ok": True}
     finally:
         server.stop()
-
-
-def test_parse_args_accepts_dashboard_api_port(monkeypatch):
-    from app.main import _parse_args
-
-    monkeypatch.setattr("sys.argv", ["main.py", "--dashboard-api-port", "38417"])
-
-    args = _parse_args()
-
-    assert args.dashboard_api_port == 38417
-
-
-def test_resolve_static_root_targets_dashboard_dist():
-    static_root = _resolve_static_root()
-    assert static_root.endswith(os.path.join(DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR))

@@ -12,9 +12,9 @@ def _tag_dict(tags: dict[str, float], top: int = 8) -> dict[str, float]:
     return {k: round(v, 4) for k, v in _sorted_tags(tags, top)}
 
 
-class ActionHistoryWriter:
-    def __init__(self, history_logger: EventLogger):
-        self._history = history_logger
+class ActionEventWriter:
+    def __init__(self, event_logger: EventLogger):
+        self._events = event_logger
 
     def on_tick(self, trace: TickTrace) -> None:
         result = trace.action
@@ -22,7 +22,7 @@ class ActionHistoryWriter:
         decision = trace.decision
 
         if decision.action == Action.SWITCH and result.executed:
-            self._history.write(
+            self._events.write(
                 EventType.PLAYLISTS_SWITCH,
                 {
                     "playlists_from": trace.active_playlists.names(),
@@ -35,7 +35,7 @@ class ActionHistoryWriter:
                 },
             )
         elif decision.action == Action.CYCLE and result.executed:
-            self._history.write(
+            self._events.write(
                 EventType.PLAYLISTS_CYCLE,
                 {
                     "playlists": trace.active_playlists.names(),
@@ -44,7 +44,7 @@ class ActionHistoryWriter:
                 },
             )
         elif decision.action in {Action.SWITCH, Action.CYCLE} and not result.executed:
-            self._history.write(
+            self._events.write(
                 EventType.ACTUATION_FAILED,
                 {
                     "action": decision.action.value,

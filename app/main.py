@@ -104,11 +104,11 @@ def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
     thread with the main thread sleeping until KeyboardInterrupt.
     """
     from app.context import get_data_dir
-    from app.history_logger import HistoryLogger
+    from app.event_logger import JsonlEventLogger
     from core.runtime.scheduler import WEScheduler
     from ui.cli_status import CliStatusReporter
 
-    scheduler = WEScheduler(config_dir, HistoryLogger(get_data_dir()))
+    scheduler = WEScheduler(config_dir, JsonlEventLogger(get_data_dir()))
     try:
         scheduler.initialize()
     except Exception as e:
@@ -133,27 +133,27 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     though there's no console window.
     """
     from app.context import get_data_dir
-    from app.history_logger import HistoryLogger
+    from app.event_logger import JsonlEventLogger
     from core.runtime.scheduler import WEScheduler
-    from ui.dashboard import DashboardHTTPServer
-    from ui.dashboard_analysis import AnalysisStore
+    from core.state.tick_history import TickHistoryStore
+    from ui.dashboard import DashboardHTTPServer, build_dashboard_app
+    from ui.tick_history_export import export_tick_history
     from ui.tray import TrayIcon
 
-    scheduler = WEScheduler(config_dir, HistoryLogger(get_data_dir()))
+    scheduler = WEScheduler(config_dir, JsonlEventLogger(get_data_dir()))
     try:
         scheduler.initialize()
     except Exception as e:
         logger.critical("Failed to initialize scheduler: %s", e)
         TrayIcon.show_startup_error(str(e))
         sys.exit(1)
-    scheduler.on_reload_error = lambda exc: TrayIcon.show_reload_error(str(exc))
+    tick_history = TickHistoryStore()
 
-    analysis_store = AnalysisStore()
-
-    scheduler.add_tick_listener(analysis_store.update)
+    scheduler.add_tick_listener(tick_history.update)
     scheduler.start()
+    dashboard_app = build_dashboard_app(tick_history, scheduler.profile_manager)
     httpd = DashboardHTTPServer(
-        analysis_store,
+        dashboard_app,
         requested_port=dashboard_api_port,
     )
     try:
@@ -167,6 +167,10 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
 
     tray = TrayIcon(scheduler)
     tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
+    tray.on_export_tick_history = lambda: export_tick_history(
+        tick_history,
+        os.path.join(get_data_dir(), "tick-history"),
+    )
     tray.run()
 
 

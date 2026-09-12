@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from configurations.runtime_models import ActivityPolicyConfig
+from core.models.activity_target import normalize_match_text, normalize_process_name
 from core.models.context import Context
 from core.models.trace import ActivityDetails, ActivityEvaluation
 from core.policies.base import Policy
@@ -165,30 +166,22 @@ class ActivityPolicy(Policy):
         matcher: CompiledActivityMatcher,
         observed: str,
     ) -> bool:
-        pattern = matcher.pattern
         if matcher.source == "process":
-            pattern = ActivityPolicy._strip_optional_exe_suffix(pattern, matcher.case_sensitive)
-            observed = ActivityPolicy._strip_optional_exe_suffix(observed, matcher.case_sensitive)
-
-        if matcher.case_sensitive:
-            return observed == pattern
-        return observed.lower() == pattern.lower()
+            pattern = normalize_process_name(matcher.pattern, case_sensitive=matcher.case_sensitive)
+            observed = normalize_process_name(observed, case_sensitive=matcher.case_sensitive)
+        else:
+            pattern = normalize_match_text(matcher.pattern, case_sensitive=matcher.case_sensitive)
+            observed = normalize_match_text(observed, case_sensitive=matcher.case_sensitive)
+        return observed == pattern
 
     @staticmethod
     def _matches_contains(
         matcher: CompiledActivityMatcher,
         observed: str,
     ) -> bool:
-        if matcher.case_sensitive:
-            return matcher.pattern in observed
-        return matcher.pattern.lower() in observed.lower()
-
-    @staticmethod
-    def _strip_optional_exe_suffix(value: str, case_sensitive: bool) -> str:
-        suffix = ".exe"
-        if case_sensitive:
-            return value[: -len(suffix)] if value.endswith(suffix) else value
-        return value[: -len(suffix)] if value.lower().endswith(suffix) else value
+        pattern = normalize_match_text(matcher.pattern, case_sensitive=matcher.case_sensitive)
+        observed = normalize_match_text(observed, case_sensitive=matcher.case_sensitive)
+        return pattern in observed
 
     def export_state(self) -> dict[str, Any]:
         return {
