@@ -61,7 +61,10 @@ class WEExecutor:
 
             if proc.returncode != 0:
                 if proc.returncode == 5:
-                    logger.warning(f"WE Error 5 (Likely Encoding Issue). Try renaming playlist '{args[-1]}' to English. Command: {args}")
+                    logger.warning(
+                        f"WE Error 5, cannot find selected playlist '{args[-1]}'. \
+                            Check playlist spelling and try renaming playlist to English. Command: {args}"
+                    )
                 else:
                     logger.error(f"Error executing command: return code {proc.returncode}, args: {args}")
                 return False
