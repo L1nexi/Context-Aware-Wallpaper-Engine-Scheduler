@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 from core.models.context import WeatherData
-from core.models.playlist import Playlists
+from core.models.scene import SceneId, Scenes
 from core.models.trace import (
     Action,
     ActivityEvaluation,
@@ -166,21 +166,23 @@ class ControllerDto(ApiDto):
 
 class PlaylistRefDto(ApiDto):
     name: str
-    display: str  # fallback from name if no display
-    color: str | None  # canonical config playlists have a color; unknown historical refs may not
+
+
+class SceneRefDto(ApiDto):
+    id: SceneId
 
 
 class ActionDecisionDto(ApiDto):
     action: Action
     executed: bool
-    active_playlists: list[PlaylistRefDto]
-    target_playlists: list[PlaylistRefDto]
-    matched_playlists: list[PlaylistRefDto]
+    active_scenes: list[SceneRefDto]
+    target_scenes: list[SceneRefDto]
+    matched_scenes: list[SceneRefDto]
     target_playlist: PlaylistRefDto | None
 
 
 class TopMatchDto(ApiDto):
-    playlist: PlaylistRefDto
+    scene: SceneRefDto
     score: float
 
 
@@ -211,8 +213,8 @@ class TickSummaryDto(ApiDto):
     ts: float
     similarity: float
     similarity_gap: float
-    active_playlists: list[PlaylistRefDto]
-    matched_playlists: list[PlaylistRefDto]
+    active_scenes: list[SceneRefDto]
+    matched_scenes: list[SceneRefDto]
     action: Action
     paused: bool
     executed: bool
@@ -231,26 +233,19 @@ class TickWindowResponseDto(ApiDto):
     ticks: list[TickSnapshotDto]
 
 
-def _playlist_ref_from_name(playlist: str) -> PlaylistRefDto:
-    managed = Playlists.managed()
-    displays = managed.displays()
-    colors = managed.colors()
-    return PlaylistRefDto(
-        name=playlist,
-        display=displays.get(playlist, playlist),
-        color=colors.get(playlist),
-    )
+def _scene_ref(scene_id: SceneId) -> SceneRefDto:
+    return SceneRefDto(id=scene_id)
 
 
-def _playlist_refs(playlists: Playlists) -> list[PlaylistRefDto]:
-    return [_playlist_ref_from_name(name) for name in playlists.names() if name]
+def _scene_refs(scenes: Scenes) -> list[SceneRefDto]:
+    return [_scene_ref(scene_id) for scene_id in scenes.ids()]
 
 
 def _playlist_ref(playlist: str | None) -> PlaylistRefDto | None:
     normalized_playlist = _playlist_or_none(playlist)
     if normalized_playlist is None:
         return None
-    return _playlist_ref_from_name(normalized_playlist)
+    return PlaylistRefDto(name=normalized_playlist)
 
 
 def _tag_weights(values: dict[str, float]) -> list[TagWeightDto]:
@@ -372,10 +367,10 @@ def _controller_evaluation(
 
 
 def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
-    matched_playlist_refs = _playlist_refs(trace.match.best_playlists)
-    action_matched_playlist_refs = _playlist_refs(trace.decision.target)
-    target_refs = _playlist_refs(trace.target)
-    active_playlists_refs = _playlist_refs(trace.active_playlists)
+    matched_scene_refs = _scene_refs(trace.match.best_scenes)
+    action_matched_scene_refs = _scene_refs(trace.decision.target)
+    target_refs = _scene_refs(trace.target)
+    active_scene_refs = _scene_refs(trace.active_scenes)
     target_playlist_ref = _playlist_ref(trace.action.target_playlist)
     has_event = trace.decision.action in {Action.SWITCH, Action.CYCLE}
 
@@ -385,8 +380,8 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             ts=trace.ts,
             similarity=_round_float(trace.match.similarity),
             similarity_gap=_round_float(trace.match.similarity_gap),
-            active_playlists=target_refs,
-            matched_playlists=matched_playlist_refs,
+            active_scenes=target_refs,
+            matched_scenes=matched_scene_refs,
             action=trace.decision.action,
             paused=trace.paused,
             executed=trace.action.executed,
@@ -414,19 +409,19 @@ def map_tick_snapshot(trace: TickTrace) -> TickSnapshotDto:
             decision=ActionDecisionDto(
                 action=trace.decision.action,
                 executed=trace.action.executed,
-                active_playlists=active_playlists_refs,
-                target_playlists=target_refs,
-                matched_playlists=action_matched_playlist_refs,
+                active_scenes=active_scene_refs,
+                target_scenes=target_refs,
+                matched_scenes=action_matched_scene_refs,
                 target_playlist=target_playlist_ref,
             ),
         ),
         act=ActSnapshotDto(
             top_matches=[
                 TopMatchDto(
-                    playlist=_playlist_ref_from_name(playlist),
+                    scene=_scene_ref(scene_id),
                     score=_round_float(score),
                 )
-                for playlist, score in trace.match.playlist_matches[:5]
+                for scene_id, score in trace.match.scene_matches[:5]
             ],
         ),
     )

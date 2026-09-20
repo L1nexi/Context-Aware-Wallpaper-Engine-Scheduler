@@ -2,33 +2,31 @@ from __future__ import annotations
 
 import pytest
 
-from configurations.runtime_models import PlaylistConfig
-from core.models.playlist import Playlists
+from configurations.runtime_models import SceneConfig
+from core.models.scene import SceneId, Scenes
 from core.models.trace import DecisionMode
 from core.runtime.act_plan import plan_actuation
 from core.runtime.we_config import FactualPlaylistState, FactualPlaylistStatus
 
 
 @pytest.fixture(autouse=True)
-def _managed_playlists():
-    Playlists.configure(
+def _managed_scenes():
+    Scenes.configure(
         {
-            "A": PlaylistConfig(display="A", color="#ffffff", item_count=5),
-            "B": PlaylistConfig(display="B", color="#aaaaaa", item_count=3),
-            "C": PlaylistConfig(display="C", color="#bbbbbb", item_count=8),
+            SceneId.DAY_WORK: SceneConfig(playlist="A", item_count=5),
+            SceneId.DAY_LEISURE: SceneConfig(playlist="A", item_count=5),
+            SceneId.NIGHT_WORK: SceneConfig(playlist="B", item_count=3),
+            SceneId.RAIN: SceneConfig(playlist="C", item_count=8),
         }
     )
     yield
-    Playlists.configure({})
-
-
-# --- Mode priority tests ---
+    Scenes.configure({})
 
 
 def test_manual_requested_takes_priority_over_paused():
     plan = plan_actuation(
         factual=FactualPlaylistState(status=FactualPlaylistStatus.UNKNOWN),
-        cached_playlists=Playlists(["A"]),
+        cached_scenes=Scenes([SceneId.DAY_WORK]),
         paused=True,
         manual_requested=True,
     )
@@ -38,92 +36,80 @@ def test_manual_requested_takes_priority_over_paused():
 def test_paused_takes_priority_over_recovery():
     plan = plan_actuation(
         factual=FactualPlaylistState(status=FactualPlaylistStatus.NO_PLAYLIST),
-        cached_playlists=Playlists(["A"]),
+        cached_scenes=Scenes([SceneId.DAY_WORK]),
         paused=True,
         manual_requested=False,
     )
     assert plan.mode == DecisionMode.PAUSE
 
 
-def test_unmanaged_triggers_recovery_when_not_paused():
+def test_no_factual_playlist_triggers_recovery_when_not_paused():
     plan = plan_actuation(
         factual=FactualPlaylistState(status=FactualPlaylistStatus.NO_PLAYLIST),
-        cached_playlists=Playlists(["A"]),
+        cached_scenes=Scenes([SceneId.DAY_WORK]),
         paused=False,
         manual_requested=False,
     )
     assert plan.mode == DecisionMode.RECOVERY
 
 
-def test_unmanaged_playlist_triggers_recovery():
+def test_unmanaged_factual_playlist_triggers_recovery():
     plan = plan_actuation(
         factual=FactualPlaylistState(status=FactualPlaylistStatus.PLAYLIST, playlist="Other"),
-        cached_playlists=Playlists(["A"]),
+        cached_scenes=Scenes([SceneId.DAY_WORK]),
         paused=False,
         manual_requested=False,
     )
     assert plan.mode == DecisionMode.RECOVERY
+    assert plan.active_scenes == Scenes()
 
 
-def test_normal_when_factual_managed():
+def test_factual_playlist_targeted_by_cached_scene_preserves_cached_pool():
+    cached = Scenes([SceneId.DAY_WORK, SceneId.NIGHT_WORK])
+
     plan = plan_actuation(
         factual=FactualPlaylistState(status=FactualPlaylistStatus.PLAYLIST, playlist="A"),
-        cached_playlists=Playlists(["A"]),
+        cached_scenes=cached,
         paused=False,
         manual_requested=False,
     )
+
     assert plan.mode == DecisionMode.NORMAL
+    assert plan.active_scenes == cached
 
 
-def test_factual_ambiguous_returns_cached_and_normal():
-    plan = plan_actuation(
-        factual=FactualPlaylistState(status=FactualPlaylistStatus.AMBIGUOUS),
-        cached_playlists=Playlists(["A", "B"]),
-        paused=False,
-        manual_requested=False,
-    )
-    assert plan.mode == DecisionMode.NORMAL
-    assert plan.active_playlists == Playlists(["A", "B"])
-
-
-# --- active_playlists derivation tests ---
-
-
-def test_factual_managed_in_cache_preserves_pool():
+def test_factual_playlist_outside_cache_recovers_every_assigned_scene():
     plan = plan_actuation(
         factual=FactualPlaylistState(status=FactualPlaylistStatus.PLAYLIST, playlist="A"),
-        cached_playlists=Playlists(["A", "B"]),
+        cached_scenes=Scenes([SceneId.RAIN]),
         paused=False,
         manual_requested=False,
     )
-    assert plan.active_playlists == Playlists(["A", "B"])
+
+    assert plan.active_scenes == Scenes([SceneId.DAY_WORK, SceneId.DAY_LEISURE])
 
 
-def test_factual_managed_not_in_cache_returns_single():
+@pytest.mark.parametrize("status", [FactualPlaylistStatus.UNKNOWN, FactualPlaylistStatus.AMBIGUOUS])
+def test_unknown_factual_state_preserves_cached_scenes(status: FactualPlaylistStatus):
+    cached = Scenes([SceneId.DAY_WORK, SceneId.NIGHT_WORK])
+
     plan = plan_actuation(
-        factual=FactualPlaylistState(status=FactualPlaylistStatus.PLAYLIST, playlist="C"),
-        cached_playlists=Playlists(["A", "B"]),
+        factual=FactualPlaylistState(status=status),
+        cached_scenes=cached,
         paused=False,
         manual_requested=False,
     )
-    assert plan.active_playlists == Playlists(["C"])
+
+    assert plan.mode == DecisionMode.NORMAL
+    assert plan.active_scenes == cached
 
 
-def test_factual_unmanaged_returns_empty():
-    plan = plan_actuation(
-        factual=FactualPlaylistState(status=FactualPlaylistStatus.NO_PLAYLIST),
-        cached_playlists=Playlists(["A"]),
-        paused=False,
-        manual_requested=False,
-    )
-    assert plan.active_playlists == Playlists()
-
-
-def test_factual_unknown_returns_cached():
+def test_cached_scene_removed_from_runtime_is_discarded():
     plan = plan_actuation(
         factual=FactualPlaylistState(status=FactualPlaylistStatus.UNKNOWN),
-        cached_playlists=Playlists(["A", "B"]),
+        cached_scenes=Scenes([SceneId.WINTER]),
         paused=False,
         manual_requested=False,
     )
-    assert plan.active_playlists == Playlists(["A", "B"])
+
+    assert plan.active_scenes == Scenes()

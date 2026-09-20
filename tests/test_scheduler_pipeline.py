@@ -1,7 +1,7 @@
 # tests/test_scheduler_pipeline.py
 from __future__ import annotations
 
-from core.models.playlist import Playlists
+from core.models.scene import SceneId, Scenes
 from core.models.trace import Action, ActionResult, ActPlan, Decision, DecisionMode, Match, ScheduleTrace, TickTrace
 from core.state.scheduler import SchedulerState
 
@@ -14,19 +14,19 @@ def test_manual_apply_request_is_consumed_once():
 
 
 def test_cache_update_only_on_executed_switch():
-    """cache_update returns playlists only for executed switch actions."""
+    """cache_update returns scenes only for executed switch actions."""
     decision = Decision(
         action=Action.SWITCH,
-        target=Playlists(["X"]),
+        target=Scenes([SceneId.RAIN]),
     )
-    plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["A"]))
+    plan = ActPlan(mode=DecisionMode.NORMAL, active_scenes=Scenes([SceneId.DAY_WORK]))
     executed_action = ActionResult(
         target_playlist="X",
         executed=True,
     )
     schedule = ScheduleTrace(
         context=None,
-        match=Match(best_playlists=Playlists(["X"])),
+        match=Match(best_scenes=Scenes([SceneId.RAIN])),
         plan=plan,
         decision=decision,
         action=executed_action,
@@ -38,7 +38,7 @@ def test_cache_update_only_on_executed_switch():
         pause_until=0.0,
         schedule=schedule,
     )
-    assert trace.cache_update == Playlists(["X"])
+    assert trace.cache_update == Scenes([SceneId.RAIN])
 
     not_executed_action = ActionResult(
         target_playlist=None,
@@ -65,9 +65,9 @@ def test_cache_update_none_for_non_switch():
     for action_kind in (Action.HOLD, Action.CYCLE, Action.PAUSE, Action.NONE):
         decision = Decision(
             action=action_kind,
-            target=Playlists(["A"]),
+            target=Scenes([SceneId.DAY_WORK]),
         )
-        plan = ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(["A"]))
+        plan = ActPlan(mode=DecisionMode.NORMAL, active_scenes=Scenes([SceneId.DAY_WORK]))
         action = ActionResult(
             executed=True,
         )
@@ -78,7 +78,7 @@ def test_cache_update_none_for_non_switch():
             pause_until=0.0,
             schedule=ScheduleTrace(
                 context=None,
-                match=Match(best_playlists=Playlists(["A"])),
+                match=Match(best_scenes=Scenes([SceneId.DAY_WORK])),
                 plan=plan,
                 decision=decision,
                 action=action,

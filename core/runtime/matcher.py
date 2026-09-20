@@ -4,9 +4,9 @@ import logging
 import math
 from typing import TYPE_CHECKING, Any
 
-from configurations.runtime_models import PlaylistConfig, TagSpec
+from configurations.runtime_models import SceneConfig, TagSpec
 from core.models.context import Context
-from core.models.playlist import Playlists
+from core.models.scene import SceneId, Scenes
 from core.models.trace import Match, PolicyEvaluation
 from core.runtime.tag_resolver import resolve_raw_tags
 
@@ -23,16 +23,17 @@ _MAX_CLUSTER_SIZE = 3
 class Matcher:
     def __init__(
         self,
-        playlist_configs: dict[str, PlaylistConfig],
+        scene_configs: dict[SceneId, SceneConfig],
         policies: list[Policy],
         tag_specs: dict[str, TagSpec] | None = None,
     ):
         self.policies = policies
         self._tag_specs: dict[str, TagSpec] = tag_specs or {}
+        self._item_counts: dict[SceneId, int] = {scene_id: config.item_count for scene_id, config in scene_configs.items()}
 
         all_tags: set[str] = set()
-        for playlist in playlist_configs.values():
-            all_tags.update(playlist.tags.keys())
+        for scene in scene_configs.values():
+            all_tags.update(scene.tags.keys())
 
         self._known_tags: set[str] = set(all_tags)
         self.all_tags = sorted(all_tags)
@@ -41,18 +42,18 @@ class Matcher:
 
         self._warned_tags: set[str] = set()
 
-        self.playlist_vectors: list[tuple[str, list[float]]] = []
-        for playlist_name, playlist in playlist_configs.items():
+        self.scene_vectors: list[tuple[SceneId, list[float]]] = []
+        for scene_id, scene in scene_configs.items():
             vector = [0.0] * self.dim
-            for tag, weight in playlist.tags.items():
+            for tag, weight in scene.tags.items():
                 if tag in self.tag_to_index:
                     vector[self.tag_to_index[tag]] = weight
             norm = math.sqrt(sum(x * x for x in vector))
             if norm > 1e-6:
                 vector = [x / norm for x in vector]
-                self.playlist_vectors.append((playlist_name, vector))
+                self.scene_vectors.append((scene_id, vector))
             else:
-                logger.warning("Playlist '%s' has no valid tags or zero weights.", playlist_name)
+                logger.warning("Scene '%s' has no valid tags or zero weights.", scene_id)
 
     def match(self, context: Context) -> Match:
         raw_context_vector: dict[str, float] = {}
@@ -79,10 +80,10 @@ class Matcher:
                 for resolved_tag, resolved_weight in resolved_tags.items():
                     bucket[resolved_tag] = bucket.get(resolved_tag, 0.0) + resolved_weight
 
-        best_playlist_names: list[str] = []
-        playlist_matches: list[tuple[str, float]] = []
+        best_scene_ids: list[SceneId] = []
+        scene_matches: list[tuple[SceneId, float]] = []
 
-        if self.playlist_vectors and resolved_context_vector:
+        if self.scene_vectors and resolved_context_vector:
             env_vector = [0.0] * self.dim
             for tag, weight in resolved_context_vector.items():
                 if tag in self.tag_to_index:
@@ -91,35 +92,35 @@ class Matcher:
             norm_env = math.sqrt(sum(value * value for value in env_vector))
             if norm_env >= 1e-6:
                 env_vector = [value / norm_env for value in env_vector]
-                raw_scores: list[tuple[float, str]] = []
-                for name, playlist_vector in self.playlist_vectors:
-                    sim = sum(a * b for a, b in zip(env_vector, playlist_vector))
-                    raw_scores.append((sim, name))
+                raw_scores: list[tuple[float, SceneId]] = []
+                for scene_id, scene_vector in self.scene_vectors:
+                    sim = sum(a * b for a, b in zip(env_vector, scene_vector))
+                    raw_scores.append((sim, scene_id))
 
                 raw_scores.sort(reverse=True)
-                playlist_matches = [(name, score) for score, name in raw_scores]
+                scene_matches = [(scene_id, score) for score, scene_id in raw_scores]
 
                 # Gap-based clustering
-                for i, (score, name) in enumerate(raw_scores):
+                for i, (score, scene_id) in enumerate(raw_scores):
                     if score < _MIN_SIMILARITY:
                         break
                     if i >= _MAX_CLUSTER_SIZE:
                         break
                     if i > 0 and raw_scores[i - 1][0] - score > _CLUSTER_GAP_THRESHOLD:
                         break
-                    best_playlist_names.append(name)
+                    best_scene_ids.append(scene_id)
 
-        best_playlists = Playlists(best_playlist_names)
-        # Compute similarity: weighted average of best_playlists scores by item_count
+        best_scenes = Scenes(best_scene_ids)
+        # Compute similarity: weighted average of best_scenes scores by item_count
         similarity = 0.0
-        if best_playlists and playlist_matches:
-            score_lookup = dict(playlist_matches)
-            weights = best_playlists.item_counts()
+        if best_scenes and scene_matches:
+            score_lookup = dict(scene_matches)
+            weights = self._item_counts
             weighted_sum = 0.0
             total_weight = 0.0
-            for name in best_playlists.names():
-                score = score_lookup.get(name, 0.0)
-                weight = weights.get(name, 0)
+            for scene_id in best_scenes.ids():
+                score = score_lookup.get(scene_id, 0.0)
+                weight = weights.get(scene_id, 0)
                 if weight > 0:
                     weighted_sum += score * weight
                     total_weight += weight
@@ -130,15 +131,15 @@ class Matcher:
 
         # Compute similarity_gap: top-1 vs top-2 score difference
         similarity_gap = 0.0
-        if playlist_matches:
-            if len(playlist_matches) >= 2:
-                similarity_gap = playlist_matches[0][1] - playlist_matches[1][1]
+        if scene_matches:
+            if len(scene_matches) >= 2:
+                similarity_gap = scene_matches[0][1] - scene_matches[1][1]
             else:
-                similarity_gap = playlist_matches[0][1]
+                similarity_gap = scene_matches[0][1]
 
         return Match(
-            best_playlists=best_playlists,
-            playlist_matches=playlist_matches,
+            best_scenes=best_scenes,
+            scene_matches=scene_matches,
             raw_context_vector=raw_context_vector,
             resolved_context_vector=resolved_context_vector,
             fallback_expansions=fallback_expansions,
@@ -160,10 +161,7 @@ class Matcher:
         for tag in raw_contribution:
             if tag not in self._known_tags and tag not in expansions and tag not in self._warned_tags:
                 logger.info(
-                    "Tag '%s' from a Policy is not present in any playlist "
-                    "and has no fallback defined in 'tags' config. Add a "
-                    "playlist using this tag, define a fallback, or check "
-                    "for typos.",
+                    "Built-in Policy tag '%s' has no matching Scene preset or fallback; check product preset consistency.",
                     tag,
                 )
                 self._warned_tags.add(tag)

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.models.activity_target import normalize_match_text, normalize_process_name
+from core.models.scene import SceneId
 
 
 class ProfileModel(BaseModel):
@@ -13,19 +13,13 @@ class ProfileModel(BaseModel):
 
 
 NonEmptyText = Annotated[str, Field(min_length=1)]
-
-
-class SceneId(StrEnum):
-    DAY_WORK = "day_work"
-    DAY_LEISURE = "day_leisure"
-    NIGHT_WORK = "night_work"
-    NIGHT_LEISURE = "night_leisure"
-    SPRING = "spring"
-    SUMMER = "summer"
-    AUTUMN = "autumn"
-    WINTER = "winter"
-    SUNSET = "sunset"
-    RAIN = "rain"
+type ResponseStyle = Literal[
+    "background",
+    "background_leaning",
+    "balanced",
+    "current_leaning",
+    "current",
+]
 
 
 class WeatherLocationProfile(ProfileModel):
@@ -44,6 +38,10 @@ class DisturbanceProfile(ProfileModel):
     idle_before_switch_seconds: int = Field(default=20, ge=0)
     maximum_deferral_minutes: int = Field(default=60, ge=0)
     cycle_interval_minutes: int = Field(default=15, ge=0)
+
+
+class MatchingProfile(ProfileModel):
+    response_style: ResponseStyle = "balanced"
 
 
 class ActivityProfile(ProfileModel):
@@ -69,6 +67,7 @@ class Profile(ProfileModel):
     language: Literal["zh", "en"] | None = None
     weather: WeatherProfile
     scenes: dict[SceneId, NonEmptyText] = Field(min_length=1)
+    matching: MatchingProfile = Field(default_factory=MatchingProfile)
     disturbance: DisturbanceProfile = Field(default_factory=DisturbanceProfile)
     activity: ActivityProfile = Field(default_factory=ActivityProfile)
 

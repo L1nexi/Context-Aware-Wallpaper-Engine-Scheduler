@@ -22,6 +22,10 @@ class ProfileNotFoundError(RuntimeError):
     """Raised when no committed Profile exists at startup."""
 
 
+class ProfileAlreadyExists(RuntimeError):
+    """Raised when first-run creation targets an existing Profile."""
+
+
 class ProfileApplyUnavailable(RuntimeError):
     """Raised when Profile updates are not being accepted."""
 
@@ -59,6 +63,7 @@ class ProfileManager:
         self._accepting_lock = threading.Lock()
         self._accepting_updates = False
         self._profile_lock = threading.Lock()
+        self._creation_lock = threading.Lock()
 
     def load_initial_config(self) -> SchedulerConfig:
         """Load the committed Profile and compile its initial runtime config.
@@ -109,6 +114,45 @@ class ProfileManager:
             if self._profile is None:
                 return None
             return self._profile.model_copy(deep=True)
+
+    def create_initial_profile(self, profile: Profile) -> Profile:
+        """Validate and persist the first Profile before Scheduler startup.
+
+        Raises:
+            ProfileAlreadyExists: If a committed or loaded Profile already
+                exists.
+            ProfileApplyFailed: If compilation, runtime preparation, or
+                persistence fails.
+            ProfileStoreError: If an existing Profile cannot be read.
+        """
+
+        with self._creation_lock:
+            with self._profile_lock:
+                if self._profile is not None:
+                    raise ProfileAlreadyExists("profile is already initialized")
+
+            if self._store.load() is not None:
+                raise ProfileAlreadyExists(f"Profile already exists at: {self._store.path}")
+
+            try:
+                config = self._compile(profile)
+            except Exception as exc:
+                raise ProfileApplyFailed("compile", exc) from exc
+
+            try:
+                Engine.prepare_initial(config)
+            except Exception as exc:
+                raise ProfileApplyFailed("prepare", exc) from exc
+
+            try:
+                committed = self._store.commit(profile)
+            except Exception as exc:
+                raise ProfileApplyFailed("persist", exc) from exc
+
+            with self._profile_lock:
+                self._profile = committed
+            logger.info("Created initial Profile.")
+            return committed.model_copy(deep=True)
 
     def apply_profile(self, profile: Profile, *, timeout: float) -> Profile:
         """Queue a Profile update and wait briefly for its result.

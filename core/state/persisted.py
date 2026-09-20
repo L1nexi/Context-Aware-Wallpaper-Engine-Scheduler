@@ -4,9 +4,10 @@ import json
 import logging
 import os
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.context import get_data_dir
+from core.models.scene import SceneId
 
 logger = logging.getLogger("WEScheduler.State")
 
@@ -18,7 +19,7 @@ class PersistedState(BaseModel):
 
     paused: bool = False
     pause_until: float = 0.0
-    cached_playlists: list[str] = []
+    cached_scenes: list[SceneId] = Field(default_factory=list)
 
     @classmethod
     def load(cls, path: str = _STATE_FILE) -> PersistedState:

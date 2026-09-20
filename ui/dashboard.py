@@ -9,16 +9,20 @@ from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 
 import bottle
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.context import get_app_root
 from configurations.profile import Profile
+from core.models.scene import SceneId
 from core.runtime.profile_manager import (
+    ProfileAlreadyExists,
     ProfileApplyFailed,
     ProfileApplyTimeout,
     ProfileApplyUnavailable,
     ProfileManager,
 )
+from core.runtime.we_config import WEConfigProber, WEConfigReadError
+from core.runtime.we_path import resolve_wallpaper_engine_path
 from core.state.tick_history import TickHistoryStore
 from ui.tick_history import build_tick_window_response
 
@@ -27,6 +31,12 @@ logger = logging.getLogger("WEScheduler.Dashboard")
 DASHBOARD_STATIC_APP_DIR = "dashboard"
 DASHBOARD_STATIC_DIST_DIR = "dist"
 PROFILE_APPLY_TIMEOUT_SECONDS = 2.0
+
+
+class PlaylistScanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    wallpaper_engine_path: str = ""
 
 
 class _ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
@@ -55,6 +65,19 @@ def _profile_validation_issues(exc: ValidationError) -> list[dict[str, object]]:
         }
         for issue in exc.errors()
     ]
+
+
+def _read_json_object() -> dict[str, object]:
+    payload = json.loads(bottle.request.body.read())
+    if not isinstance(payload, dict):
+        raise ValueError("request body must be a JSON object")
+    return payload
+
+
+def _request_validation_issues(exc: ValidationError | ValueError) -> list[dict[str, object]]:
+    if isinstance(exc, ValidationError):
+        return _profile_validation_issues(exc)
+    return [{"path": [], "code": "json_type", "message": str(exc)}]
 
 
 def build_dashboard_app(
@@ -92,6 +115,85 @@ def build_dashboard_app(
             return {"error": "profile_not_found"}
         return {"profile": profile.model_dump(mode="json")}
 
+    @app.route("/api/setup/scenes")
+    def api_setup_scenes():
+        bottle.response.content_type = "application/json; charset=utf-8"
+        return {"scenes": [{"id": scene_id.value} for scene_id in SceneId]}
+
+    @app.post("/api/setup/wallpaper-engine/playlists")
+    def api_scan_wallpaper_engine_playlists():
+        bottle.response.content_type = "application/json; charset=utf-8"
+        if bottle.request.content_type != "application/json":
+            bottle.response.status = 415
+            return {"error": "unsupported_media_type"}
+
+        try:
+            scan_request = PlaylistScanRequest.model_validate(_read_json_object())
+        except (ValidationError, ValueError) as exc:
+            bottle.response.status = 400
+            return {
+                "error": "invalid_wallpaper_engine_request",
+                "issues": _request_validation_issues(exc),
+            }
+
+        executable = resolve_wallpaper_engine_path(scan_request.wallpaper_engine_path)
+        if executable is None:
+            bottle.response.status = 404
+            return {"error": "wallpaper_engine_executable_not_found"}
+
+        try:
+            prober = WEConfigProber(executable)
+            playlist_names = list(dict.fromkeys(prober.scan_playlist_names()))
+            item_counts = prober.probe_item_counts()
+        except WEConfigReadError as exc:
+            bottle.response.status = 422
+            return {"error": exc.code}
+
+        return {
+            "wallpaper_engine_path": executable,
+            "playlists": [{"name": name, "item_count": item_counts.get(name, 0)} for name in playlist_names],
+        }
+
+    @app.post("/api/profile/create")
+    def api_create_profile():
+        bottle.response.content_type = "application/json; charset=utf-8"
+        if bottle.request.content_type != "application/json":
+            bottle.response.status = 415
+            return {"error": "unsupported_media_type"}
+
+        try:
+            draft = Profile.model_validate(_read_json_object())
+        except (ValidationError, ValueError) as exc:
+            bottle.response.status = 400
+            return {
+                "error": "invalid_profile",
+                "issues": _request_validation_issues(exc),
+            }
+
+        try:
+            committed = profile_manager.create_initial_profile(draft)
+        except ProfileAlreadyExists:
+            bottle.response.status = 409
+            return {"error": "profile_already_exists"}
+        except ProfileApplyFailed as exc:
+            logger.exception("Initial Profile creation failed during %s", exc.stage)
+            bottle.response.status = 500
+            return {
+                "error": "profile_create_failed",
+                "stage": exc.stage,
+                "detail": str(exc),
+            }
+        except Exception as exc:
+            logger.exception("Initial Profile creation failed")
+            bottle.response.status = 500
+            return {"error": "profile_create_failed", "detail": str(exc)}
+
+        bottle.response.status = 201
+        return {
+            "status": "created",
+            "profile": committed.model_dump(mode="json"),
+        }
+
     @app.post("/api/profile/apply")
     def api_apply_profile():
         bottle.response.content_type = "application/json; charset=utf-8"
@@ -100,17 +202,13 @@ def build_dashboard_app(
             return {"error": "unsupported_media_type"}
 
         try:
-            payload = json.loads(bottle.request.body.read())
-            if not isinstance(payload, dict):
-                raise ValueError("request body must be a JSON object")
-            draft = Profile.model_validate(payload)
+            draft = Profile.model_validate(_read_json_object())
         except (ValidationError, ValueError) as exc:
             bottle.response.status = 400
-            if isinstance(exc, ValidationError):
-                issues = _profile_validation_issues(exc)
-            else:
-                issues = [{"path": [], "code": "json_type", "message": str(exc)}]
-            return {"error": "invalid_profile", "issues": issues}
+            return {
+                "error": "invalid_profile",
+                "issues": _request_validation_issues(exc),
+            }
 
         try:
             committed = profile_manager.apply_profile(

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
-from core.models.playlist import Playlists
+from core.models.scene import SceneId, Scenes
 
 if TYPE_CHECKING:
     from core.models.context import Context
@@ -107,13 +107,13 @@ class DecisionMode(StrEnum):
 @dataclass(frozen=True)
 class ActPlan:
     mode: DecisionMode
-    active_playlists: Playlists
+    active_scenes: Scenes
 
 
 @dataclass
 class Match:
-    best_playlists: Playlists
-    playlist_matches: list[tuple[str, float]] = field(default_factory=list)
+    best_scenes: Scenes
+    scene_matches: list[tuple[SceneId, float]] = field(default_factory=list)
     # Direct policy outputs keyed by tag name, before fallback expansion.
     # Used by action_events for user-facing event records.
     raw_context_vector: dict[str, float] = field(default_factory=dict)
@@ -147,7 +147,7 @@ class Decision:
     """Final controller decision for one tick."""
 
     action: Action
-    target: Playlists
+    target: Scenes
     evaluation: BlockerEvaluation | None = None
 
 
@@ -195,17 +195,17 @@ class TickTrace:
         return self.schedule.action
 
     @property
-    def active_playlists(self) -> Playlists:
-        return self.schedule.plan.active_playlists
+    def active_scenes(self) -> Scenes:
+        return self.schedule.plan.active_scenes
 
     @property
-    def target(self) -> Playlists:
+    def target(self) -> Scenes:
         if self.action.executed and self.decision.action == Action.SWITCH:
             return self.decision.target
-        return self.active_playlists
+        return self.active_scenes
 
     @property
-    def cache_update(self) -> Playlists | None:
+    def cache_update(self) -> Scenes | None:
         if self.action.executed and self.decision.action == Action.SWITCH:
             return self.target
         return None

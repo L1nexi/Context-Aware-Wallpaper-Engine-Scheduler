@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from core.models.playlist import Playlists
+from core.models.scene import Scenes
 from core.models.trace import (
     Action,
     ActionResult,
@@ -22,15 +22,15 @@ class Actuator:
 
     def _act_from_decision(self, decision: Decision) -> ActionResult:
         if decision.action in {Action.SWITCH, Action.CYCLE}:
-            target_playlists = decision.target
+            target_scenes = decision.target
         else:
-            target_playlists = Playlists()
+            target_scenes = Scenes()
 
-        if not target_playlists:
+        if not target_scenes:
             return ActionResult()
 
-        target_playlist = target_playlists.select_target()
-        logger.info("Applying playlist pool '%s' via playlist '%s'", target_playlists, target_playlist)
+        target_playlist = target_scenes.select_target_playlist()
+        logger.info("Applying scene pool '%s' via playlist '%s'", target_scenes, target_playlist)
         executed = bool(self.executor.open_playlist(target_playlist))
 
         return ActionResult(

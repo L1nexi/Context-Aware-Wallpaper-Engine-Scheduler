@@ -11,12 +11,11 @@ from types import MappingProxyType
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-from configurations.runtime_models import ActivityPolicyConfig, SchedulerConfig
+from configurations.runtime_models import ActivityPolicyConfig, LegacySchedulerConfig
 from core.models.context import Context, WeatherData
-from core.models.playlist import Playlists
-from core.models.trace import ActivityDetails, ActivityEvaluation, Match
+from core.models.trace import ActivityDetails, ActivityEvaluation, PolicyEvaluation
 from core.policies import Policy, SeasonPolicy, TimePolicy, WeatherPolicy
-from core.runtime.matcher import Matcher
+from core.runtime.tag_resolver import resolve_raw_tags
 
 _EVAL_YEAR = 2025
 _EPSILON = 1e-6
@@ -89,11 +88,24 @@ class RankingRow:
     score: float
 
 
+@dataclass
+class LegacyMatch:
+    best_playlists: list[str]
+    playlist_matches: list[tuple[str, float]]
+    raw_context_vector: dict[str, float]
+    resolved_context_vector: dict[str, float]
+    fallback_expansions: dict[str, dict[str, float]]
+    policy_evaluations: list[PolicyEvaluation]
+    max_policy_magnitude: float
+    similarity: float = 0.0
+    similarity_gap: float = 0.0
+
+
 @dataclass(frozen=True)
 class ScenarioProfileResult:
     scenario: Scenario
     profile: MatchProfile
-    match: Match
+    match: LegacyMatch
     rankings: list[RankingRow]
 
     @property
@@ -253,11 +265,10 @@ class DirectActivityPolicy(Policy):
 
 
 def evaluate_scenario(
-    config: SchedulerConfig,
+    config: LegacySchedulerConfig,
     scenario: Scenario,
     profile: MatchProfile,
 ) -> ScenarioProfileResult:
-    Playlists.configure(config.playlists)
     context = build_context(scenario)
     policies: list[Policy] = [
         DirectActivityPolicy(config.policies.activity, scenario.activity),
@@ -265,11 +276,11 @@ def evaluate_scenario(
         SeasonPolicy(config.policies.season),
         WeatherPolicy(config.policies.weather),
     ]
-    match = Matcher(config.playlists, policies, config.tags).match(context)
+    match = _evaluate_legacy_context(config, policies, context)
     playlist_matches = rank_for_profile(config, match.resolved_context_vector, profile)
     match.playlist_matches = playlist_matches
     best_name = playlist_matches[0][0] if playlist_matches and playlist_matches[0][1] > 0.001 else None
-    match.best_playlists = Playlists([best_name]) if best_name else Playlists()
+    match.best_playlists = [best_name] if best_name else []
     match.similarity = playlist_matches[0][1] if best_name else 0.0
     match.similarity_gap = (playlist_matches[0][1] - playlist_matches[1][1]) if len(playlist_matches) >= 2 else match.similarity
     rankings = [
@@ -308,8 +319,51 @@ def build_context(scenario: Scenario) -> Context:
     return Context(time=date.timetuple(), weather=weather_data)
 
 
+def _evaluate_legacy_context(
+    config: LegacySchedulerConfig,
+    policies: list[Policy],
+    context: Context,
+) -> LegacyMatch:
+    known_tags = {tag for playlist in config.playlists.values() for tag in playlist.tags}
+    raw_context_vector: dict[str, float] = {}
+    resolved_context_vector: dict[str, float] = {}
+    fallback_expansions: dict[str, dict[str, float]] = {}
+    policy_evaluations: list[PolicyEvaluation] = []
+    max_policy_magnitude = 0.0
+
+    for policy in policies:
+        evaluation = policy.evaluate(context)
+        policy_evaluations.append(evaluation)
+        max_policy_magnitude = max(max_policy_magnitude, evaluation.effective_magnitude)
+        for tag, weight in evaluation.raw_contribution.items():
+            raw_context_vector[tag] = raw_context_vector.get(tag, 0.0) + weight
+
+        resolved, expansions = resolve_raw_tags(
+            evaluation.raw_contribution,
+            known_tags=known_tags,
+            tag_specs=config.tags,
+        )
+        evaluation.resolved_contribution = resolved
+        for tag, weight in resolved.items():
+            resolved_context_vector[tag] = resolved_context_vector.get(tag, 0.0) + weight
+        for source_tag, resolved_tags in expansions.items():
+            bucket = fallback_expansions.setdefault(source_tag, {})
+            for resolved_tag, resolved_weight in resolved_tags.items():
+                bucket[resolved_tag] = bucket.get(resolved_tag, 0.0) + resolved_weight
+
+    return LegacyMatch(
+        best_playlists=[],
+        playlist_matches=[],
+        raw_context_vector=raw_context_vector,
+        resolved_context_vector=resolved_context_vector,
+        fallback_expansions=fallback_expansions,
+        policy_evaluations=policy_evaluations,
+        max_policy_magnitude=max_policy_magnitude,
+    )
+
+
 def rank_for_profile(
-    config: SchedulerConfig,
+    config: LegacySchedulerConfig,
     resolved_context_vector: dict[str, float],
     profile: MatchProfile,
 ) -> list[tuple[str, float]]:

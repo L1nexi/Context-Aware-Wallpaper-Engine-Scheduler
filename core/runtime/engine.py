@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from configurations.runtime_models import SchedulerConfig
 from core.models.context import ContextManager
-from core.models.playlist import Playlists
+from core.models.scene import Scenes
 from core.models.trace import ScheduleTrace
 from core.policies import POLICY_REGISTRY, Policy
 from core.runtime.act_plan import plan_actuation
@@ -41,9 +41,15 @@ class Engine:
     def from_config(cls, config: SchedulerConfig) -> Engine:
         """Build and install a complete runtime from a verified config."""
 
-        engine = cls(cls._build_components(config))
-        logger.info("Built runtime with %d playlists.", len(config.playlists))
+        engine = cls(cls.prepare_initial(config))
+        logger.info("Built runtime with %d scenes.", len(config.scenes))
         return engine
+
+    @classmethod
+    def prepare_initial(cls, config: SchedulerConfig) -> EngineReplacement:
+        """Build initial runtime components without installing them on an Engine."""
+
+        return cls._build_components(config)
 
     def prepare_replacement(self, config: SchedulerConfig) -> EngineReplacement:
         """Build a replacement and import state without changing this engine.
@@ -68,13 +74,13 @@ class Engine:
         self.actuator = replacement.actuator
         self.controller = replacement.controller
         self.we_config_prober = replacement.we_config_prober
-        Playlists.configure(replacement.config.playlists)
+        Scenes.configure(replacement.config.scenes)
         set_language(replacement.config.language)
         self.config = replacement.config
 
     def schedule(
         self,
-        cached_playlists: Playlists,
+        cached_scenes: Scenes,
         paused: bool,
         manual_requested: bool,
     ) -> ScheduleTrace:
@@ -82,7 +88,7 @@ class Engine:
         match = self.matcher.match(context)
         plan = plan_actuation(
             factual=self.we_config_prober.probe_playlist(),
-            cached_playlists=cached_playlists,
+            cached_scenes=cached_scenes,
             paused=paused,
             manual_requested=manual_requested,
         )
@@ -113,7 +119,7 @@ class Engine:
 
         policies: list[Policy] = [cls(getattr(config.policies, cls.config_key)) for cls in POLICY_REGISTRY]
 
-        matcher = Matcher(config.playlists, policies, config.tags)
+        matcher = Matcher(config.scenes, policies, config.tags)
         controller = Controller(config.scheduling)
         actuator = Actuator(executor)
 

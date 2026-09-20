@@ -41,8 +41,6 @@ pyinstaller --noconsole --onefile --name "WEScheduler" ^
     --hidden-import=win32gui ^
     --hidden-import=win32con ^
     --hidden-import=win32api ^
-    --exclude-module=matplotlib ^
-    --exclude-module=numpy ^
     --clean ^
     main.py
 
@@ -54,8 +52,6 @@ if %errorlevel% neq 0 (
 
 echo [5/5] Preparing distribution folder...
 copy README.md dist\README.md
-copy "packaging\Config Tools.bat" "dist\Config Tools.bat"
-xcopy "config.example" "dist\config" /S /E /I /Y
 
 echo ==========================================
 echo      Build Complete!

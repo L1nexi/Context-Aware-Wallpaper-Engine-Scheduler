@@ -13,9 +13,9 @@ import pytest
 
 from configurations.profile import Profile
 from configurations.profile_store import ProfileStore
-from configurations.runtime_models import PlaylistConfig
+from configurations.runtime_models import SceneConfig
 from core.models.context import Context, WeatherData, WindowData
-from core.models.playlist import Playlists
+from core.models.scene import SceneId, Scenes
 from core.models.trace import (
     Action,
     ActionResult,
@@ -37,17 +37,17 @@ from ui.dashboard import (
 
 
 @pytest.fixture(autouse=True)
-def _configure_playlists():
-    """Configure Playlists with test data for all tests."""
-    Playlists.configure(
+def _configure_scenes():
+    """Configure Scenes with test data for all tests."""
+    Scenes.configure(
         {
-            "focus": PlaylistConfig(display="Focus Flow", color="#F5C518", item_count=10),
-            "rainy": PlaylistConfig(display="Rainy Mood", color="#4A90D9", item_count=5),
-            "idle": PlaylistConfig(display="", color="#2E5F8A", item_count=3),
+            SceneId.DAY_WORK: SceneConfig(playlist="focus", item_count=10),
+            SceneId.RAIN: SceneConfig(playlist="rainy", item_count=5),
+            SceneId.SUNSET: SceneConfig(playlist="idle", item_count=3),
         }
     )
     yield
-    Playlists.configure({})
+    Scenes.configure({})
 
 
 @pytest.fixture
@@ -184,8 +184,8 @@ def _make_trace(
     *,
     tick_id: int = 1,
     paused: bool = False,
-    active_playlist_before: str = "",
-    matched_playlist: str | None = None,
+    active_scene_before: SceneId | None = None,
+    matched_scene: SceneId | None = None,
     target_playlist: str | None = None,
     executed: bool = False,
     action_kind: Action = Action.HOLD,
@@ -194,9 +194,9 @@ def _make_trace(
     policy_evaluations: list | None = None,
 ) -> TickTrace:
     current_time = time.localtime(1714800000)
-    playlist_matches = [("focus", 0.91), ("rainy", 0.66)]
-    best_playlists = Playlists([matched_playlist]) if matched_playlist else Playlists()
-    plan_active = Playlists([active_playlist_before]) if active_playlist_before else Playlists()
+    scene_matches = [(SceneId.DAY_WORK, 0.91), (SceneId.RAIN, 0.66)]
+    best_scenes = Scenes([matched_scene]) if matched_scene else Scenes()
+    plan_active = Scenes([active_scene_before]) if active_scene_before else Scenes()
     return TickTrace(
         tick_id=tick_id,
         ts=1714800000.0 + tick_id,
@@ -212,18 +212,18 @@ def _make_trace(
                 time=current_time,
             ),
             match=Match(
-                best_playlists=best_playlists,
-                playlist_matches=playlist_matches,
+                best_scenes=best_scenes,
+                scene_matches=scene_matches,
                 raw_context_vector={"focus": 0.8, "rain": 0.4},
                 resolved_context_vector={"focus": 0.8, "rain": 0.4},
                 fallback_expansions={"storm": {"rain": 0.25}},
                 policy_evaluations=policy_evaluations or [],
                 max_policy_magnitude=1.2,
             ),
-            plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=plan_active),
+            plan=ActPlan(mode=DecisionMode.NORMAL, active_scenes=plan_active),
             decision=Decision(
                 action=action_kind,
-                target=best_playlists,
+                target=best_scenes,
                 evaluation=evaluation,
             ),
             action=ActionResult(
@@ -257,25 +257,26 @@ def test_api_tick_history_window_returns_recent(tick_history, profile_manager):
     assert [tick["summary"]["tickId"] for tick in body["ticks"]] == [3, 4]
 
 
-def test_api_tick_history_window_projects_current_playlist_metadata(
+def test_api_tick_history_window_projects_scene_identity_and_target_playlist(
     tick_history,
     profile_manager,
 ):
-    Playlists.configure(
+    Scenes.configure(
         {
-            "focus": PlaylistConfig(display="Focus Flow", color="#F5C518", item_count=10),
-            "rainy": PlaylistConfig(display="Rainy Mood", color="#4A90D9", item_count=5),
-            "test_pl": PlaylistConfig(display="Test Playlist", color="#5BB8D4", item_count=1),
+            SceneId.DAY_WORK: SceneConfig(playlist="focus", item_count=10),
+            SceneId.RAIN: SceneConfig(playlist="rainy", item_count=5),
+            SceneId.SUNSET: SceneConfig(playlist="test_pl", item_count=1),
         }
     )
     app = build_dashboard_app(tick_history, profile_manager)
     tick_history.update(
         _make_trace(
             tick_id=1,
-            active_playlist_before="test_pl",
-            matched_playlist="missing_playlist",
-            executed=False,
-            action_kind=Action.HOLD,
+            active_scene_before=SceneId.DAY_WORK,
+            matched_scene=SceneId.SUNSET,
+            target_playlist="test_pl",
+            executed=True,
+            action_kind=Action.SWITCH,
         )
     )
 
@@ -283,17 +284,12 @@ def test_api_tick_history_window_projects_current_playlist_metadata(
 
     assert "200" in status
     tick = body["ticks"][0]
-    assert tick["summary"]["activePlaylists"] == [
-        {"name": "test_pl", "display": "Test Playlist", "color": "#5BB8D4"},
-    ]
-    assert tick["summary"]["matchedPlaylists"] == [
-        {"name": "missing_playlist", "display": "missing_playlist", "color": None},
-    ]
-    assert tick["act"]["topMatches"][0]["playlist"] == {
-        "name": "focus",
-        "display": "Focus Flow",
-        "color": "#F5C518",
-    }
+    assert tick["summary"]["activeScenes"] == [{"id": "sunset"}]
+    assert tick["summary"]["matchedScenes"] == [{"id": "sunset"}]
+    assert tick["think"]["decision"]["activeScenes"] == [{"id": "day_work"}]
+    assert tick["think"]["decision"]["targetScenes"] == [{"id": "sunset"}]
+    assert tick["think"]["decision"]["targetPlaylist"] == {"name": "test_pl"}
+    assert tick["act"]["topMatches"][0]["scene"] == {"id": "day_work"}
 
 
 def test_api_tick_history_window_invalid_count(app):
@@ -314,6 +310,101 @@ def test_api_profile_returns_current_committed_profile(tick_history, profile_man
     assert "200" in status
     assert "revision" not in body["profile"]
     assert body["profile"]["scenes"] == {"day_work": "WORK"}
+
+
+def test_api_setup_scans_wallpaper_engine_playlists(tmp_path: Path, tick_history):
+    executable = _wallpaper_engine_path(tmp_path)
+    app = build_dashboard_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_post(
+        app,
+        "/api/setup/wallpaper-engine/playlists",
+        {"wallpaper_engine_path": executable},
+    )
+
+    assert "200" in status
+    assert body == {
+        "wallpaper_engine_path": executable,
+        "playlists": [
+            {"name": "WORK", "item_count": 1},
+            {"name": "NEW", "item_count": 2},
+        ],
+    }
+
+
+def test_api_setup_reports_missing_wallpaper_engine_executable(tmp_path: Path, tick_history):
+    app = build_dashboard_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_post(
+        app,
+        "/api/setup/wallpaper-engine/playlists",
+        {"wallpaper_engine_path": str(tmp_path / "missing.exe")},
+    )
+
+    assert "404" in status
+    assert body == {"error": "wallpaper_engine_executable_not_found"}
+
+
+def test_api_setup_reports_unreadable_wallpaper_engine_config(tmp_path: Path, tick_history):
+    executable = tmp_path / "wallpaper64.exe"
+    executable.write_text("fake", encoding="utf-8")
+    app = build_dashboard_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_post(
+        app,
+        "/api/setup/wallpaper-engine/playlists",
+        {"wallpaper_engine_path": str(executable)},
+    )
+
+    assert "422" in status
+    assert body == {"error": "wallpaper_engine_config_not_found"}
+
+
+def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history):
+    executable = _wallpaper_engine_path(tmp_path)
+    config_dir = tmp_path / "profile"
+    manager = ProfileManager(str(config_dir))
+    app = build_dashboard_app(tick_history, manager)
+    draft = _profile_payload(executable)
+
+    status, body = wsgi_post(app, "/api/profile/create", draft)
+
+    assert "201" in status
+    assert body == {"status": "created", "profile": draft}
+
+    profile_status, profile_body = wsgi_get(app, "/api/profile")
+    assert "200" in profile_status
+    assert profile_body == {"profile": draft}
+
+
+def test_api_create_profile_rejects_existing_profile(tick_history, profile_manager):
+    current = profile_manager.get_profile()
+    assert current is not None
+    app = build_dashboard_app(tick_history, profile_manager)
+
+    status, body = wsgi_post(
+        app,
+        "/api/profile/create",
+        _profile_payload(current.wallpaper_engine_path, playlist="NEW"),
+    )
+
+    assert "409" in status
+    assert body == {"error": "profile_already_exists"}
+
+
+def test_api_create_profile_reports_failed_stage(tmp_path: Path, tick_history):
+    manager = ProfileManager(str(tmp_path / "profile"))
+    app = build_dashboard_app(tick_history, manager)
+    invalid_runtime = _profile_payload(r"Z:\missing\wallpaper64.exe")
+
+    status, body = wsgi_post(app, "/api/profile/create", invalid_runtime)
+
+    assert "500" in status
+    assert body == {
+        "error": "profile_create_failed",
+        "stage": "compile",
+        "detail": "wallpaper_engine_config_not_found",
+    }
 
 
 def test_api_apply_profile_returns_normalized_committed_profile(tick_history, profile_manager):

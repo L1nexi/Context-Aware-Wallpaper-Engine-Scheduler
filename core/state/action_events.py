@@ -23,10 +23,10 @@ class ActionEventWriter:
 
         if decision.action == Action.SWITCH and result.executed:
             self._events.write(
-                EventType.PLAYLISTS_SWITCH,
+                EventType.SCENES_SWITCH,
                 {
-                    "playlists_from": trace.active_playlists.names(),
-                    "playlists_to": trace.target.names(),
+                    "scenes_from": [scene_id.value for scene_id in trace.active_scenes.ids()],
+                    "scenes_to": [scene_id.value for scene_id in trace.target.ids()],
                     "target_playlist": result.target_playlist,
                     "tags": _tag_dict(match.raw_context_vector),
                     "similarity": round(match.similarity, 4),
@@ -36,9 +36,9 @@ class ActionEventWriter:
             )
         elif decision.action == Action.CYCLE and result.executed:
             self._events.write(
-                EventType.PLAYLISTS_CYCLE,
+                EventType.SCENES_CYCLE,
                 {
-                    "playlists": trace.active_playlists.names(),
+                    "scenes": [scene_id.value for scene_id in trace.active_scenes.ids()],
                     "target_playlist": result.target_playlist,
                     "tags": _tag_dict(match.raw_context_vector),
                 },
@@ -48,7 +48,7 @@ class ActionEventWriter:
                 EventType.ACTUATION_FAILED,
                 {
                     "action": decision.action.value,
-                    "matched_playlists": decision.target.names(),
-                    "active_playlists": trace.active_playlists.names(),
+                    "matched_scenes": [scene_id.value for scene_id in decision.target.ids()],
+                    "active_scenes": [scene_id.value for scene_id in trace.active_scenes.ids()],
                 },
             )

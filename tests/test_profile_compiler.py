@@ -78,6 +78,26 @@ def test_profile_rejects_internal_scheduler_fields():
         Profile.model_validate(values)
 
 
+def test_profile_defaults_to_balanced_response_style():
+    assert _profile().matching.response_style == "balanced"
+
+
+@pytest.mark.parametrize(
+    "response_style",
+    [
+        "background",
+        "background_leaning",
+        "balanced",
+        "current_leaning",
+        "current",
+    ],
+)
+def test_profile_accepts_supported_response_styles(response_style: str):
+    profile = _profile(matching={"response_style": response_style})
+
+    assert profile.matching.response_style == response_style
+
+
 @pytest.mark.parametrize("field", ["avoid_fullscreen", "high_load_threshold_percent"])
 def test_profile_rejects_hidden_disturbance_fields(field: str):
     values = _profile().model_dump(mode="json")
@@ -105,7 +125,8 @@ def test_profile_requires_at_least_one_scene_assignment():
 def test_compiler_expands_each_builtin_scene(scene: SceneId, expected_tags: dict[str, float]):
     runtime = ProfileCompiler.compile(_profile(scenes={scene: "TARGET"}))
 
-    assert runtime.playlists["TARGET"].tags == expected_tags
+    assert runtime.scenes[scene].playlist == "TARGET"
+    assert runtime.scenes[scene].tags == expected_tags
 
 
 def test_compiler_expands_user_intent_into_complete_runtime_config():
@@ -116,19 +137,22 @@ def test_compiler_expands_user_intent_into_complete_runtime_config():
 
     assert runtime.wallpaper_engine_path == r"C:\Wallpaper Engine\wallpaper64.exe"
     assert runtime.language == "zh"
-    assert runtime.playlists["WORK"].tags == {
+    assert runtime.scenes[SceneId.DAY_WORK].playlist == "WORK"
+    assert runtime.scenes[SceneId.DAY_WORK].tags == {
         "focus": 1.0,
         "day": 0.9,
         "dawn": 0.3,
         "clear": 0.3,
     }
-    assert runtime.playlists["WORK"].item_count == 7
-    assert runtime.playlists["CHILL"].tags == {
+    assert runtime.scenes[SceneId.DAY_WORK].item_count == 7
+    assert runtime.scenes[SceneId.NIGHT_LEISURE].playlist == "CHILL"
+    assert runtime.scenes[SceneId.NIGHT_LEISURE].tags == {
         "chill": 1.0,
         "night": 0.9,
         "clear": 0.2,
     }
-    assert runtime.playlists["RAIN"].tags == {
+    assert runtime.scenes[SceneId.RAIN].playlist == "RAIN"
+    assert runtime.scenes[SceneId.RAIN].tags == {
         "rain": 1.2,
         "storm": 0.4,
         "day": 0.3,
@@ -145,7 +169,6 @@ def test_compiler_expands_user_intent_into_complete_runtime_config():
     assert runtime.scheduling.cpu_sample_window == 10
 
     assert runtime.policies.activity.enabled is True
-    assert runtime.policies.activity.weight == 1.2
     assert runtime.policies.activity.smoothing_window == 120
     assert [matcher.model_dump() for matcher in runtime.policies.activity.matchers] == [
         {
@@ -186,18 +209,15 @@ def test_compiler_expands_user_intent_into_complete_runtime_config():
     ]
 
     assert runtime.policies.time.enabled is True
-    assert runtime.policies.time.weight == 0.8
     assert runtime.policies.time.auto is True
     assert runtime.policies.time.day_start_hour == 8
     assert runtime.policies.time.night_start_hour == 20
     assert runtime.policies.season.enabled is True
-    assert runtime.policies.season.weight == 0.65
     assert runtime.policies.season.spring_peak == 80
     assert runtime.policies.season.summer_peak == 172
     assert runtime.policies.season.autumn_peak == 265
     assert runtime.policies.season.winter_peak == 355
     assert runtime.policies.weather.enabled is True
-    assert runtime.policies.weather.weight == 1.5
     assert runtime.policies.weather.api_key == "test-key"
     assert runtime.policies.weather.lat == pytest.approx(31.2304)
     assert runtime.policies.weather.lon == pytest.approx(121.4737)
@@ -228,7 +248,7 @@ def test_compiler_uses_resolved_disturbance_values():
     assert runtime.scheduling.cpu_threshold == 85
 
 
-def test_compiler_merges_multiple_scene_roles_assigned_to_one_playlist():
+def test_compiler_preserves_scenes_assigned_to_the_same_playlist():
     runtime = ProfileCompiler.compile(
         _profile(
             scenes={
@@ -238,12 +258,18 @@ def test_compiler_merges_multiple_scene_roles_assigned_to_one_playlist():
         )
     )
 
-    assert runtime.playlists["MIXED"].tags == {
+    assert runtime.scenes[SceneId.DAY_WORK].playlist == "MIXED"
+    assert runtime.scenes[SceneId.DAY_WORK].tags == {
         "focus": 1.0,
         "day": 0.9,
         "dawn": 0.3,
         "clear": 0.3,
+    }
+    assert runtime.scenes[SceneId.NIGHT_WORK].playlist == "MIXED"
+    assert runtime.scenes[SceneId.NIGHT_WORK].tags == {
+        "focus": 1.0,
         "night": 0.9,
+        "clear": 0.2,
     }
 
 

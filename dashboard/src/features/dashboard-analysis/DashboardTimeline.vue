@@ -9,7 +9,7 @@ import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
 import { clearColorCache } from './cssColors'
 import { formatShortTime, formatTimestamp, formatWeight } from './formatting'
-import { getTickPlaylistLabel } from './presenters'
+import { getTickSceneLabel } from './presenters'
 import { buildTimelineOption, resolveTimelineIndexFromPixel } from './timeline'
 
 type DashboardMode = 'live' | 'snapshot'
@@ -425,11 +425,11 @@ onBeforeUnmount(() => {
             </div>
             <div class="mt-2">
               {{ t('dashboard_timeline_active_track') }}:
-              {{ getTickPlaylistLabel(hoverTooltipTick, 'active', t) }}
+              {{ getTickSceneLabel(hoverTooltipTick, 'active', t) }}
             </div>
             <div class="mt-1">
               {{ t('dashboard_timeline_matched_track') }}:
-              {{ getTickPlaylistLabel(hoverTooltipTick, 'matched', t) }}
+              {{ getTickSceneLabel(hoverTooltipTick, 'matched', t) }}
             </div>
           </div>
         </template>

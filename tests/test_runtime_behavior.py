@@ -1,38 +1,40 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
 from configurations.runtime_models import (
     ActivityPolicyConfig,
-    PlaylistConfig,
+    SceneConfig,
     SchedulingConfig,
     TagSpec,
     WeatherPolicyConfig,
 )
 from core.models.context import Context, WindowData
-from core.models.playlist import Playlists
+from core.models.scene import SceneId, Scenes
 from core.models.trace import Action, ActPlan, Blocker, Decision, DecisionMode, Match
 from core.policies import ActivityPolicy, WeatherPolicy
+from core.runtime.actuator import Actuator
 from core.runtime.controller import Controller
 from core.runtime.matcher import Matcher
 from core.state.persisted import PersistedState
 
 
 @pytest.fixture(autouse=True)
-def _configure_playlists():
-    Playlists.configure(
+def _configure_scenes():
+    Scenes.configure(
         {
-            "focus": PlaylistConfig(display="Focus Flow", color="#F5C518", item_count=10),
-            "rain": PlaylistConfig(display="Rain", color="#2563EB", item_count=5),
-            "A": PlaylistConfig(display="A", color="#FF0000", item_count=10),
-            "B": PlaylistConfig(display="B", color="#00FF00", item_count=40),
-            "C": PlaylistConfig(display="C", color="#0000FF", item_count=0),
+            SceneId.DAY_WORK: SceneConfig(playlist="focus", item_count=10),
+            SceneId.RAIN: SceneConfig(playlist="rain", item_count=5),
+            SceneId.SPRING: SceneConfig(playlist="A", item_count=10),
+            SceneId.SUMMER: SceneConfig(playlist="B", item_count=40),
+            SceneId.AUTUMN: SceneConfig(playlist="C", item_count=0),
         }
     )
     yield
-    Playlists.configure({})
+    Scenes.configure({})
 
 
 class MutableClock:
@@ -60,15 +62,15 @@ def _controller(clock: MutableClock, **overrides) -> Controller:
 def _decide_normal(
     controller: Controller,
     context: Context,
-    matched: list[str],
-    active: list[str],
+    matched: list[SceneId],
+    active: list[SceneId],
 ):
     return controller.decide_action(
-        ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists(active)),
+        ActPlan(mode=DecisionMode.NORMAL, active_scenes=Scenes(active)),
         context,
         Match(
-            best_playlists=Playlists(matched),
-            playlist_matches=[(name, 0.9 - index * 0.1) for index, name in enumerate(matched)],
+            best_scenes=Scenes(matched),
+            scene_matches=[(scene_id, 0.9 - index * 0.1) for index, scene_id in enumerate(matched)],
         ),
     )
 
@@ -149,7 +151,7 @@ def test_weather_policy_without_weather_is_inactive():
 
 def test_matcher_exposes_raw_and_fallback_resolved_vectors():
     matcher = Matcher(
-        playlist_configs={"focus": PlaylistConfig(color="#F5C518", tags={"focus": 1.0})},
+        scene_configs={SceneId.DAY_WORK: SceneConfig(playlist="focus", tags={"focus": 1.0})},
         policies=[_activity_policy("stormy")],
         tag_specs={"stormy": TagSpec(fallback={"focus": 1.0})},
     )
@@ -158,27 +160,27 @@ def test_matcher_exposes_raw_and_fallback_resolved_vectors():
 
     assert match.raw_context_vector == {"stormy": 1.0}
     assert match.resolved_context_vector == {"focus": 1.0}
-    assert match.best_playlists == Playlists(["focus"])
+    assert match.best_scenes == Scenes([SceneId.DAY_WORK])
     assert match.fallback_expansions == {"stormy": {"focus": 1.0}}
 
 
 def test_controller_reports_every_reason_that_blocks_an_action():
     clock = MutableClock(195.0)
     controller = _controller(clock)
-    controller.notify_executed(Decision(action=Action.CYCLE, target=Playlists(["focus"])))
+    controller.notify_executed(Decision(action=Action.CYCLE, target=Scenes([SceneId.DAY_WORK])))
     clock.now = 200.0
 
     switch = _decide_normal(
         controller,
         Context(idle=10.0, cpu=90.0, fullscreen=True),
-        ["rain"],
-        ["focus"],
+        [SceneId.RAIN],
+        [SceneId.DAY_WORK],
     )
     cycle = _decide_normal(
         controller,
         Context(idle=10.0, cpu=90.0, fullscreen=True),
-        ["focus"],
-        ["focus"],
+        [SceneId.DAY_WORK],
+        [SceneId.DAY_WORK],
     )
 
     assert set(switch.evaluation.blocked_by) == {Blocker.CPU, Blocker.FULLSCREEN, Blocker.IDLE}
@@ -196,8 +198,8 @@ def test_controller_blocks_switch_and_cycle_during_startup_grace():
     clock.now = 105.0
     context = Context(idle=120.0, cpu=90.0, fullscreen=True)
 
-    switch = _decide_normal(controller, context, ["rain"], ["focus"])
-    cycle = _decide_normal(controller, context, ["focus"], ["focus"])
+    switch = _decide_normal(controller, context, [SceneId.RAIN], [SceneId.DAY_WORK])
+    cycle = _decide_normal(controller, context, [SceneId.DAY_WORK], [SceneId.DAY_WORK])
 
     assert switch.action == Action.HOLD
     assert Blocker.COOLDOWN in switch.evaluation.blocked_by
@@ -215,7 +217,7 @@ def test_controller_allows_switch_after_startup_grace():
     )
     clock.now = 120.0
 
-    decision = _decide_normal(controller, Context(idle=80.0, cpu=1.0), ["rain"], ["focus"])
+    decision = _decide_normal(controller, Context(idle=80.0, cpu=1.0), [SceneId.RAIN], [SceneId.DAY_WORK])
 
     assert decision.action == Action.SWITCH
 
@@ -230,10 +232,10 @@ def test_controller_does_not_apply_cycle_cooldown_to_switches():
         cpu_threshold=0,
         pause_on_fullscreen=False,
     )
-    controller.notify_executed(Decision(action=Action.SWITCH, target=Playlists(["focus"])))
+    controller.notify_executed(Decision(action=Action.SWITCH, target=Scenes([SceneId.DAY_WORK])))
     clock.now = 101.0
 
-    decision = _decide_normal(controller, Context(idle=20.0, cpu=1.0), ["rain"], ["focus"])
+    decision = _decide_normal(controller, Context(idle=20.0, cpu=1.0), [SceneId.RAIN], [SceneId.DAY_WORK])
 
     assert decision.action == Action.SWITCH
     assert Blocker.COOLDOWN not in decision.evaluation.blocked_by
@@ -242,10 +244,10 @@ def test_controller_does_not_apply_cycle_cooldown_to_switches():
 def test_controller_forces_a_deferred_switch_after_the_limit():
     clock = MutableClock(390.0)
     controller = _controller(clock, cpu_threshold=0, pause_on_fullscreen=False)
-    controller.notify_executed(Decision(action=Action.SWITCH, target=Playlists(["focus"])))
+    controller.notify_executed(Decision(action=Action.SWITCH, target=Scenes([SceneId.DAY_WORK])))
     clock.now = 500.0
 
-    decision = _decide_normal(controller, Context(idle=5.0, cpu=1.0), ["rain"], ["focus"])
+    decision = _decide_normal(controller, Context(idle=5.0, cpu=1.0), [SceneId.RAIN], [SceneId.DAY_WORK])
 
     assert decision.action == Action.SWITCH
     assert decision.evaluation.blocked_by == []
@@ -262,7 +264,15 @@ def test_controller_eventually_switches_when_active_and_matched_pools_only_overl
         pause_on_fullscreen=False,
     )
 
-    decisions = [_decide_normal(controller, Context(idle=999.0), ["A", "C"], ["A", "B"]) for _ in range(120)]
+    decisions = [
+        _decide_normal(
+            controller,
+            Context(idle=999.0),
+            [SceneId.SPRING, SceneId.AUTUMN],
+            [SceneId.SPRING, SceneId.SUMMER],
+        )
+        for _ in range(120)
+    ]
 
     assert all(decision.action != Action.SWITCH for decision in decisions[:-1])
     assert decisions[-1].action == Action.SWITCH
@@ -272,9 +282,9 @@ def test_controller_recovery_switches_to_a_match_without_context_gates():
     controller = _controller(MutableClock(100.0), startup_delay=30)
 
     decision = controller.decide_action(
-        ActPlan(mode=DecisionMode.RECOVERY, active_playlists=Playlists()),
+        ActPlan(mode=DecisionMode.RECOVERY, active_scenes=Scenes()),
         Context(idle=0.0, cpu=100.0, fullscreen=True),
-        Match(best_playlists=Playlists(["rain"]), playlist_matches=[("rain", 0.8)]),
+        Match(best_scenes=Scenes([SceneId.RAIN]), scene_matches=[(SceneId.RAIN, 0.8)]),
     )
 
     assert decision.action == Action.SWITCH
@@ -285,52 +295,64 @@ def test_controller_recovery_without_a_match_does_nothing():
     controller = _controller(MutableClock(100.0))
 
     decision = controller.decide_action(
-        ActPlan(mode=DecisionMode.RECOVERY, active_playlists=Playlists()),
+        ActPlan(mode=DecisionMode.RECOVERY, active_scenes=Scenes()),
         Context(),
-        Match(best_playlists=Playlists()),
+        Match(best_scenes=Scenes()),
     )
 
     assert decision.action == Action.NONE
 
 
-def test_matcher_groups_nearly_equivalent_playlists():
+def test_actuator_lowers_scene_to_its_assigned_playlist():
+    executor = mock.Mock()
+    executor.open_playlist.return_value = True
+    actuator = Actuator(executor)
+
+    result = actuator.act(Decision(action=Action.SWITCH, target=Scenes([SceneId.DAY_WORK])))
+
+    assert result.executed is True
+    assert result.target_playlist == "focus"
+    executor.open_playlist.assert_called_once_with("focus")
+
+
+def test_matcher_groups_nearly_equivalent_scenes():
     matcher = Matcher(
-        playlist_configs={
-            "A": PlaylistConfig(color="#FF0000", tags={"focus": 1.0}),
-            "B": PlaylistConfig(color="#00FF00", tags={"focus": 0.99}),
-            "C": PlaylistConfig(color="#0000FF", tags={"chill": 1.0}),
+        scene_configs={
+            SceneId.DAY_WORK: SceneConfig(playlist="A", tags={"focus": 1.0}),
+            SceneId.NIGHT_WORK: SceneConfig(playlist="B", tags={"focus": 0.99}),
+            SceneId.RAIN: SceneConfig(playlist="C", tags={"chill": 1.0}),
         },
         policies=[_activity_policy()],
     )
 
     match = matcher.match(Context(window=WindowData(title="Work", process="editor.exe")))
 
-    assert match.best_playlists == Playlists(["A", "B"])
+    assert match.best_scenes == Scenes([SceneId.DAY_WORK, SceneId.NIGHT_WORK])
 
 
 def test_matcher_returns_only_the_clear_winner():
     matcher = Matcher(
-        playlist_configs={
-            "A": PlaylistConfig(color="#FF0000", tags={"focus": 1.0}),
-            "B": PlaylistConfig(color="#00FF00", tags={"chill": 1.0}),
+        scene_configs={
+            SceneId.DAY_WORK: SceneConfig(playlist="A", tags={"focus": 1.0}),
+            SceneId.NIGHT_WORK: SceneConfig(playlist="B", tags={"chill": 1.0}),
         },
         policies=[_activity_policy()],
     )
 
     match = matcher.match(Context(window=WindowData(title="Work", process="editor.exe")))
 
-    assert match.best_playlists == Playlists(["A"])
+    assert match.best_scenes == Scenes([SceneId.DAY_WORK])
 
 
-def test_matcher_returns_no_playlist_when_every_similarity_is_zero():
+def test_matcher_returns_no_scene_when_every_similarity_is_zero():
     matcher = Matcher(
-        playlist_configs={"A": PlaylistConfig(color="#FF0000", tags={"chill": 1.0})},
+        scene_configs={SceneId.DAY_WORK: SceneConfig(playlist="A", tags={"chill": 1.0})},
         policies=[_activity_policy()],
     )
 
     match = matcher.match(Context(window=WindowData(title="Work", process="editor.exe")))
 
-    assert match.best_playlists == Playlists()
+    assert match.best_scenes == Scenes()
     assert match.similarity == 0.0
 
 

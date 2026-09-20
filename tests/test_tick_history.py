@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 
 from core.models.context import Context
-from core.models.playlist import Playlists
+from core.models.scene import Scenes
 from core.models.trace import Action, ActionResult, ActPlan, Decision, DecisionMode, Match, ScheduleTrace, TickTrace
 from core.state.tick_history import TickHistoryStore, TickHistoryWindow
 from ui.tick_history_export import (
@@ -47,9 +47,9 @@ def test_export_tick_history_writes_timestamped_json(tmp_path):
             pause_until=0.0,
             schedule=ScheduleTrace(
                 context=Context(),
-                match=Match(best_playlists=Playlists()),
-                plan=ActPlan(mode=DecisionMode.NORMAL, active_playlists=Playlists()),
-                decision=Decision(action=Action.HOLD, target=Playlists()),
+                match=Match(best_scenes=Scenes()),
+                plan=ActPlan(mode=DecisionMode.NORMAL, active_scenes=Scenes()),
+                decision=Decision(action=Action.HOLD, target=Scenes()),
                 action=ActionResult(),
             ),
         )

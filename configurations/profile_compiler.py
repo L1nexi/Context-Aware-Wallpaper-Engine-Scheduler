@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 
-from configurations.profile import Profile, SceneId
+from configurations.profile import Profile, ResponseStyle
 from configurations.runtime_models import (
-    PLAYLIST_AUTO_COLOR_PALETTE,
     ActivityMatcherConfig,
     ActivityPolicyConfig,
-    PlaylistConfig,
     PoliciesConfig,
+    SceneConfig,
     SchedulerConfig,
     SchedulingConfig,
     SeasonPolicyConfig,
@@ -16,6 +16,7 @@ from configurations.runtime_models import (
     TimePolicyConfig,
     WeatherPolicyConfig,
 )
+from core.models.scene import SceneId
 
 _SCENE_PRESETS: dict[SceneId, dict[str, float]] = {
     SceneId.DAY_WORK: {"focus": 1.0, "day": 0.9, "dawn": 0.3, "clear": 0.3},
@@ -54,6 +55,50 @@ _CPU_THRESHOLD_PERCENT: int = 85
 _CPU_SAMPLE_WINDOW_SIZE: int = 10
 
 
+@dataclass(frozen=True)
+class _PolicyWeightPreset:
+    activity: float
+    time: float
+    season: float
+    weather: float
+
+
+# TODO(tuning): Calibrate every provisional response-style weight group with
+# the internal tuning scenarios before finalizing the product defaults.
+_POLICY_WEIGHT_PRESETS: dict[ResponseStyle, _PolicyWeightPreset] = {
+    "background": _PolicyWeightPreset(
+        activity=0.8,
+        time=0.9,
+        season=1.2,
+        weather=0.9,
+    ),
+    "background_leaning": _PolicyWeightPreset(
+        activity=1.0,
+        time=0.85,
+        season=0.9,
+        weather=1.2,
+    ),
+    "balanced": _PolicyWeightPreset(
+        activity=1.2,
+        time=0.8,
+        season=0.65,
+        weather=1.5,
+    ),
+    "current_leaning": _PolicyWeightPreset(
+        activity=1.45,
+        time=0.75,
+        season=0.5,
+        weather=1.8,
+    ),
+    "current": _PolicyWeightPreset(
+        activity=1.7,
+        time=0.7,
+        season=0.4,
+        weather=2.1,
+    ),
+}
+
+
 class ProfileCompiler:
     @classmethod
     def compile(
@@ -69,52 +114,46 @@ class ProfileCompiler:
             wallpaper_engine_path=profile.wallpaper_engine_path,
             language=profile.language,
             tags={tag: TagSpec(fallback=dict(fallback)) for tag, fallback in _TAG_FALLBACKS.items()},
-            playlists=cls._compile_playlists(profile, item_counts),
+            scenes=cls._compile_scenes(profile, item_counts),
             policies=cls._compile_policies(profile),
             scheduling=cls._compile_scheduling(profile),
         )
 
     @staticmethod
-    def _compile_playlists(
+    def _compile_scenes(
         profile: Profile,
         item_counts: Mapping[str, int],
-    ) -> dict[str, PlaylistConfig]:
-        tags_by_playlist: dict[str, dict[str, float]] = {}
-        for scene, playlist_name in profile.scenes.items():
-            merged_tags = tags_by_playlist.setdefault(playlist_name, {})
-            for tag, weight in _SCENE_PRESETS[scene].items():
-                merged_tags[tag] = max(merged_tags.get(tag, 0.0), weight)
-
-        playlists: dict[str, PlaylistConfig] = {}
-        for color_index, playlist_name in enumerate(sorted(tags_by_playlist, key=lambda name: (name.casefold(), name))):
-            playlists[playlist_name] = PlaylistConfig(
-                display=playlist_name,
-                color=PLAYLIST_AUTO_COLOR_PALETTE[color_index % len(PLAYLIST_AUTO_COLOR_PALETTE)],
-                tags=tags_by_playlist[playlist_name],
+    ) -> dict[SceneId, SceneConfig]:
+        return {
+            scene_id: SceneConfig(
+                playlist=playlist_name,
+                tags=dict(_SCENE_PRESETS[scene_id]),
                 item_count=item_counts.get(playlist_name, 0),
             )
-        return playlists
+            for scene_id, playlist_name in profile.scenes.items()
+        }
 
     @classmethod
     def _compile_policies(cls, profile: Profile) -> PoliciesConfig:
         location = profile.weather.location
+        weights = _POLICY_WEIGHT_PRESETS[profile.matching.response_style]
         return PoliciesConfig(
             activity=ActivityPolicyConfig(
                 enabled=True,
-                weight=1.2,
+                weight=weights.activity,
                 smoothing_window=120,
                 matchers=cls._compile_activity_matchers(profile),
             ),
             time=TimePolicyConfig(
                 enabled=True,
-                weight=0.8,
+                weight=weights.time,
                 auto=True,
                 day_start_hour=8,
                 night_start_hour=20,
             ),
             season=SeasonPolicyConfig(
                 enabled=True,
-                weight=0.65,
+                weight=weights.season,
                 spring_peak=80,
                 summer_peak=172,
                 autumn_peak=265,
@@ -122,7 +161,7 @@ class ProfileCompiler:
             ),
             weather=WeatherPolicyConfig(
                 enabled=True,
-                weight=1.5,
+                weight=weights.weather,
                 api_key=profile.weather.api_key,
                 lat=location.latitude,
                 lon=location.longitude,

@@ -4,7 +4,7 @@ import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
 import { getCssColor } from './cssColors'
 import { clamp, formatShortTime, formatWeight } from './formatting'
-import { getTickPlaylistLabel } from './presenters'
+import { getTickSceneLabel } from './presenters'
 
 type Translate = (key: string, params?: Record<string, string | number>) => string
 
@@ -45,6 +45,7 @@ function buildTrackSegments(
 
   const mutedColor = getCssColor('--muted', '#dbe3ee')
   const borderColor = getCssColor('--border', '#cdd7e2')
+  const sceneColor = getCssColor(type === 'active' ? '--primary' : '--chart-2', '#4f8cff')
 
   const segments: TrackSegmentDatum[] = []
   let segmentStart = 0
@@ -76,13 +77,13 @@ function buildTrackSegments(
   }
 
   ticks.forEach((tick, index) => {
-    const playlist =
+    const scene =
       type === 'active'
-        ? (tick.summary.activePlaylists[0] ?? null)
-        : (tick.summary.matchedPlaylists[0] ?? null)
+        ? (tick.summary.activeScenes[0] ?? null)
+        : (tick.summary.matchedScenes[0] ?? null)
     const paused = tick.summary.paused
-    const key = paused ? '__paused__' : (playlist?.name ?? '__none__')
-    const color = paused ? mutedColor : (playlist?.color ?? mutedColor)
+    const key = paused ? '__paused__' : (scene?.id ?? '__none__')
+    const color = paused || scene === null ? mutedColor : sceneColor
 
     if (index === 0) {
       previousKey = key
@@ -146,7 +147,7 @@ function buildEventSeries(ticks: TickSnapshot[], type: EventType, t: Translate):
       isRecovery ? isRecoveryReason(tick) : tick.summary.action === type && !isRecoveryReason(tick),
     )
     .map(({ tick, index }) => {
-      const label = getTickPlaylistLabel(tick, 'active', t)
+      const label = getTickSceneLabel(tick, 'active', t)
       return {
         value: [index, tick.summary.similarity],
         label: {
@@ -379,10 +380,10 @@ export function buildTimelineOption(
               ${labels.gap}: ${formatWeight(tick.summary.similarityGap, locale)}
             </div>
             <div style="margin-top: 8px;">
-              ${labels.activeTrack}: ${getTickPlaylistLabel(tick, 'active', t)}
+              ${labels.activeTrack}: ${getTickSceneLabel(tick, 'active', t)}
             </div>
             <div style="margin-top: 4px;">
-              ${labels.matchedTrack}: ${getTickPlaylistLabel(tick, 'matched', t)}
+              ${labels.matchedTrack}: ${getTickSceneLabel(tick, 'matched', t)}
             </div>
           </div>
         `

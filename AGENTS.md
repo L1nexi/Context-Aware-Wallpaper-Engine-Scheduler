@@ -10,7 +10,7 @@
 
 - `main.py` 是启动 shim，负责 DPI 初始化并委托 `app/main.py`。
 - `app/` 放应用入口、应用路径和持久事件日志。
-- `configurations/` 放用户 Profile、Profile Compiler、原子持久化以及内部运行时配置模型；旧 YAML loader 尚待清理。
+- `configurations/` 放用户 Profile、Profile Compiler、原子持久化以及内部运行时配置模型。
 - `core/models/` 放数据模型。
 - `core/state/` 放运行时状态。
 - `core/runtime/` 放 Scheduler、Engine 及 Profile 运行时应用组件。
@@ -18,8 +18,9 @@
 - `core/sensors/` 放 Sensor 基类及具体实现。
 - `ui/` 放托盘 UI、Bottle API、pywebview 窗口、Tick History 与 DTO 转换、i18n 和图标生成。
 - `dashboard/` 是 Vue 3 + Vite + TypeScript 前端工作区，当前主线只聚焦 Diagnostics。
+- `frontend/` 是最终替换 `dashboard/` 的 Vue 3 + shadcn-vue 产品界面工作区。
 - `config/` 是本机真实运行配置目录，正式用户契约是其中的 `profile.json`；可用于真实运行与手工验证，不要当作 disposable fixture 覆盖或清空。
-- `config.example/` 是发布与示例配置；`tests/` 放 pytest 测试。
+- `tests/` 放 pytest 测试。
 - `docs/` 按规格生命周期管理，索引见 `docs/index.md`。根层文档是 active spec；`half-finished/` 是暂停但仍有价值的规格
 
 ### 调度管线（`engine.schedule()`）
@@ -59,12 +60,10 @@ Commit:   SchedulerState.commit()      -> cache persist
 pip install -r requirements.txt
 python main.py
 python main.py --no-tray
-python main.py config
-python main.py config --config <config_dir>
 .\scripts\test.ps1 -q
 ```
 
-`python main.py config` 是独立配置工具入口；指定配置目录时参数顺序应为 `python main.py config --config <config_dir>`。Windows 打包使用 `.\scripts\build.bat`。
+Windows 打包使用 `.\scripts\build.bat`。
 
 Dashboard 联调可避免完整托盘流程：
 
@@ -97,7 +96,7 @@ pytest 配置以 `pytest.ini` 为准，这是测试隔离契约的一部分：`t
 
 ## 配置与架构约束
 
-正式配置入口是 `<config_dir>/profile.json`。`ProfileStore` 负责原子替换，`ProfileCompiler` 负责生成完整的内部 `SchedulerConfig`，`ProfileManager` 是 Profile 读取和应用的唯一入口；不要让 Sensor、Policy、Engine 或 `WEScheduler` 直接读取和操作 Profile，也不要绕过单写者应用队列修改运行时。Profile 不使用 revision 乐观锁；`version` 只表示数据结构版本。打扰档位是 setup 的填值快捷方式，Profile 只保存四个确定时间值。旧 6 个 YAML、`ConfigLoader` 和配置 CLI 是产品化切换期间尚待删除的旧路径，不要继续扩展。当任务需要真实配置时读取 `config/`，不要用 `config.example/` 代替；测试或重写样例时优先使用测试 fixture、`.pytest_tmp/` 或 `config.example/`，不要无提示改写真实配置。
+正式配置入口是 `<config_dir>/profile.json`。`ProfileStore` 负责原子替换，`ProfileCompiler` 负责生成完整的内部 `SchedulerConfig`，`ProfileManager` 是 Profile 读取和应用的唯一入口；不要让 Sensor、Policy、Engine 或 `WEScheduler` 直接读取和操作 Profile，也不要绕过单写者应用队列修改运行时。Profile 不使用 revision 乐观锁；`version` 只表示数据结构版本。打扰档位是 setup 的填值快捷方式，Profile 只保存四个确定时间值。用户从产品预设的 Scene 中选择并绑定 Wallpaper Engine Playlist，不提供自定义 Scene、Tag、权重或通用配置树。测试使用 fixture 或 `.pytest_tmp/`，不要无提示改写真实配置。
 
 Diagnostics 应消费由 `TickHistoryStore` 提供的 `GET /api/tick-history/window` DTO，不要恢复旧 dashboard summary 契约。
 

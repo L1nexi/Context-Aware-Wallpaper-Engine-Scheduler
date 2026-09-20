@@ -8,7 +8,7 @@ from itertools import product
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-from configurations.runtime_models import SchedulerConfig
+from configurations.runtime_models import LegacySchedulerConfig
 from tools.tuning.models import (
     MatchProfile,
     Scenario,
@@ -79,7 +79,7 @@ class SweepReport:
 
 
 def evaluate_parameter_sweep(
-    config: SchedulerConfig,
+    config: LegacySchedulerConfig,
     scenarios: Iterable[Scenario],
     *,
     gamma_playlist: Sequence[float] = DEFAULT_GAMMA_PLAYLIST,

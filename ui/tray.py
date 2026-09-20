@@ -9,9 +9,8 @@ import pystray
 
 from app.context import get_app_root
 from app.version import VERSION
-from core.models.playlist import Playlists
 from core.runtime.scheduler import WEScheduler
-from ui.i18n import t
+from ui.i18n import scene_name, t
 from ui.icon_generator import IconGenerator
 
 logger = logging.getLogger("WEScheduler.Tray")
@@ -151,26 +150,6 @@ class TrayIcon:
         except Exception:
             pass  # tkinter unavailable — error already in log
 
-    @staticmethod
-    def show_reload_error(detail: str) -> None:
-
-        def _show() -> None:
-            try:
-                root = tk.Tk()
-                root.withdraw()
-                root.attributes("-topmost", True)
-                from tkinter import messagebox
-
-                messagebox.showwarning(
-                    t("reload_error_title"),
-                    t("reload_error_body", detail=detail),
-                )
-                root.destroy()
-            except Exception:
-                pass
-
-        threading.Thread(target=_show, daemon=True).start()
-
     # ── Helpers ──────────────────────────────────────────────────
 
     def _open_file(self, path: str):
@@ -283,31 +262,29 @@ class TrayIcon:
         return t("status_paused_remaining", remaining=" ".join(parts))
 
     def _get_active_text(self) -> str:
-        playlists = self.scheduler.cached_playlists
+        scenes = self.scheduler.cached_scenes
         if not self.scheduler.paused and self.scheduler.last_tick_trace is not None:
             active = self.scheduler.last_tick_trace.target
             if active:
-                playlists = active
+                scenes = active
 
-        if playlists:
-            displays = Playlists.managed().displays()
-            primary = displays.get(playlists[0], playlists[0])
-            active = f"{primary}(+{len(playlists) - 1})" if len(playlists) > 1 else primary
+        if scenes:
+            primary = scene_name(scenes[0])
+            active = f"{primary}(+{len(scenes) - 1})" if len(scenes) > 1 else primary
         else:
-            active = t("tray_outside_configured_playlists")
-        return t("tray_active", playlist=active)
+            active = t("tray_outside_configured_scenes")
+        return t("tray_active", scene=active)
 
     def _current_match_display(self) -> str | None:
         trace = self.scheduler.last_tick_trace
         if trace is None:
             return None
-        best_playlists = trace.match.best_playlists
-        if not best_playlists:
+        best_scenes = trace.match.best_scenes
+        if not best_scenes:
             return None
-        displays = Playlists.managed().displays()
-        primary = displays.get(best_playlists[0], best_playlists[0])
-        if len(best_playlists) > 1:
-            return f"{primary}(+{len(best_playlists) - 1})"
+        primary = scene_name(best_scenes[0])
+        if len(best_scenes) > 1:
+            return f"{primary}(+{len(best_scenes) - 1})"
         return primary
 
     def _can_apply_match(self) -> bool:
@@ -315,11 +292,11 @@ class TrayIcon:
 
     def _get_match_text(self) -> str:
         match = self._current_match_display() or t("tray_no_schedulable_target")
-        return t("tray_match", playlist=match)
+        return t("tray_match", scene=match)
 
     def _get_apply_match_text(self) -> str:
         match = self._current_match_display() or t("tray_unavailable")
-        return t("tray_apply_match", playlist=match)
+        return t("tray_apply_match", scene=match)
 
     # ── Menu construction ────────────────────────────────────────
 

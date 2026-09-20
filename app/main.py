@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import ctypes
 import logging
 import os
 import subprocess
@@ -55,21 +54,6 @@ def _resolve_config_path(config_arg: str) -> str:
     if os.path.isabs(config_arg):
         return config_arg
     return os.path.join(get_app_root(), config_arg)
-
-
-def _ensure_console_for_config_mode() -> None:
-    if sys.platform != "win32":
-        return
-    if not getattr(sys, "frozen", False):
-        return
-
-    ATTACH_PARENT_PROCESS = -1
-    if not ctypes.windll.kernel32.AttachConsole(ATTACH_PARENT_PROCESS):
-        ctypes.windll.kernel32.AllocConsole()
-
-    sys.stdin = open("CONIN$", encoding="utf-8", errors="replace")
-    sys.stdout = open("CONOUT$", "w", encoding="utf-8", errors="replace")
-    sys.stderr = open("CONOUT$", "w", encoding="utf-8", errors="replace")
 
 
 # ── Mode runners ────────────────────────────────────────────────
@@ -178,25 +162,8 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
 
 
 def main() -> None:
-    config_mode = len(sys.argv) > 1 and sys.argv[1] == "config"
-    if config_mode:
-        _ensure_console_for_config_mode()
-
     logger = setup_logger()
     logger.info("Context Aware WE Scheduler starting...")
-
-    if config_mode:
-        from ui.config_cli import run_config_tools_tui
-
-        config_parser = argparse.ArgumentParser(description="WEScheduler Config Tools")
-        config_parser.add_argument(
-            "--config",
-            default="config",
-            help="Path to the configuration directory",
-        )
-        config_args = config_parser.parse_args(sys.argv[2:])
-        config_dir = _resolve_config_path(config_args.config)
-        raise SystemExit(run_config_tools_tui(config_dir))
 
     args = _parse_args()
 

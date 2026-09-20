@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable
 
 from core.models.event import EventLogger, EventType
-from core.models.playlist import Playlists
+from core.models.scene import Scenes
 from core.models.trace import TickTrace
 from core.runtime.engine import Engine
 from core.runtime.profile_manager import ProfileManager
@@ -40,8 +40,8 @@ class WEScheduler:
         return self.state.paused
 
     @property
-    def cached_playlists(self) -> Playlists:
-        return self.state.cached_playlists
+    def cached_scenes(self) -> Scenes:
+        return self.state.cached_scenes
 
     @property
     def last_tick_trace(self) -> TickTrace | None:
@@ -109,7 +109,7 @@ class WEScheduler:
                     self._maybe_auto_resume()
                     self.engine.ensure_we_alive(paused=self.state.paused)
                     schedule = self.engine.schedule(
-                        cached_playlists=self.state.cached_playlists,
+                        cached_scenes=self.state.cached_scenes,
                         paused=self.state.paused,
                         manual_requested=self.state.consume_manual_apply_request(),
                     )

@@ -4,13 +4,12 @@ import { computed } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import type { TickSnapshot } from '@/lib/dashboardAnalysis'
 
-import { getCssColor } from './cssColors'
 import ControllerSummary from './ControllerSummary.vue'
 import { formatWeight } from './formatting'
 import {
   getActionReasonLabel,
   getDecisionSummary,
-  getTickPlaylistLabel,
+  getTickSceneLabel,
   getTopMatchName,
 } from './presenters'
 
@@ -22,14 +21,10 @@ const { t, lang } = useI18n()
 
 const topMatches = computed(() => props.tick.act.topMatches.slice(0, 5))
 const decisionSummary = computed(() => getDecisionSummary(props.tick.think.decision, props.tick, t))
-const matchedPlaylistLabel = computed(() => getTickPlaylistLabel(props.tick, 'matched', t))
+const matchedSceneLabel = computed(() => getTickSceneLabel(props.tick, 'matched', t))
 const targetPlaylistLabel = computed(
-  () =>
-    props.tick.think.decision.targetPlaylist?.display ??
-    props.tick.think.decision.targetPlaylist?.name ??
-    t('dashboard_none'),
+  () => props.tick.think.decision.targetPlaylist?.name ?? t('dashboard_none'),
 )
-const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
 </script>
 
 <template>
@@ -44,7 +39,9 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
       <section class="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <p class="text-sm font-semibold text-foreground">{{ t('dashboard_top_matches_title') }}</p>
+            <p class="text-sm font-semibold text-foreground">
+              {{ t('dashboard_top_matches_title') }}
+            </p>
             <h4 class="mt-2 text-base font-semibold tracking-tight">
               {{ t('dashboard_top_matches_heading') }}
             </h4>
@@ -56,14 +53,11 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
         <div v-if="topMatches.length > 0" class="mt-4 space-y-3">
           <div
             v-for="match in topMatches"
-            :key="match.playlist.name"
+            :key="match.scene.id"
             class="flex items-center justify-between gap-4 rounded-2xl border border-border/70 bg-muted/35 px-3 py-3"
           >
             <div class="flex min-w-0 items-center gap-3">
-              <span
-                class="size-3 rounded-full border border-background/70"
-                :style="{ backgroundColor: match.playlist.color ?? mutedPlaylistColor }"
-              />
+              <span class="size-3 rounded-full border border-background/70 bg-primary" />
               <span class="truncate font-medium">
                 {{ getTopMatchName(match, t) }}
               </span>
@@ -97,7 +91,9 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
           <span
             class="inline-flex items-center rounded-full border border-border/70 bg-muted/70 px-3 py-1 text-xs font-medium text-muted-foreground"
           >
-            {{ tick.think.decision.executed ? t('dashboard_executed') : t('dashboard_not_executed') }}
+            {{
+              tick.think.decision.executed ? t('dashboard_executed') : t('dashboard_not_executed')
+            }}
           </span>
         </div>
 
@@ -110,9 +106,9 @@ const mutedPlaylistColor = computed(() => getCssColor('--muted', '#dbe3ee'))
           </div>
 
           <div class="rounded-2xl border border-border/70 bg-muted/35 px-3 py-3">
-            <dt class="text-sm text-muted-foreground">{{ t('dashboard_matched_playlist') }}</dt>
+            <dt class="text-sm text-muted-foreground">{{ t('dashboard_matched_scene') }}</dt>
             <dd class="mt-1 font-medium">
-              {{ matchedPlaylistLabel }}
+              {{ matchedSceneLabel }}
             </dd>
           </div>
         </dl>

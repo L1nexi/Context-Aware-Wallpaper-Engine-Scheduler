@@ -9,7 +9,7 @@ from typing import Any
 
 from configurations.runtime_models import SchedulingConfig
 from core.models.context import Context
-from core.models.playlist import Playlists
+from core.models.scene import Scenes
 from core.models.trace import (
     Action,
     ActPlan,
@@ -65,7 +65,7 @@ class Decisions:
     @staticmethod
     def make(
         action: Action,
-        target: Playlists,
+        target: Scenes,
         evaluation: BlockerEvaluation | None = None,
     ) -> Decision:
         return Decision(
@@ -75,21 +75,21 @@ class Decisions:
         )
 
     @classmethod
-    def no_match(cls, active: Playlists) -> Decision:
+    def no_match(cls, active: Scenes) -> Decision:
         return cls.make(
             Action.HOLD if active else Action.NONE,
-            Playlists(),
+            Scenes(),
         )
 
     @classmethod
     def allowed(
         cls,
         intent: Intent,
-        matched: Playlists,
+        matched: Scenes,
         evaluation: BlockerEvaluation,
-        active_playlists: Playlists,
+        active_scenes: Scenes,
     ) -> Decision:
-        target = matched if intent == Intent.SWITCH else active_playlists
+        target = matched if intent == Intent.SWITCH else active_scenes
         action = Action.SWITCH if intent == Intent.SWITCH else Action.CYCLE
         return cls.make(action, target, evaluation)
 
@@ -97,15 +97,15 @@ class Decisions:
     def blocked(
         cls,
         intent: Intent,
-        matched: Playlists,
+        matched: Scenes,
         evaluation: BlockerEvaluation,
-        active_playlists: Playlists,
+        active_scenes: Scenes,
     ) -> Decision:
-        target = matched if intent == Intent.SWITCH else active_playlists
+        target = matched if intent == Intent.SWITCH else active_scenes
         return cls.make(Action.HOLD, target, evaluation)
 
     @classmethod
-    def pause(cls, target: Playlists) -> Decision:
+    def pause(cls, target: Scenes) -> Decision:
         return cls.make(Action.PAUSE, target)
 
 
@@ -137,54 +137,54 @@ class Controller:
     ) -> Decision:
         match plan.mode:
             case DecisionMode.NORMAL:
-                return self._decide_normal(match, plan.active_playlists, context)
+                return self._decide_normal(match, plan.active_scenes, context)
             case DecisionMode.MANUAL:
-                return self._decide_manual(match, plan.active_playlists)
+                return self._decide_manual(match, plan.active_scenes)
             case DecisionMode.RECOVERY:
-                return self._decide_recovery(match, plan.active_playlists)
+                return self._decide_recovery(match, plan.active_scenes)
             case DecisionMode.PAUSE:
                 return self._decide_pause(match)
 
     def _decide_normal(
         self,
         match: Match,
-        active_playlists: Playlists,
+        active_scenes: Scenes,
         context: Context,
     ) -> Decision:
-        matched = match.best_playlists
+        matched = match.best_scenes
 
         if not matched:
             self.semantic_continuity_score = 0.0
-            return Decisions.no_match(active_playlists)
+            return Decisions.no_match(active_scenes)
 
-        if matched == active_playlists:
+        if matched == active_scenes:
             self.semantic_continuity_score = 1.0
             intent = Intent.CYCLE
         else:
-            overlap_score = weighted_jaccard(matched, active_playlists)
+            overlap_score = weighted_jaccard(matched, active_scenes)
             self.semantic_continuity_score *= CONTINUITY_DECAY_PER_TICK
             is_continuous = self.semantic_continuity_score * overlap_score > CONTINUITY_SWITCH_BOUNDARY
             intent = Intent.CYCLE if is_continuous else Intent.SWITCH
 
         evaluation = self._evaluate_blockers(context, intent)
         if evaluation.allowed:
-            return Decisions.allowed(intent, matched, evaluation, active_playlists)
-        return Decisions.blocked(intent, matched, evaluation, active_playlists)
+            return Decisions.allowed(intent, matched, evaluation, active_scenes)
+        return Decisions.blocked(intent, matched, evaluation, active_scenes)
 
     def _decide_manual(
         self,
         match: Match,
-        active_playlists: Playlists,
+        active_scenes: Scenes,
     ) -> Decision:
-        matched = match.best_playlists
+        matched = match.best_scenes
 
         if not matched:
             self.semantic_continuity_score = 0.0
-            return Decisions.no_match(active_playlists)
+            return Decisions.no_match(active_scenes)
 
-        if matched == active_playlists:
+        if matched == active_scenes:
             self.semantic_continuity_score = 1.0
-            return Decisions.make(Action.CYCLE, active_playlists)
+            return Decisions.make(Action.CYCLE, active_scenes)
 
         self.semantic_continuity_score = 1.0
         return Decisions.make(Action.SWITCH, matched)
@@ -192,13 +192,13 @@ class Controller:
     def _decide_recovery(
         self,
         match: Match,
-        active_playlists: Playlists,
+        active_scenes: Scenes,
     ) -> Decision:
-        matched = match.best_playlists
+        matched = match.best_scenes
         if not matched:
             return Decisions.make(
-                Action.HOLD if active_playlists else Action.NONE,
-                Playlists(),
+                Action.HOLD if active_scenes else Action.NONE,
+                Scenes(),
             )
         self.semantic_continuity_score = 1.0
         return Decisions.make(Action.SWITCH, matched)
@@ -207,7 +207,7 @@ class Controller:
         self,
         match: Match,
     ) -> Decision:
-        return Decisions.pause(match.best_playlists)
+        return Decisions.pause(match.best_scenes)
 
     def _evaluate_blockers(
         self,
@@ -277,16 +277,19 @@ class Controller:
         self.startup_end = state.get("startup_end", self.startup_end)
 
 
-def weighted_jaccard(left: Playlists, right: Playlists) -> float:
-    left_names = set(left.names())
-    right_names = set(right.names())
-    union = left_names | right_names
-    intersection = left_names & right_names
+def weighted_jaccard(left: Scenes, right: Scenes) -> float:
+    # Semantic continuity compares candidate Scene identities before lowering.
+    # Item counts intentionally weight each Scene's contribution, while a shared
+    # physical Playlist does not make distinct Scenes semantically identical.
+    left_ids = set(left.ids())
+    right_ids = set(right.ids())
+    union = left_ids | right_ids
+    intersection = left_ids & right_ids
 
     if not union:
         return 0.0
 
-    item_counts = Playlists.managed().item_counts()
-    intersection_weight = sum(math.sqrt(item_counts.get(name, 1)) for name in intersection)
-    union_weight = sum(math.sqrt(item_counts.get(name, 1)) for name in union)
+    item_counts = Scenes.managed().item_counts()
+    intersection_weight = sum(math.sqrt(item_counts.get(scene_id, 1)) for scene_id in intersection)
+    union_weight = sum(math.sqrt(item_counts.get(scene_id, 1)) for scene_id in union)
     return intersection_weight / union_weight

@@ -1,27 +1,11 @@
 from __future__ import annotations
 
-import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import PydanticCustomError
 
-HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
-
-PLAYLIST_AUTO_COLOR_PALETTE = (
-    "#2563EB",  # blue
-    "#0891B2",  # cyan
-    "#059669",  # emerald
-    "#16A34A",  # green
-    "#65A30D",  # lime
-    "#CA8A04",  # amber
-    "#D97706",  # orange
-    "#EA580C",  # deep orange
-    "#DC2626",  # red
-    "#E11D48",  # rose
-    "#C026D3",  # fuchsia
-    "#7C3AED",  # violet
-)
+from core.models.scene import SceneId
 
 
 class TagSpec(BaseModel):
@@ -29,19 +13,11 @@ class TagSpec(BaseModel):
     fallback: dict[str, float] = Field(default_factory=dict)
 
 
-class PlaylistConfig(BaseModel):
+class SceneConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    display: str = ""
-    color: str
+    playlist: str = Field(min_length=1)
     tags: dict[str, float] = Field(default_factory=dict)
     item_count: int = 0
-
-    @field_validator("color")
-    @classmethod
-    def validate_color(cls, value: str) -> str:
-        if not HEX_COLOR_RE.fullmatch(value):
-            raise ValueError("color must be a 6-digit hex string like #RRGGBB")
-        return value
 
 
 class ActivityMatcherConfig(BaseModel):
@@ -119,6 +95,6 @@ class SchedulerConfig(BaseModel):
     wallpaper_engine_path: str = ""
     language: Literal["zh", "en"] | None = None
     tags: dict[str, TagSpec] = Field(default_factory=dict)
-    playlists: dict[str, PlaylistConfig] = Field(default_factory=dict)
+    scenes: dict[SceneId, SceneConfig] = Field(default_factory=dict)
     policies: PoliciesConfig = Field(default_factory=PoliciesConfig)
     scheduling: SchedulingConfig = Field(default_factory=SchedulingConfig)

@@ -3,9 +3,9 @@ import type {
   ActionReason,
   Blocker,
   BlockerEvaluation,
-  PlaylistRef,
   Evaluation,
   PolicyId,
+  SceneRef,
   TopMatch,
   TickSnapshot,
 } from '@/lib/dashboardAnalysis'
@@ -19,30 +19,30 @@ export interface SummaryField {
   value: string
 }
 
-function formatPlaylistRef(playlist: PlaylistRef | null | undefined, t: Translate): string {
-  return playlist?.display ?? playlist?.name ?? t('dashboard_none')
+function formatSceneRef(scene: SceneRef | null | undefined, t: Translate): string {
+  return scene?.id ?? t('dashboard_none')
 }
 
-export function formatPlaylistRefs(playlists: PlaylistRef[] | undefined, t: Translate): string {
-  if (!playlists || playlists.length === 0) return t('dashboard_none')
-  return playlists.map((p) => p.display ?? p.name).join(', ')
+export function formatSceneRefs(scenes: SceneRef[] | undefined, t: Translate): string {
+  if (!scenes || scenes.length === 0) return t('dashboard_none')
+  return scenes.map((scene) => scene.id).join(', ')
 }
 
-export function getFirstPlaylistRef(playlists: PlaylistRef[] | undefined): PlaylistRef | null {
-  return playlists?.[0] ?? null
+export function getFirstSceneRef(scenes: SceneRef[] | undefined): SceneRef | null {
+  return scenes?.[0] ?? null
 }
 
 export function getTopMatchName(match: TopMatch, t: Translate): string {
-  return formatPlaylistRef(match.playlist, t)
+  return formatSceneRef(match.scene, t)
 }
 
-export function getTickPlaylistLabel(
+export function getTickSceneLabel(
   tick: TickSnapshot,
   type: 'active' | 'matched',
   t: Translate,
 ): string {
-  const playlists = type === 'active' ? tick.summary.activePlaylists : tick.summary.matchedPlaylists
-  return formatPlaylistRefs(playlists, t)
+  const scenes = type === 'active' ? tick.summary.activeScenes : tick.summary.matchedScenes
+  return formatSceneRefs(scenes, t)
 }
 
 export function getPolicyTitle(policyId: PolicyId, t: Translate): string {
@@ -212,8 +212,8 @@ export function getDecisionSummary(
   tick: TickSnapshot,
   t: Translate,
 ): string {
-  const activeBefore = formatPlaylistRefs(decision.activePlaylists, t)
-  const activeAfter = formatPlaylistRefs(decision.targetPlaylists, t)
+  const activeBefore = formatSceneRefs(decision.activeScenes, t)
+  const activeAfter = formatSceneRefs(decision.targetScenes, t)
 
   switch (decision.action) {
     case 'switch':
@@ -223,13 +223,13 @@ export function getDecisionSummary(
       })
     case 'cycle':
       return t('dashboard_decision_cycle', {
-        playlist: activeAfter,
+        scene: activeAfter,
       })
     case 'pause':
       return t('dashboard_decision_pause')
     case 'hold':
       return t('dashboard_decision_hold', {
-        playlist: activeAfter,
+        scene: activeAfter,
       })
     case 'none':
       return t('dashboard_decision_none')

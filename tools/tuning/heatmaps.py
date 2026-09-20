@@ -11,9 +11,8 @@ from typing import Literal
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-from configurations.runtime_models import SchedulerConfig
+from configurations.runtime_models import LegacySchedulerConfig
 from core.models.context import Context
-from core.models.playlist import Playlists
 from core.policies import Policy, SeasonPolicy, TimePolicy, WeatherPolicy
 from core.runtime.tag_resolver import resolve_raw_tags
 from tools.tuning.models import (
@@ -203,7 +202,7 @@ def activity_from_axis(value: float) -> ActivitySignal | None:
 
 
 class BatchEvaluator:
-    def __init__(self, config: SchedulerConfig) -> None:
+    def __init__(self, config: LegacySchedulerConfig) -> None:
         self.config = config
         self._tag_specs = config.tags
 
@@ -213,8 +212,6 @@ class BatchEvaluator:
         self._known_tags = all_tags
         self._tag_to_index = {tag: i for i, tag in enumerate(sorted(all_tags))}
         self._dim = len(all_tags)
-
-        Playlists.configure(config.playlists)
 
     def build_profile_playlist_vectors(
         self,
@@ -349,7 +346,7 @@ class BatchEvaluator:
 
 
 def build_heatmap_grids_batch(
-    config: SchedulerConfig,
+    config: LegacySchedulerConfig,
     cases: Sequence[HeatmapCase],
     profiles: Sequence[MatchProfile],
     *,
@@ -365,7 +362,7 @@ def build_heatmap_grids_batch(
 
 
 def generate_default_heatmaps(
-    config: SchedulerConfig,
+    config: LegacySchedulerConfig,
     profiles: Sequence[MatchProfile],
     figures_dir: Path,
     *,
@@ -419,7 +416,7 @@ def generate_default_heatmaps(
 
 def _render_mode_figure(
     grids: list[HeatmapGrid],
-    config: SchedulerConfig,
+    config: LegacySchedulerConfig,
     output_path: Path,
     mode: HeatmapMode,
 ) -> None:
@@ -519,7 +516,7 @@ def _scenario_for_point(
     )
 
 
-def _draw_winner_map(ax, grid: HeatmapGrid, config: SchedulerConfig, np, mpl_colors):
+def _draw_winner_map(ax, grid: HeatmapGrid, config: LegacySchedulerConfig, np, mpl_colors):
     playlists = list(config.playlists)
     index_by_playlist = {playlist: index + 1 for index, playlist in enumerate(playlists)}
     colors = ["#111827", *(config.playlists[name].color for name in playlists)]
@@ -643,7 +640,7 @@ def _midpoint_edges(values: list[float], np, lower: float, upper: float):
     return np.array([lower, *mids, upper])
 
 
-def _add_winner_legend(fig, config: SchedulerConfig, patches) -> None:
+def _add_winner_legend(fig, config: LegacySchedulerConfig, patches) -> None:
     handles = [patches.Patch(facecolor=playlist.color, label=name) for name, playlist in config.playlists.items()]
     handles.insert(0, patches.Patch(facecolor="#111827", label="no winner"))
     fig.legend(

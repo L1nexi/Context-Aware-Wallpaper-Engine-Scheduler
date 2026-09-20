@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.models.playlist import Playlists
+from core.models.scene import Scenes
 from core.models.trace import ActPlan, DecisionMode
 from core.runtime.we_config import FactualPlaylistState
 from core.runtime.we_config import FactualPlaylistStatus as Status
@@ -8,12 +8,12 @@ from core.runtime.we_config import FactualPlaylistStatus as Status
 
 def plan_actuation(
     factual: FactualPlaylistState,
-    cached_playlists: Playlists,
+    cached_scenes: Scenes,
     paused: bool,
     manual_requested: bool,
 ) -> ActPlan:
     mode = DecisionMode.NORMAL
-    active_playlists = cached_playlists
+    active_scenes = cached_scenes.managed_subset()
 
     if manual_requested:
         mode = DecisionMode.MANUAL
@@ -21,13 +21,13 @@ def plan_actuation(
         mode = DecisionMode.PAUSE
     elif factual.status == Status.NO_PLAYLIST:
         mode = DecisionMode.RECOVERY
-        active_playlists = Playlists()
+        active_scenes = Scenes()
     elif factual.status == Status.PLAYLIST:
         playlist = factual.playlist
-        if not Playlists.is_managed(playlist):
+        if not Scenes.manages_playlist(playlist):
             mode = DecisionMode.RECOVERY
-            active_playlists = Playlists()
-        elif playlist not in cached_playlists:
-            active_playlists = Playlists([playlist])
+            active_scenes = Scenes()
+        elif not active_scenes.targets_playlist(playlist):
+            active_scenes = Scenes.for_playlist(playlist)
 
-    return ActPlan(mode=mode, active_playlists=active_playlists)
+    return ActPlan(mode=mode, active_scenes=active_scenes)

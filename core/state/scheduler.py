@@ -4,7 +4,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from core.models.playlist import Playlists
+from core.models.scene import Scenes
 from core.models.trace import ScheduleTrace, TickTrace
 from core.state.persisted import PersistedState
 
@@ -15,7 +15,7 @@ logger = logging.getLogger("WEScheduler.State")
 class SchedulerState:
     paused: bool = False
     pause_until: float = 0.0
-    cached_playlists: Playlists = field(default_factory=Playlists)
+    cached_scenes: Scenes = field(default_factory=Scenes)
     last_tick_trace: TickTrace | None = None
     tick_id: int = 0
     _manual_apply_pending: bool = False
@@ -78,22 +78,22 @@ class SchedulerState:
         self.last_tick_trace = trace
 
         next_cached = trace.cache_update
-        if next_cached is not None and next_cached != self.cached_playlists:
-            self.cached_playlists = next_cached
+        if next_cached is not None and next_cached != self.cached_scenes:
+            self.cached_scenes = next_cached
             self.save()
 
     def to_persisted(self) -> PersistedState:
         return PersistedState(
             paused=self.paused,
             pause_until=self.pause_until,
-            cached_playlists=self.cached_playlists.names(),
+            cached_scenes=self.cached_scenes.ids(),
         )
 
     def save(self) -> None:
         self.to_persisted().save()
 
     def restore_persisted(self, state: PersistedState) -> None:
-        self.cached_playlists = Playlists(list(state.cached_playlists))
+        self.cached_scenes = Scenes(list(state.cached_scenes))
         self.paused = False
         self.pause_until = 0.0
 

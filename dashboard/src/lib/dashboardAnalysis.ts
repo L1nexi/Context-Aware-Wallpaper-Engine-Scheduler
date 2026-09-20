@@ -147,22 +147,24 @@ export interface Controller {
 
 export interface PlaylistRef {
   name: string
-  display: string
-  color: string | null
+}
+
+export interface SceneRef {
+  id: string
 }
 
 export interface ActionDecision {
   action: Action
   reason: ActionReason
   executed: boolean
-  activePlaylists: PlaylistRef[]
-  targetPlaylists: PlaylistRef[]
-  matchedPlaylists: PlaylistRef[]
+  activeScenes: SceneRef[]
+  targetScenes: SceneRef[]
+  matchedScenes: SceneRef[]
   targetPlaylist: PlaylistRef | null
 }
 
 export interface TopMatch {
-  playlist: PlaylistRef
+  scene: SceneRef
   score: number
 }
 
@@ -193,8 +195,8 @@ export interface TickSummary {
   ts: number
   similarity: number
   similarityGap: number
-  activePlaylists: PlaylistRef[]
-  matchedPlaylists: PlaylistRef[]
+  activeScenes: SceneRef[]
+  matchedScenes: SceneRef[]
   action: Action
   reason: ActionReason
   paused: boolean
