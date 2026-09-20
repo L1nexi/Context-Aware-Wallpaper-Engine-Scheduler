@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 import threading
-from collections.abc import Callable
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 
@@ -106,8 +105,6 @@ def _request_validation_issues(exc: ValidationError | ValueError) -> list[dict[s
 def build_dashboard_app(
     tick_history: TickHistoryStore,
     profile_manager: ProfileManager,
-    *,
-    on_initial_profile_created: Callable[[], None] | None = None,
 ) -> bottle.Bottle:
     app = bottle.Bottle()
 
@@ -214,11 +211,6 @@ def build_dashboard_app(
             return {"error": "profile_create_failed", "detail": str(exc)}
 
         bottle.response.status = 201
-        if on_initial_profile_created is not None:
-            try:
-                on_initial_profile_created()
-            except Exception:
-                logger.exception("Initial Profile creation callback failed")
         return {
             "status": "created",
             "profile": committed.model_dump(mode="json"),

@@ -364,21 +364,13 @@ def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history)
     executable = _wallpaper_engine_path(tmp_path)
     config_dir = tmp_path / "profile"
     manager = ProfileManager(str(config_dir))
-    created = threading.Event()
-    app = build_dashboard_app(
-        tick_history,
-        manager,
-        on_initial_profile_created=created.set,
-    )
+    app = build_dashboard_app(tick_history, manager)
     draft = _profile_payload(executable)
-
-    assert not created.is_set()
 
     status, body = wsgi_post(app, "/api/profile/create", draft)
 
     assert "201" in status
     assert body == {"status": "created", "profile": draft}
-    assert created.is_set()
 
     profile_status, profile_body = wsgi_get(app, "/api/profile")
     assert "200" in profile_status

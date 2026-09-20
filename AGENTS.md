@@ -34,7 +34,7 @@ Execute:  Actuator.act()               -> ActionResult
 Commit:   SchedulerState.commit()      -> cache persist
 ```
 
-`Engine.schedule()` 接管完整调度流程：sense、match、plan、decide、execute，并返回 `ScheduleTrace`。`ProfileManager` 负责 Profile 加载、编译、持久化和应用队列，但不持有或代理 Engine；`WEScheduler` 根据配置目录创建并公开其 `profile_manager`，同时持有活动 `engine`，并编排生命周期、tick、暂停恢复、keep_alive、状态提交和 listener 通知。Profile 更新由 `ProfileManager` 入队，并且只由调度线程在两个 tick 之间应用到 Engine，不再通过文件热重载进入运行时。`Actuator` 是纯执行器：接收 `Decision` 做 target selection + CLI 调用。
+`Engine.schedule()` 接管完整调度流程：sense、match、plan、decide、execute，并返回 `ScheduleTrace`。`ProfileManager` 负责 Profile 加载、编译、持久化和应用队列，但不持有或代理 Engine；`app/main.py` 创建 `ProfileManager`，将同一实例交给 Bottle API、首次启动流程和 `WEScheduler`。`WEScheduler` 依赖注入的 `ProfileManager`，同时持有活动 `engine`，并编排生命周期、tick、暂停恢复、keep_alive、状态提交和 listener 通知。Profile 更新由 `ProfileManager` 入队，并且只由调度线程在两个 tick 之间应用到 Engine，不再通过文件热重载进入运行时。`Actuator` 是纯执行器：接收 `Decision` 做 target selection + CLI 调用。
 
 关键组件：
 

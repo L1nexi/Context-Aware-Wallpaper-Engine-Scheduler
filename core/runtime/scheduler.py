@@ -19,14 +19,14 @@ type TickListener = Callable[[TickTrace], None]
 
 
 class WEScheduler:
-    def __init__(self, config_dir: str, event_logger: EventLogger):
+    def __init__(self, profile_manager: ProfileManager, event_logger: EventLogger):
         self.event_logger = event_logger
         self.initialized = False
         self.running = False
         self.thread: threading.Thread | None = None
         self.stop_event = threading.Event()
         self._state_lock = threading.RLock()
-        self.profile_manager = ProfileManager(config_dir)
+        self._profile_manager = profile_manager
         self.engine: Engine
 
         self.on_auto_resume: Callable[[], None] | None = None
@@ -47,14 +47,13 @@ class WEScheduler:
     def last_tick_trace(self) -> TickTrace | None:
         return self.state.last_tick_trace
 
-    def initialize(self) -> bool:
-        config = self.profile_manager.load_initial_config()
+    def initialize(self) -> None:
+        config = self._profile_manager.load_initial_config()
         self.engine = Engine.from_config(config)
         self.state.restore_persisted(PersistedState.load())
 
         logger.info("Scheduler initialized successfully.")
         self.initialized = True
-        return True
 
     def start(self) -> None:
         if self.running:
@@ -63,7 +62,7 @@ class WEScheduler:
 
         assert self.initialized, "Scheduler must be initialized before start."
 
-        self.profile_manager.accept_updates()
+        self._profile_manager.accept_updates()
         self.running = True
         self.stop_event.clear()
         self.event_logger.write(EventType.START, {})
@@ -74,7 +73,7 @@ class WEScheduler:
     def stop(self) -> None:
         if not self.running:
             return
-        self.profile_manager.reject_updates()
+        self._profile_manager.reject_updates()
         self.running = False
         self.stop_event.set()
         if self.thread:
@@ -105,7 +104,7 @@ class WEScheduler:
         while not self.stop_event.is_set():
             try:
                 with self._state_lock:
-                    self.profile_manager.process_pending(self.engine)
+                    self._profile_manager.process_pending(self.engine)
                     self._maybe_auto_resume()
                     self.engine.ensure_we_alive(paused=self.state.paused)
                     schedule = self.engine.schedule(

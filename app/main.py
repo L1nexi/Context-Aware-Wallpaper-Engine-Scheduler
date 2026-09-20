@@ -93,10 +93,15 @@ def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
     """
     from app.context import get_data_dir
     from app.event_logger import JsonlEventLogger
+    from core.runtime.profile_manager import ProfileManager
     from core.runtime.scheduler import WEScheduler
     from ui.cli_status import CliStatusReporter
 
-    scheduler = WEScheduler(config_dir, JsonlEventLogger(get_data_dir()))
+    profile_manager = ProfileManager(config_dir)
+    scheduler = WEScheduler(
+        profile_manager=profile_manager,
+        event_logger=JsonlEventLogger(get_data_dir()),
+    )
     try:
         scheduler.initialize()
     except Exception as e:
@@ -122,56 +127,53 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     """
     from app.context import get_data_dir
     from app.event_logger import JsonlEventLogger
-    from app.first_run import FirstRunCoordinator
+    from app.startup import ensure_initial_profile
+    from core.runtime.profile_manager import ProfileManager
     from core.runtime.scheduler import WEScheduler
     from core.state.tick_history import TickHistoryStore
     from ui.dashboard import DashboardHTTPServer, build_dashboard_app
     from ui.tick_history_export import export_tick_history
     from ui.tray import TrayIcon
 
-    scheduler = WEScheduler(config_dir, JsonlEventLogger(get_data_dir()))
-    tick_history = TickHistoryStore()
-    first_run = FirstRunCoordinator()
-    dashboard_app = build_dashboard_app(
-        tick_history,
-        scheduler.profile_manager,
-        on_initial_profile_created=first_run.notify_profile_created,
+    data_dir = get_data_dir()
+    profile_manager = ProfileManager(config_dir)
+    scheduler = WEScheduler(
+        profile_manager=profile_manager,
+        event_logger=JsonlEventLogger(data_dir),
     )
-    httpd = DashboardHTTPServer(
-        dashboard_app,
+    tick_history = TickHistoryStore()
+    api_server = DashboardHTTPServer(
+        build_dashboard_app(tick_history, profile_manager),
         requested_port=dashboard_api_port,
     )
+
     try:
-        httpd.start()
+        api_server.start()
     except OSError as exc:
         detail = str(exc)
         logger.critical(detail)
         TrayIcon.show_startup_error(detail)
         sys.exit(1)
 
+    def launch_setup() -> subprocess.Popen[bytes]:
+        logger.info("No Profile found; opening first-run setup.")
+        return _spawn_dashboard_subprocess(api_server.port, setup=True)
+
     try:
-        try:
-
-            def launch_setup() -> subprocess.Popen[bytes]:
-                logger.info("No Profile found; opening first-run setup.")
-                return _spawn_dashboard_subprocess(httpd.port, setup=True)
-
-            if not first_run.initialize_scheduler(scheduler, launch_setup):
-                logger.info("First-run setup closed before completion.")
-                return
-        except Exception as exc:
-            logger.critical("Failed to initialize scheduler: %s", exc)
-            TrayIcon.show_startup_error(str(exc))
+        profile_ready = ensure_initial_profile(profile_manager, launch_setup)
+        if not profile_ready:
+            logger.info("First-run setup closed before completion.")
             return
 
+        scheduler.initialize()
         scheduler.add_tick_listener(tick_history.update)
         scheduler.start()
 
         tray = TrayIcon(scheduler)
-        tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
+        tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(api_server.port)
         tray.on_export_tick_history = lambda: export_tick_history(
             tick_history,
-            os.path.join(get_data_dir(), "tick-history"),
+            os.path.join(data_dir, "tick-history"),
         )
         tray.run()
     except Exception as exc:
@@ -179,7 +181,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
         TrayIcon.show_startup_error(str(exc))
     finally:
         scheduler.stop()
-        httpd.stop()
+        api_server.stop()
 
 
 # ── Entry point ─────────────────────────────────────────────────

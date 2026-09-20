@@ -65,8 +65,23 @@ class ProfileManager:
         self._profile_lock = threading.Lock()
         self._creation_lock = threading.Lock()
 
+    def load_initial_profile(self) -> None:
+        """Load and publish the committed Profile before application startup.
+
+        Raises:
+            ProfileNotFoundError: If no committed Profile exists.
+            ProfileStoreError: If the committed Profile cannot be read.
+        """
+
+        profile = self._store.load()
+        if profile is None:
+            raise ProfileNotFoundError(f"Profile not found at: {self._store.path}")
+
+        with self._profile_lock:
+            self._profile = profile
+
     def load_initial_config(self) -> SchedulerConfig:
-        """Load the committed Profile and compile its initial runtime config.
+        """Compile the published Profile into the initial runtime config.
 
         Raises:
             ProfileNotFoundError: If no committed Profile exists.
@@ -74,14 +89,12 @@ class ProfileManager:
             Exception: If compilation fails.
         """
 
-        profile = self._store.load()
+        profile = self.get_profile()
         if profile is None:
-            raise ProfileNotFoundError(f"Profile not found at: {self._store.path}")
-
-        config = self._compile(profile)
-        with self._profile_lock:
-            self._profile = profile
-        return config
+            self.load_initial_profile()
+            profile = self.get_profile()
+        assert profile is not None
+        return self._compile(profile)
 
     def accept_updates(self) -> None:
         """Allow Profile updates after scheduler initialization.
