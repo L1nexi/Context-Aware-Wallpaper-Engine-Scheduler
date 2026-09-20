@@ -1,5 +1,18 @@
-# Vue 3 + TypeScript + Vite
+# WEScheduler 产品界面
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Vue 3、TypeScript、Tailwind CSS 4 和 shadcn-vue 工作区。该界面承载首次启动 setup，并将在完成后替换旧 Diagnostics Dashboard。
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+本地联调：
+
+```powershell
+python main.py --dashboard-api-port 38417
+cd frontend
+npm run dev
+```
+
+使用其他端口时，将 `DASHBOARD_API_PORT` 设置为相同值。验证命令：
+
+```powershell
+npm run type-check
+npm run build-only
+```

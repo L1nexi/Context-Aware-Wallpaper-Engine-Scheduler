@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import threading
+from collections.abc import Callable
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 
@@ -30,6 +31,7 @@ logger = logging.getLogger("WEScheduler.Dashboard")
 
 DASHBOARD_STATIC_APP_DIR = "dashboard"
 DASHBOARD_STATIC_DIST_DIR = "dist"
+SETUP_STATIC_APP_DIR = "frontend"
 PROFILE_APPLY_TIMEOUT_SECONDS = 2.0
 
 
@@ -43,10 +45,31 @@ class _ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
     daemon_threads = True
 
 
-def _resolve_static_root() -> str:
+def _resolve_static_root(app_dir: str) -> str:
     if getattr(sys, "frozen", False):
-        return os.path.join(sys._MEIPASS, DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR)
-    return os.path.join(get_app_root(), DASHBOARD_STATIC_APP_DIR, DASHBOARD_STATIC_DIST_DIR)
+        return os.path.join(sys._MEIPASS, app_dir, DASHBOARD_STATIC_DIST_DIR)
+    return os.path.join(get_app_root(), app_dir, DASHBOARD_STATIC_DIST_DIR)
+
+
+def _serve_spa(static_root: str, path: str) -> bottle.HTTPResponse:
+    """Serve one SPA asset or its index fallback.
+
+    Raises:
+        bottle.HTTPError: If the requested path escapes the static root.
+    """
+
+    file_path = os.path.normpath(os.path.join(static_root, path.lstrip("/")))
+    try:
+        common_path = os.path.commonpath((static_root, file_path))
+    except ValueError:
+        common_path = ""
+    if common_path != os.path.normpath(static_root):
+        bottle.abort(403, "Forbidden")
+
+    if os.path.isfile(file_path):
+        return bottle.static_file(path, root=static_root)
+
+    return bottle.static_file("index.html", root=static_root)
 
 
 def _parse_positive_count(raw_value: str) -> int:
@@ -83,6 +106,8 @@ def _request_validation_issues(exc: ValidationError | ValueError) -> list[dict[s
 def build_dashboard_app(
     tick_history: TickHistoryStore,
     profile_manager: ProfileManager,
+    *,
+    on_initial_profile_created: Callable[[], None] | None = None,
 ) -> bottle.Bottle:
     app = bottle.Bottle()
 
@@ -189,6 +214,11 @@ def build_dashboard_app(
             return {"error": "profile_create_failed", "detail": str(exc)}
 
         bottle.response.status = 201
+        if on_initial_profile_created is not None:
+            try:
+                on_initial_profile_created()
+            except Exception:
+                logger.exception("Initial Profile creation callback failed")
         return {
             "status": "created",
             "profile": committed.model_dump(mode="json"),
@@ -239,19 +269,22 @@ def build_dashboard_app(
             "profile": committed.model_dump(mode="json"),
         }
 
-    static_root = _resolve_static_root()
+    dashboard_static_root = _resolve_static_root(DASHBOARD_STATIC_APP_DIR)
+    setup_static_root = _resolve_static_root(SETUP_STATIC_APP_DIR)
+
+    @app.route("/setup")
+    def redirect_setup() -> bottle.HTTPResponse:
+        return bottle.redirect("/setup/")
+
+    @app.route("/setup/")
+    @app.route("/setup/<path:path>")
+    def serve_setup_spa(path: str = "") -> bottle.HTTPResponse:
+        return _serve_spa(setup_static_root, path)
 
     @app.route("/")
     @app.route("/<path:path>")
-    def serve_spa(path=""):
-        file_path = os.path.normpath(os.path.join(static_root, path.lstrip("/")))
-        if not file_path.startswith(os.path.normpath(static_root)):
-            bottle.abort(403, "Forbidden")
-
-        if os.path.isfile(file_path):
-            return bottle.static_file(path, root=static_root)
-
-        return bottle.static_file("index.html", root=static_root)
+    def serve_spa(path: str = "") -> bottle.HTTPResponse:
+        return _serve_spa(dashboard_static_root, path)
 
     return app
 

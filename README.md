@@ -28,7 +28,7 @@ WEScheduler 根据时段、季节、天气和当前活动判断适合的预设�
 - 正式持久化契约是 `config/profile.json`。
 - 旧六 YAML 配置、配置 CLI 和用户自定义 Playlist 标签模型已经退出后端。
 - 新的首次启动与设置界面正在 `frontend/` 中建设。
-- 在首次启动界面完成前，没有 `profile.json` 的源码工作区会拒绝启动，这是当前开发阶段的已知缺口。
+- 首次启动宿主已能在缺少 `profile.json` 时打开 setup，并在创建成功后启动调度器。
 - `dashboard/` 仍暂时承载 Diagnostics，之后将由 `frontend/` 替换并删除。
 
 ## 开发运行
@@ -47,6 +47,14 @@ python main.py --no-tray
 ```powershell
 python main.py --dashboard-api-port 38417
 cd dashboard
+npm run dev
+```
+
+当前 setup 前端联调：
+
+```powershell
+python main.py --dashboard-api-port 38417
+cd frontend
 npm run dev
 ```
 

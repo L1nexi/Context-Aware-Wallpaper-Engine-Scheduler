@@ -1,6 +1,6 @@
 # 产品化转向简要规划
 
-状态：实施中；Profile 契约、原子持久化、运行时构造边界、独立的 `ProfileManager`、单写者应用队列、Bottle 接口、首次 Profile 创建、setup 场景目录与 playlist 扫描接口和 Tick History 导出已经建立；旧六 YAML 后端、配置 CLI、调参工具、样例和发布入口已经删除。
+状态：实施中；Profile 契约、原子持久化、运行时构造边界、独立的 `ProfileManager`、单写者应用队列、Bottle 接口、首次 Profile 创建、首次启动宿主分支、setup 场景目录与 playlist 扫描接口和 Tick History 导出已经建立；旧六 YAML 后端、配置 CLI、调参工具、样例和发布入口已经删除。
 
 ## 目标
 
@@ -85,7 +85,7 @@ setup GUI 使用 Vue、pywebview 和保留后的 Bottle 本地接口，覆盖两
 - 首次启动没有有效 profile 时，完成 Wallpaper Engine、天气地点和场景绑定的必要设置；
 - 运行中从托盘打开设置，读取当前 profile，修改后显式提交并等待应用结果。
 
-后端已经提供固定 SceneId 目录、Wallpaper Engine playlist 扫描和首份 Profile 创建接口。首次创建会在落盘前完成编译与完整运行时组件准备；重复创建不会覆盖已有 Profile，任一阶段失败也不会留下半成品。启动宿主识别缺失 Profile、打开 setup 窗口并在创建成功后启动 Scheduler 的流程，与 GUI 一并接入。
+后端已经提供固定 SceneId 目录、Wallpaper Engine playlist 扫描和首份 Profile 创建接口。首次创建会在落盘前完成编译与完整运行时组件准备；重复创建不会覆盖已有 Profile，任一阶段失败也不会留下半成品。启动宿主已经能够识别缺失 Profile、打开 setup 窗口，并在创建成功后启动 Scheduler；setup GUI 负责采集并提交首份 Profile。
 
 初始界面只暴露产品语义，不提供 Sensor/Policy 开关、单 Policy 权重、标签权重、阈值或通用配置树；匹配偏好只显示统一的响应风格滑块。地点设置允许用户直接填写经纬度，也提供仅限 setup 的一次性自动定位辅助：按城市级别探测并填入经纬度，随后仍可手动修正。Profile 不保存自动定位开关，运行时不持续定位或自动更新位置。
 

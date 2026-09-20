@@ -61,14 +61,15 @@ class _DashboardAPI:
 
 
 class DashboardWindow:
-    def __init__(self, api_port: int, locale: str):
-        self._url = f"http://127.0.0.1:{api_port}?locale={locale}"
+    def __init__(self, api_port: int, locale: str, *, path: str = "/", title_key: str = "dashboard_title"):
+        self._url = f"http://127.0.0.1:{api_port}{path}?locale={locale}"
+        self._title = t(title_key)
 
     def create_and_block(self) -> None:
         import webview
 
         webview.create_window(
-            title=t("dashboard_title"),
+            title=self._title,
             url=self._url,
             width=900,
             height=650,

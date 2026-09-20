@@ -364,13 +364,21 @@ def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history)
     executable = _wallpaper_engine_path(tmp_path)
     config_dir = tmp_path / "profile"
     manager = ProfileManager(str(config_dir))
-    app = build_dashboard_app(tick_history, manager)
+    created = threading.Event()
+    app = build_dashboard_app(
+        tick_history,
+        manager,
+        on_initial_profile_created=created.set,
+    )
     draft = _profile_payload(executable)
+
+    assert not created.is_set()
 
     status, body = wsgi_post(app, "/api/profile/create", draft)
 
     assert "201" in status
     assert body == {"status": "created", "profile": draft}
+    assert created.is_set()
 
     profile_status, profile_body = wsgi_get(app, "/api/profile")
     assert "200" in profile_status
@@ -405,6 +413,19 @@ def test_api_create_profile_reports_failed_stage(tmp_path: Path, tick_history):
         "stage": "compile",
         "detail": "wallpaper_engine_config_not_found",
     }
+
+
+def test_setup_route_serves_frontend_spa(tmp_path: Path, monkeypatch, tick_history, profile_manager):
+    frontend_dist = tmp_path / "frontend" / "dist"
+    frontend_dist.mkdir(parents=True)
+    (frontend_dist / "index.html").write_text("<main>setup frontend</main>", encoding="utf-8")
+    monkeypatch.setattr("ui.dashboard.get_app_root", lambda: str(tmp_path))
+    app = build_dashboard_app(tick_history, profile_manager)
+
+    status, body = wsgi_get(app, "/setup/")
+
+    assert "200" in status
+    assert body == "<main>setup frontend</main>"
 
 
 def test_api_apply_profile_returns_normalized_committed_profile(tick_history, profile_manager):

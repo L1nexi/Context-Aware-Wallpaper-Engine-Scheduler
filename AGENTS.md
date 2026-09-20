@@ -73,7 +73,15 @@ cd dashboard
 npm run dev
 ```
 
-如需其他端口，保持后端端口与前端 `DASHBOARD_API_PORT=<port>` 一致；默认端口是 `38417`。前端还可运行 `npm run lint`、`npm run type-check`、`npm run build-only`、`npm run format`、`npm run preview`。若组合构建遇到派生进程问题，分开跑 `type-check` 和 `build-only`。
+Setup 前端使用同一个 Bottle API：
+
+```bash
+python main.py --dashboard-api-port 38417
+cd frontend
+npm run dev
+```
+
+如需其他端口，保持后端端口与前端 `DASHBOARD_API_PORT=<port>` 一致；默认端口是 `38417`。两个前端工作区都应分别运行 `npm run type-check` 和 `npm run build-only`；Dashboard 还可运行 `npm run lint`、`npm run format` 和 `npm run preview`。
 
 Python 文件修改完毕后，用 Ruff 格式化
 
@@ -86,7 +94,7 @@ python -m ruff format .
 
 Python 代码使用完整类型注解。代码应尽量自解释；会抛出异常的函数必须用 docstring 说明异常类型和触发条件。
 
-前端遵循现有 Vue SFC、Tailwind token、Pinia store 与 `dashboard/src/components/ui/workbench/*` 原语。不要把 Diagnostics 扩成通用管理后台。除非同一改动同步修改宿主加载方式，否则保持 Vite `base: './'`、hash router、URL query locale 和 pywebview 本地加载。
+Diagnostics 遵循现有 Vue SFC、Tailwind token、Pinia store 与 `dashboard/src/components/ui/workbench/*` 原语；不要把它扩成通用管理后台。产品界面使用 `frontend/` 的 shadcn-vue 组件和语义 token。两个工作区都保持 Vite `base: './'`、URL query locale 和 pywebview 本地加载；引入路由时使用 hash router。
 
 ## 测试规范
 

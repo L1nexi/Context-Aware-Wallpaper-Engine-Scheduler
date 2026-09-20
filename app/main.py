@@ -45,6 +45,7 @@ def _parse_args() -> argparse.Namespace:
         help="Local dashboard HTTP server port (0 = dynamic)",
     )
     parser.add_argument("--dashboard", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--setup", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--port", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--locale", default="en", help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -59,26 +60,29 @@ def _resolve_config_path(config_arg: str) -> str:
 # ── Mode runners ────────────────────────────────────────────────
 
 
-def _spawn_dashboard_subprocess(port: int) -> None:
+def _spawn_dashboard_subprocess(port: int, *, setup: bool = False) -> subprocess.Popen[bytes]:
     """Spawn a detached dashboard subprocess loading the local host URL."""
     from ui.i18n import current_lang
 
+    cmd = [sys.executable]
+    creationflags = 0
     if getattr(sys, "frozen", False):
-        exe = sys.executable
-        cmd = [exe, "--dashboard", f"--port={port}", f"--locale={current_lang}"]
-        subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
+        creationflags = subprocess.CREATE_NO_WINDOW
     else:
-        exe = sys.executable
-        script = os.path.join(get_app_root(), "main.py")
-        cmd = [exe, script, "--dashboard", f"--port={port}", f"--locale={current_lang}"]
-        subprocess.Popen(cmd, creationflags=0)
+        cmd.append(os.path.join(get_app_root(), "main.py"))
+    cmd.extend(("--dashboard", f"--port={port}", f"--locale={current_lang}"))
+    if setup:
+        cmd.append("--setup")
+    return subprocess.Popen(cmd, creationflags=creationflags)
 
 
-def _run_dashboard(port: int, locale: str) -> None:
+def _run_dashboard(port: int, locale: str, *, setup: bool = False) -> None:
     """Dashboard subprocess entry point."""
     from ui.webview import DashboardWindow
 
-    DashboardWindow(port, locale).create_and_block()
+    path = "/setup/" if setup else "/"
+    title_key = "setup_title" if setup else "dashboard_title"
+    DashboardWindow(port, locale, path=path, title_key=title_key).create_and_block()
 
 
 def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
@@ -118,6 +122,7 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     """
     from app.context import get_data_dir
     from app.event_logger import JsonlEventLogger
+    from app.first_run import FirstRunCoordinator
     from core.runtime.scheduler import WEScheduler
     from core.state.tick_history import TickHistoryStore
     from ui.dashboard import DashboardHTTPServer, build_dashboard_app
@@ -125,17 +130,13 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     from ui.tray import TrayIcon
 
     scheduler = WEScheduler(config_dir, JsonlEventLogger(get_data_dir()))
-    try:
-        scheduler.initialize()
-    except Exception as e:
-        logger.critical("Failed to initialize scheduler: %s", e)
-        TrayIcon.show_startup_error(str(e))
-        sys.exit(1)
     tick_history = TickHistoryStore()
-
-    scheduler.add_tick_listener(tick_history.update)
-    scheduler.start()
-    dashboard_app = build_dashboard_app(tick_history, scheduler.profile_manager)
+    first_run = FirstRunCoordinator()
+    dashboard_app = build_dashboard_app(
+        tick_history,
+        scheduler.profile_manager,
+        on_initial_profile_created=first_run.notify_profile_created,
+    )
     httpd = DashboardHTTPServer(
         dashboard_app,
         requested_port=dashboard_api_port,
@@ -143,19 +144,42 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: 
     try:
         httpd.start()
     except OSError as exc:
-        scheduler.stop()
         detail = str(exc)
         logger.critical(detail)
         TrayIcon.show_startup_error(detail)
         sys.exit(1)
 
-    tray = TrayIcon(scheduler)
-    tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
-    tray.on_export_tick_history = lambda: export_tick_history(
-        tick_history,
-        os.path.join(get_data_dir(), "tick-history"),
-    )
-    tray.run()
+    try:
+        try:
+
+            def launch_setup() -> subprocess.Popen[bytes]:
+                logger.info("No Profile found; opening first-run setup.")
+                return _spawn_dashboard_subprocess(httpd.port, setup=True)
+
+            if not first_run.initialize_scheduler(scheduler, launch_setup):
+                logger.info("First-run setup closed before completion.")
+                return
+        except Exception as exc:
+            logger.critical("Failed to initialize scheduler: %s", exc)
+            TrayIcon.show_startup_error(str(exc))
+            return
+
+        scheduler.add_tick_listener(tick_history.update)
+        scheduler.start()
+
+        tray = TrayIcon(scheduler)
+        tray.on_show_dashboard = lambda: _spawn_dashboard_subprocess(httpd.port)
+        tray.on_export_tick_history = lambda: export_tick_history(
+            tick_history,
+            os.path.join(get_data_dir(), "tick-history"),
+        )
+        tray.run()
+    except Exception as exc:
+        logger.critical("Failed to start application: %s", exc)
+        TrayIcon.show_startup_error(str(exc))
+    finally:
+        scheduler.stop()
+        httpd.stop()
 
 
 # ── Entry point ─────────────────────────────────────────────────
@@ -168,7 +192,7 @@ def main() -> None:
     args = _parse_args()
 
     if args.dashboard:
-        _run_dashboard(args.port, args.locale)
+        _run_dashboard(args.port, args.locale, setup=args.setup)
         return
 
     config_dir = _resolve_config_path(args.config)
