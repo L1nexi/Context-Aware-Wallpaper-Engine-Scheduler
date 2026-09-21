@@ -59,7 +59,6 @@ class WeatherPolicyConfig(BasePolicyConfig):
     lon: float | None = Field(default=None, ge=-180, le=180, allow_inf_nan=False)
     fetch_interval: float = Field(600.0, ge=60)
     request_timeout: float = Field(10.0, ge=1)
-    warmup_timeout: float = Field(3.0, ge=0)
 
     @field_validator("lat", "lon", mode="before")
     @classmethod

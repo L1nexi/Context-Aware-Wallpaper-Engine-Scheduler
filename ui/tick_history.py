@@ -72,7 +72,6 @@ class CpuSnapshotDto(ApiDto):
 
 class WeatherSnapshotDto(ApiDto):
     available: bool
-    stale: bool
     id: int | None
     main: str | None
     sunrise: int | None
@@ -260,7 +259,6 @@ def _weather_snapshot(weather: WeatherData | None) -> WeatherSnapshotDto:
     if weather is None:
         return WeatherSnapshotDto(
             available=False,
-            stale=False,
             id=None,
             main=None,
             sunrise=None,
@@ -268,7 +266,6 @@ def _weather_snapshot(weather: WeatherData | None) -> WeatherSnapshotDto:
         )
     return WeatherSnapshotDto(
         available=True,
-        stale=weather.stale,
         id=weather.id or None,
         main=weather.main or None,
         sunrise=weather.sunrise or None,

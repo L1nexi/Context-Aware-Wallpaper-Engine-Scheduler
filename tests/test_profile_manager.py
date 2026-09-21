@@ -104,11 +104,15 @@ def test_profile_manager_initializes_from_persisted_profile(tmp_path: Path):
     assert manager.get_profile() == profile
 
 
-def test_profile_manager_missing_profile_is_an_explicit_startup_state(tmp_path: Path):
+def test_load_initial_profile_without_persisted_profile_raises(tmp_path: Path):
     manager = ProfileManager(str(tmp_path))
 
     with pytest.raises(ProfileNotFoundError):
         manager.load_initial_profile()
+
+
+def test_compile_initial_config_before_profile_is_loaded_raises(tmp_path: Path):
+    manager = ProfileManager(str(tmp_path))
 
     with pytest.raises(ProfileNotFoundError):
         manager.compile_initial_config()

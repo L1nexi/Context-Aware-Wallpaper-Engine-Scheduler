@@ -223,7 +223,6 @@ def test_compiler_expands_user_intent_into_complete_runtime_config():
     assert runtime.policies.weather.lon == pytest.approx(121.4737)
     assert runtime.policies.weather.fetch_interval == 600
     assert runtime.policies.weather.request_timeout == 10
-    assert runtime.policies.weather.warmup_timeout == 3
     assert runtime.tags["storm"].fallback == {"rain": 1.0}
     assert runtime.tags["snow"].fallback == {"winter": 0.6, "rain": 0.6}
 

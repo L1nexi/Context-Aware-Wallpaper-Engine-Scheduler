@@ -167,7 +167,6 @@ class ProfileCompiler:
                 lon=location.longitude,
                 fetch_interval=600,
                 request_timeout=10,
-                warmup_timeout=3,
             ),
         )
 
