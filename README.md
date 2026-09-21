@@ -38,7 +38,6 @@ WEScheduler 根据时段、季节、天气和当前活动判断适合的预设�
 ```powershell
 pip install -r requirements.txt
 python main.py
-python main.py --no-tray
 .\scripts\test.ps1 -q
 ```
 

@@ -48,7 +48,7 @@ class WEScheduler:
         return self.state.last_tick_trace
 
     def initialize(self) -> None:
-        config = self._profile_manager.load_initial_config()
+        config = self._profile_manager.compile_initial_config()
         self.engine = Engine.from_config(config)
         self.state.restore_persisted(PersistedState.load())
 

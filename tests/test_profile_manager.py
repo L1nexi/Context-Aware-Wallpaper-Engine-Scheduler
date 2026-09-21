@@ -71,7 +71,8 @@ def _initialized_manager(tmp_path: Path) -> tuple[ProfileManager, Engine, Profil
     current = _profile(executable)
     ProfileStore(str(tmp_path)).commit(current)
     manager = ProfileManager(str(tmp_path))
-    engine = Engine.from_config(manager.load_initial_config())
+    manager.load_initial_profile()
+    engine = Engine.from_config(manager.compile_initial_config())
     manager.accept_updates()
     return manager, engine, current
 
@@ -95,8 +96,9 @@ def test_profile_manager_initializes_from_persisted_profile(tmp_path: Path):
     profile = _profile(executable)
     ProfileStore(str(tmp_path)).commit(profile)
     manager = ProfileManager(str(tmp_path))
+    manager.load_initial_profile()
 
-    config = manager.load_initial_config()
+    config = manager.compile_initial_config()
 
     assert config.scenes[SceneId.DAY_WORK].item_count == 7
     assert manager.get_profile() == profile
@@ -106,7 +108,10 @@ def test_profile_manager_missing_profile_is_an_explicit_startup_state(tmp_path: 
     manager = ProfileManager(str(tmp_path))
 
     with pytest.raises(ProfileNotFoundError):
-        manager.load_initial_config()
+        manager.load_initial_profile()
+
+    with pytest.raises(ProfileNotFoundError):
+        manager.compile_initial_config()
 
 
 def test_create_initial_profile_validates_persists_and_publishes(tmp_path: Path):
@@ -118,7 +123,7 @@ def test_create_initial_profile_validates_persists_and_publishes(tmp_path: Path)
 
     assert committed == draft
     assert manager.get_profile() == draft
-    assert manager.load_initial_config().scenes[SceneId.DAY_WORK].item_count == 7
+    assert manager.compile_initial_config().scenes[SceneId.DAY_WORK].item_count == 7
 
 
 def test_create_initial_profile_rejects_existing_persisted_profile(tmp_path: Path):

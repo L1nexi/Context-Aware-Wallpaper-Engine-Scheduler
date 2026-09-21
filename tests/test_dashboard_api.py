@@ -91,7 +91,8 @@ def _wallpaper_engine_path(tmp_path: Path) -> str:
 def profile_manager(tmp_path):
     manager = ProfileManager(str(tmp_path))
     ProfileStore(str(tmp_path)).commit(Profile.model_validate(_profile_payload(_wallpaper_engine_path(tmp_path))))
-    engine = Engine.from_config(manager.load_initial_config())
+    manager.load_initial_profile()
+    engine = Engine.from_config(manager.compile_initial_config())
     manager.accept_updates()
     stopped = threading.Event()
 

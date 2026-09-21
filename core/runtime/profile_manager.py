@@ -80,20 +80,17 @@ class ProfileManager:
         with self._profile_lock:
             self._profile = profile
 
-    def load_initial_config(self) -> SchedulerConfig:
+    def compile_initial_config(self) -> SchedulerConfig:
         """Compile the published Profile into the initial runtime config.
 
         Raises:
-            ProfileNotFoundError: If no committed Profile exists.
-            ProfileStoreError: If the committed Profile cannot be read.
+            ProfileNotFoundError: If no Profile has been published.
             Exception: If compilation fails.
         """
 
         profile = self.get_profile()
         if profile is None:
-            self.load_initial_profile()
-            profile = self.get_profile()
-        assert profile is not None
+            raise ProfileNotFoundError("profile is not loaded")
         return self._compile(profile)
 
     def accept_updates(self) -> None:
@@ -153,7 +150,7 @@ class ProfileManager:
                 raise ProfileApplyFailed("compile", exc) from exc
 
             try:
-                Engine.prepare_initial(config)
+                Engine.validate_config(config)
             except Exception as exc:
                 raise ProfileApplyFailed("prepare", exc) from exc
 

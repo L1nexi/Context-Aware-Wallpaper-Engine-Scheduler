@@ -11,7 +11,6 @@ This file provides guidance to Claude Code when working with this repository.
 ```powershell
 pip install -r requirements.txt
 python main.py
-python main.py --no-tray
 .\scripts\test.ps1 -q
 .\.venv\Scripts\python.exe -m ruff check . --fix
 .\.venv\Scripts\python.exe -m ruff format .

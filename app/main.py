@@ -5,7 +5,6 @@ import logging
 import os
 import subprocess
 import sys
-import time
 
 from app.context import get_app_root
 from app.logging import setup_logger
@@ -18,7 +17,6 @@ def _parse_args() -> argparse.Namespace:
 
     Host-mode flags (user-facing):
         --config               Path to the config directory
-        --no-tray              Run without system tray icon (console mode)
         --dashboard-api-port   Local dashboard HTTP server port (0 = dynamic)
 
     Dashboard subprocess flags (internal — suppressed from help):
@@ -32,11 +30,6 @@ def _parse_args() -> argparse.Namespace:
         "--config",
         default="config",
         help="Path to the configuration directory",
-    )
-    parser.add_argument(
-        "--no-tray",
-        action="store_true",
-        help="Run without system tray icon (console mode)",
     )
     parser.add_argument(
         "--dashboard-api-port",
@@ -83,39 +76,6 @@ def _run_dashboard(port: int, locale: str, *, setup: bool = False) -> None:
     path = "/setup/" if setup else "/"
     title_key = "setup_title" if setup else "dashboard_title"
     DashboardWindow(port, locale, path=path, title_key=title_key).create_and_block()
-
-
-def _run_console_mode(config_dir: str, logger: logging.Logger) -> None:
-    """Create scheduler and run in console mode (--no-tray).
-
-    No HTTP server, no tray — just the scheduler loop on a background
-    thread with the main thread sleeping until KeyboardInterrupt.
-    """
-    from app.context import get_data_dir
-    from app.event_logger import JsonlEventLogger
-    from core.runtime.profile_manager import ProfileManager
-    from core.runtime.scheduler import WEScheduler
-    from ui.cli_status import CliStatusReporter
-
-    profile_manager = ProfileManager(config_dir)
-    scheduler = WEScheduler(
-        profile_manager=profile_manager,
-        event_logger=JsonlEventLogger(get_data_dir()),
-    )
-    try:
-        scheduler.initialize()
-    except Exception as e:
-        logger.critical("Failed to initialize scheduler: %s", e)
-        sys.exit(1)
-
-    scheduler.add_tick_listener(CliStatusReporter().on_tick)
-    scheduler.start()
-
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        scheduler.stop()
 
 
 def _run_tray_mode(config_dir: str, logger: logging.Logger, dashboard_api_port: int = 0) -> None:
@@ -198,11 +158,7 @@ def main() -> None:
         return
 
     config_dir = _resolve_config_path(args.config)
-
-    if args.no_tray:
-        _run_console_mode(config_dir, logger)
-    else:
-        _run_tray_mode(config_dir, logger, args.dashboard_api_port)
+    _run_tray_mode(config_dir, logger, args.dashboard_api_port)
 
 
 if __name__ == "__main__":

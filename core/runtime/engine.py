@@ -41,15 +41,15 @@ class Engine:
     def from_config(cls, config: SchedulerConfig) -> Engine:
         """Build and install a complete runtime from a verified config."""
 
-        engine = cls(cls.prepare_initial(config))
+        engine = cls(cls._build_components(config))
         logger.info("Built runtime with %d scenes.", len(config.scenes))
         return engine
 
-    @classmethod
-    def prepare_initial(cls, config: SchedulerConfig) -> EngineReplacement:
-        """Build initial runtime components without installing them on an Engine."""
+    @staticmethod
+    def validate_config(config: SchedulerConfig) -> None:
+        """Build runtime components once to prove the config can run."""
 
-        return cls._build_components(config)
+        Engine._build_components(config)
 
     def prepare_replacement(self, config: SchedulerConfig) -> EngineReplacement:
         """Build a replacement and import state without changing this engine.

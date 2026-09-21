@@ -53,7 +53,7 @@ def test_startup_accepts_profile_when_setup_exits_after_creation(tmp_path: Path)
 
     assert ready is True
     assert manager.get_profile() == draft
-    assert manager.load_initial_config().scenes[SceneId.DAY_WORK].playlist == "WORK"
+    assert manager.compile_initial_config().scenes[SceneId.DAY_WORK].playlist == "WORK"
 
 
 def test_startup_returns_none_when_setup_closes_before_creating_profile(tmp_path: Path):

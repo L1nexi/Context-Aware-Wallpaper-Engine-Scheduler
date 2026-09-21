@@ -59,7 +59,6 @@ Commit:   SchedulerState.commit()      -> cache persist
 ```bash
 pip install -r requirements.txt
 python main.py
-python main.py --no-tray
 .\scripts\test.ps1 -q
 ```
 
