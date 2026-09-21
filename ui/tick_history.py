@@ -94,11 +94,10 @@ class ActivityDetailsDto(ApiDto):
 
 
 class TimeDetailsDto(ApiDto):
-    auto: bool
     hour: float
     virtual_hour: float
-    day_start_hour: float
-    night_start_hour: float
+    day_start_hour: float | None
+    night_start_hour: float | None
     peaks: dict[str, float]
 
 
@@ -116,7 +115,6 @@ class WeatherDetailsDto(ApiDto):
 
 class BaseEvaluationDto(ApiDto):
     policy_id: str
-    enabled: bool
     active: bool
     weight: float
     salience: float
@@ -284,7 +282,6 @@ def _clock_snapshot(local_time: time.struct_time) -> ClockSnapshotDto:
 def _policy_base_dto(policy: PolicyEvaluation) -> BaseEvaluationDto:
     return BaseEvaluationDto(
         policy_id=policy.policy_id,
-        enabled=policy.enabled,
         active=policy.active,
         weight=_round_float(policy.weight),
         salience=_round_float(policy.salience),
@@ -316,7 +313,6 @@ def _policy_snapshot(policy: PolicyEvaluation) -> EvaluationDto:
         return TimeEvaluationDto(
             **base_kwargs,
             details=TimeDetailsDto(
-                auto=policy.details.auto,
                 hour=_round_float(policy.details.hour),
                 virtual_hour=_round_float(policy.details.virtual_hour),
                 day_start_hour=_round_float(policy.details.day_start_hour),

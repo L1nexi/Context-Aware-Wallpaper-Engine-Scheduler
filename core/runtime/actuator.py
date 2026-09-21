@@ -18,9 +18,6 @@ class Actuator:
         self.executor = executor
 
     def act(self, decision: Decision) -> ActionResult:
-        return self._act_from_decision(decision)
-
-    def _act_from_decision(self, decision: Decision) -> ActionResult:
         if decision.action in {Action.SWITCH, Action.CYCLE}:
             target_scenes = decision.target
         else:

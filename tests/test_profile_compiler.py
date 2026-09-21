@@ -168,7 +168,6 @@ def test_compiler_expands_user_intent_into_complete_runtime_config():
     assert runtime.scheduling.cpu_threshold == 85
     assert runtime.scheduling.cpu_sample_window == 10
 
-    assert runtime.policies.activity.enabled is True
     assert runtime.policies.activity.smoothing_window == 120
     assert [matcher.model_dump() for matcher in runtime.policies.activity.matchers] == [
         {
@@ -208,16 +207,10 @@ def test_compiler_expands_user_intent_into_complete_runtime_config():
         },
     ]
 
-    assert runtime.policies.time.enabled is True
-    assert runtime.policies.time.auto is True
-    assert runtime.policies.time.day_start_hour == 8
-    assert runtime.policies.time.night_start_hour == 20
-    assert runtime.policies.season.enabled is True
     assert runtime.policies.season.spring_peak == 80
     assert runtime.policies.season.summer_peak == 172
     assert runtime.policies.season.autumn_peak == 265
     assert runtime.policies.season.winter_peak == 355
-    assert runtime.policies.weather.enabled is True
     assert runtime.policies.weather.api_key == "test-key"
     assert runtime.policies.weather.lat == pytest.approx(31.2304)
     assert runtime.policies.weather.lon == pytest.approx(121.4737)

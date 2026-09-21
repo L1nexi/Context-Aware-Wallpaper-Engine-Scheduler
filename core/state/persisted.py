@@ -29,12 +29,6 @@ class PersistedState(BaseModel):
         except FileNotFoundError:
             logger.info("state.json not found, starting with default state.")
             return cls()
-        except json.JSONDecodeError:
-            logger.warning("Invalid state.json", exc_info=True)
-            return cls()
-        except OSError:
-            logger.warning("Failed to read state.json", exc_info=True)
-            return cls()
         except Exception:
             logger.warning("Invalid state.json", exc_info=True)
             return cls()

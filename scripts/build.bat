@@ -1,6 +1,4 @@
 @echo off
-set DASHBOARD_APP_DIR=dashboard
-set DASHBOARD_DIST_DIR=%DASHBOARD_APP_DIR%\dist
 set FRONTEND_APP_DIR=frontend
 set FRONTEND_DIST_DIR=%FRONTEND_APP_DIR%\dist
 
@@ -8,7 +6,7 @@ echo ==========================================
 echo      WEScheduler Build Script
 echo ==========================================
 
-echo [1/6] Installing dependencies...
+echo [1/5] Installing dependencies...
 pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo Failed to install dependencies.
@@ -16,36 +14,24 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
-echo [2/6] Building dashboard...
-pushd %DASHBOARD_APP_DIR%
-call npm run build-only
-if %errorlevel% neq 0 (
-    popd
-    echo Failed to build dashboard.
-    pause
-    exit /b %errorlevel%
-)
-popd
-
-echo [3/6] Building setup frontend...
+echo [2/5] Building frontend...
 pushd %FRONTEND_APP_DIR%
 call npm run build
 if %errorlevel% neq 0 (
     popd
-    echo Failed to build setup frontend.
+    echo Failed to build frontend.
     pause
     exit /b %errorlevel%
 )
 popd
 
-echo [4/6] Cleaning up previous builds...
+echo [3/5] Cleaning up previous builds...
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 
-echo [5/6] Running PyInstaller...
+echo [4/5] Running PyInstaller...
 pyinstaller --noconsole --onefile --name "WEScheduler" ^
     --icon "%CD%\packaging\AppIcon.ico" ^
-    --add-data "%CD%\%DASHBOARD_DIST_DIR%;%DASHBOARD_DIST_DIR%" ^
     --add-data "%CD%\%FRONTEND_DIST_DIR%;%FRONTEND_DIST_DIR%" ^
     --add-data "%CD%\packaging\AppIcon.ico;." ^
     --specpath build ^
@@ -64,7 +50,7 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
-echo [6/6] Preparing distribution folder...
+echo [5/5] Preparing distribution folder...
 copy README.md dist\README.md
 
 echo ==========================================

@@ -132,7 +132,7 @@ class TrayIcon:
         self.scheduler = scheduler
         self.icon = None
         self._last_paused_state: bool | None = None
-        self.on_show_dashboard: Callable[[], None] | None = None
+        self.on_show_settings: Callable[[], None] | None = None
         self.on_export_tick_history: Callable[[], str] | None = None
         # Let the scheduler notify us when a timed pause auto-expires.
         self.scheduler.on_auto_resume = self._sync_icon
@@ -214,9 +214,9 @@ class TrayIcon:
 
         threading.Thread(target=_show, daemon=True).start()
 
-    def _on_show_dashboard(self, icon, item):
-        if self.on_show_dashboard:
-            self.on_show_dashboard()
+    def _on_show_settings(self, icon, item):
+        if self.on_show_settings:
+            self.on_show_settings()
 
     def _on_export_tick_history(self, icon, item):
         if self.on_export_tick_history is None:
@@ -343,9 +343,9 @@ class TrayIcon:
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                t("dashboard_show"),
-                self._on_show_dashboard,
-                visible=lambda item: self.on_show_dashboard is not None,
+                t("settings_show"),
+                self._on_show_settings,
+                visible=lambda item: self.on_show_settings is not None,
             ),
             pystray.MenuItem(
                 t("tick_history_export"),

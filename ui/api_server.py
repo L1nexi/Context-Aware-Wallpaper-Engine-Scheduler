@@ -26,11 +26,10 @@ from core.runtime.we_path import resolve_wallpaper_engine_path
 from core.state.tick_history import TickHistoryStore
 from ui.tick_history import build_tick_window_response
 
-logger = logging.getLogger("WEScheduler.Dashboard")
+logger = logging.getLogger("WEScheduler.API")
 
-DASHBOARD_STATIC_APP_DIR = "dashboard"
-DASHBOARD_STATIC_DIST_DIR = "dist"
-SETUP_STATIC_APP_DIR = "frontend"
+STATIC_APP_DIR = "frontend"
+STATIC_DIST_DIR = "dist"
 PROFILE_APPLY_TIMEOUT_SECONDS = 2.0
 
 
@@ -46,8 +45,8 @@ class _ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
 
 def _resolve_static_root(app_dir: str) -> str:
     if getattr(sys, "frozen", False):
-        return os.path.join(sys._MEIPASS, app_dir, DASHBOARD_STATIC_DIST_DIR)
-    return os.path.join(get_app_root(), app_dir, DASHBOARD_STATIC_DIST_DIR)
+        return os.path.join(sys._MEIPASS, app_dir, STATIC_DIST_DIR)
+    return os.path.join(get_app_root(), app_dir, STATIC_DIST_DIR)
 
 
 def _serve_spa(static_root: str, path: str) -> bottle.HTTPResponse:
@@ -102,7 +101,7 @@ def _request_validation_issues(exc: ValidationError | ValueError) -> list[dict[s
     return [{"path": [], "code": "json_type", "message": str(exc)}]
 
 
-def build_dashboard_app(
+def build_api_app(
     tick_history: TickHistoryStore,
     profile_manager: ProfileManager,
 ) -> bottle.Bottle:
@@ -261,8 +260,7 @@ def build_dashboard_app(
             "profile": committed.model_dump(mode="json"),
         }
 
-    dashboard_static_root = _resolve_static_root(DASHBOARD_STATIC_APP_DIR)
-    setup_static_root = _resolve_static_root(SETUP_STATIC_APP_DIR)
+    static_root = _resolve_static_root(STATIC_APP_DIR)
 
     @app.route("/setup")
     def redirect_setup() -> bottle.HTTPResponse:
@@ -271,18 +269,18 @@ def build_dashboard_app(
     @app.route("/setup/")
     @app.route("/setup/<path:path>")
     def serve_setup_spa(path: str = "") -> bottle.HTTPResponse:
-        return _serve_spa(setup_static_root, path)
+        return _serve_spa(static_root, path)
 
     @app.route("/")
     @app.route("/<path:path>")
     def serve_spa(path: str = "") -> bottle.HTTPResponse:
-        return _serve_spa(dashboard_static_root, path)
+        return _serve_spa(static_root, path)
 
     return app
 
 
-class DashboardHTTPServer:
-    """Host a prepared Bottle dashboard app on the loopback interface."""
+class APIServer:
+    """Host a prepared Bottle app on the loopback interface."""
 
     def __init__(
         self,
@@ -305,14 +303,14 @@ class DashboardHTTPServer:
             )
         except OSError as exc:
             if self._requested_port > 0:
-                raise OSError(f"Failed to bind dashboard API server to 127.0.0.1:{self._requested_port}") from exc
+                raise OSError(f"Failed to bind local API server to 127.0.0.1:{self._requested_port}") from exc
             raise
 
         self.port = self._httpd.server_address[1]
 
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
-        logger.info("Dashboard HTTP server (bottle) on http://127.0.0.1:%d", self.port)
+        logger.info("Local HTTP server (bottle) on http://127.0.0.1:%d", self.port)
 
     def stop(self) -> None:
         if self._httpd:

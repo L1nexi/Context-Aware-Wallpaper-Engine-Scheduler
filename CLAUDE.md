@@ -16,11 +16,11 @@ python main.py
 .\.venv\Scripts\python.exe -m ruff format .
 ```
 
-当前 Diagnostics 前端：
+设置前端联调：
 
 ```powershell
-python main.py --dashboard-api-port 38417
-cd dashboard
+python main.py --api-port 38417
+cd frontend
 npm run type-check
 npm run build-only
 ```
@@ -65,8 +65,7 @@ Commit:   SchedulerState.commit()      -> cache persist
 - `core/runtime/`：Engine、Scheduler、ProfileManager、Matcher、Controller、Actuator 和 Wallpaper Engine 边界。
 - `core/state/`：Scheduler 状态、Tick History 与 Action Event 写入。
 - `ui/`：托盘、Bottle API、pywebview、Tick History DTO 与导出。
-- `dashboard/`：待删除的 Vue 3 Diagnostics 前端。
-- `frontend/`：最终替换 `dashboard/` 的 Vue 3 + shadcn-vue 产品界面。
+- `frontend/`：Vue 3 + shadcn-vue 产品界面（setup 与运行时设置）。
 - `config/`：本机真实配置目录，不得作为 disposable fixture 覆盖或清空。
 - `tests/`：pytest 行为测试。
 

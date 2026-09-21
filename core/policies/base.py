@@ -48,7 +48,6 @@ class Policy(ABC):
 
     def __init__(self, config: BasePolicyConfig):
         self.config = config
-        self.enabled = config.enabled
         self.weight = config.weight
 
     def _make_evaluation(
@@ -66,7 +65,7 @@ class Policy(ABC):
         effective_magnitude = 0.0
         dominant_tag = max(raw_direction, key=raw_direction.get) if raw_direction else None
 
-        if self.enabled and raw_direction and salience > 0 and intensity > 0:
+        if raw_direction and salience > 0 and intensity > 0:
             norm = math.sqrt(sum(weight * weight for weight in raw_direction.values()))
             if norm >= 1e-6:
                 active = True
@@ -76,11 +75,10 @@ class Policy(ABC):
 
         return self.evaluation_cls(
             policy_id=self.config_key,
-            enabled=self.enabled,
             active=active,
             weight=self.weight,
-            salience=max(salience, 0.0) if self.enabled else 0.0,
-            intensity=max(intensity, 0.0) if self.enabled else 0.0,
+            salience=max(salience, 0.0),
+            intensity=max(intensity, 0.0),
             effective_magnitude=effective_magnitude,
             direction=direction,
             raw_contribution=raw_contribution,

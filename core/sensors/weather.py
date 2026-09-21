@@ -75,8 +75,8 @@ class WeatherSensor(Sensor):
 
     @classmethod
     def create(cls, config: SchedulerConfig) -> WeatherSensor | None:
-        """Return a new instance only when the sensor is enabled and an API key is present."""
+        """Return a new instance only when an API key and coordinates are present."""
         weather_cfg = config.policies.weather
-        if not weather_cfg.enabled or not weather_cfg.api_key or weather_cfg.lat is None or weather_cfg.lon is None:
+        if not weather_cfg.api_key or weather_cfg.lat is None or weather_cfg.lon is None:
             return None
         return cls(weather_cfg)

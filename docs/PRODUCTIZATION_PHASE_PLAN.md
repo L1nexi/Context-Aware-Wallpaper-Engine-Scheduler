@@ -1,6 +1,6 @@
 # 产品化转向简要规划
 
-状态：实施中；Profile 契约、原子持久化、运行时构造边界、独立的 `ProfileManager`、单写者应用队列、Bottle 接口、首次 Profile 创建、首次启动宿主分支、setup 场景目录与 playlist 扫描接口和 Tick History 导出已经建立；旧六 YAML 后端、配置 CLI、调参工具、样例和发布入口已经删除。
+状态：实施中；Profile 契约、原子持久化、运行时构造边界、独立的 `ProfileManager`、单写者应用队列、Bottle 接口、首次 Profile 创建、首次启动宿主分支、setup 场景目录与 playlist 扫描接口、Tick History 导出和旧 Diagnostics 下线已经建立；旧六 YAML 后端、配置 CLI、样例和发布入口已经删除；`tools/tuning` 保留用于后续 Preset 校准，当前尚未与新的配置层对齐。
 
 ## 目标
 
@@ -94,7 +94,7 @@ setup GUI 使用 Vue、pywebview 和保留后的 Bottle 本地接口，覆盖两
 
 ### 5. 旧产品面的收尾
 
-- 删除旧 Diagnostics 页面及其高频查询契约；
+- 删除旧 Diagnostics 页面及其高频查询契约；（已完成）
 - 删除面向用户手工编辑六个 YAML 的入口、示例和说明；（已完成）
 - 保留仍被 Tick History 导出或运行时重建复用的 trace、映射和状态迁移能力；
 - 更新启动流程、托盘入口、发布包内容、测试与 `AGENTS.md`，使其反映 profile 和 setup 成为唯一正式配置路径。
@@ -105,9 +105,9 @@ setup GUI 使用 Vue、pywebview 和保留后的 Bottle 本地接口，覆盖两
 2. 让 `ProfileManager` 提供初始编译结果，并通过由调度线程消费的单写者命令边界应用候选运行时。
 3. 接入 profile 持久化、错误反馈与 Bottle 设置接口。
 4. 建立 Tick History 存储，实现默认 JSON formatter 和近期调度记录导出。（已完成）
-5. 删除旧六 YAML 后端、配置 CLI、调参工具、样例与发布入口。（已完成）
+5. 删除旧六 YAML 后端、配置 CLI、样例与发布入口。（已完成）
 6. 实现首次启动和运行时设置 GUI。
-7. 删除旧 Diagnostics 产品面，完成前端宿主切换、打包、文档和回归验证。
+7. 删除旧 Diagnostics 产品面（已完成）；完成前端宿主切换、打包、文档和回归验证。
 
 ## 第一阶段完成标志
 

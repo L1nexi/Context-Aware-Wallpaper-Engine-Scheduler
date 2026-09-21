@@ -11,19 +11,6 @@ POLICY_REGISTRY: list[type[Policy]] = [
     WeatherPolicy,
 ]
 
-
-def get_policy_fixed_output_tags() -> dict[str, tuple[str, ...]]:
-    return {policy_cls.config_key: policy_cls.fixed_output_tags for policy_cls in POLICY_REGISTRY if policy_cls.fixed_output_tags is not None}
-
-
-KNOWN_TAGS: list[str] = sorted(
-    {
-        "focus",
-        "chill",
-        *(tag for tags in get_policy_fixed_output_tags().values() for tag in tags),
-    }
-)
-
 __all__ = [
     "Policy",
     "ActivityPolicy",
@@ -31,6 +18,4 @@ __all__ = [
     "SeasonPolicy",
     "WeatherPolicy",
     "POLICY_REGISTRY",
-    "get_policy_fixed_output_tags",
-    "KNOWN_TAGS",
 ]

@@ -144,7 +144,6 @@ def test_activity_policy_uses_unicode_case_insensitive_matching():
 def test_weather_policy_without_weather_is_inactive():
     evaluation = WeatherPolicy(WeatherPolicyConfig(api_key="abc")).evaluate(Context(weather=None))
 
-    assert evaluation.enabled is True
     assert evaluation.active is False
     assert evaluation.details.available is False
 

@@ -139,20 +139,14 @@ class ProfileCompiler:
         weights = _POLICY_WEIGHT_PRESETS[profile.matching.response_style]
         return PoliciesConfig(
             activity=ActivityPolicyConfig(
-                enabled=True,
                 weight=weights.activity,
                 smoothing_window=120,
                 matchers=cls._compile_activity_matchers(profile),
             ),
             time=TimePolicyConfig(
-                enabled=True,
                 weight=weights.time,
-                auto=True,
-                day_start_hour=8,
-                night_start_hour=20,
             ),
             season=SeasonPolicyConfig(
-                enabled=True,
                 weight=weights.season,
                 spring_peak=80,
                 summer_peak=172,
@@ -160,7 +154,6 @@ class ProfileCompiler:
                 winter_peak=355,
             ),
             weather=WeatherPolicyConfig(
-                enabled=True,
                 weight=weights.weather,
                 api_key=profile.weather.api_key,
                 lat=location.latitude,

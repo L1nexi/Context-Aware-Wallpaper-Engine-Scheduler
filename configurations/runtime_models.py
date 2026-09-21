@@ -31,7 +31,6 @@ class ActivityMatcherConfig(BaseModel):
 
 class BasePolicyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    enabled: bool = True
     weight: float = Field(1.0, ge=0)
 
 
@@ -41,9 +40,7 @@ class ActivityPolicyConfig(BasePolicyConfig):
 
 
 class TimePolicyConfig(BasePolicyConfig):
-    auto: bool = True
-    day_start_hour: float = Field(8.0, ge=0, lt=24)
-    night_start_hour: float = Field(20.0, ge=0, lt=24)
+    pass
 
 
 class SeasonPolicyConfig(BasePolicyConfig):

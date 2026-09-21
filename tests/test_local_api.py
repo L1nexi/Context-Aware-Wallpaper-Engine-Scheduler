@@ -30,9 +30,9 @@ from core.models.trace import (
 from core.runtime.engine import Engine
 from core.runtime.profile_manager import ProfileManager
 from core.state.tick_history import TickHistoryStore
-from ui.dashboard import (
-    DashboardHTTPServer,
-    build_dashboard_app,
+from ui.api_server import (
+    APIServer,
+    build_api_app,
 )
 
 
@@ -111,7 +111,7 @@ def profile_manager(tmp_path):
 
 @pytest.fixture
 def app(tick_history, profile_manager):
-    return build_dashboard_app(tick_history, profile_manager)
+    return build_api_app(tick_history, profile_manager)
 
 
 def _make_wsgi_environ(method, path, query="", body=None, content_type="application/json"):
@@ -248,7 +248,7 @@ def test_api_tick_history_window_empty(app):
 
 
 def test_api_tick_history_window_returns_recent(tick_history, profile_manager):
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
     for tick_id in range(1, 5):
         tick_history.update(_make_trace(tick_id=tick_id))
 
@@ -269,7 +269,7 @@ def test_api_tick_history_window_projects_scene_identity_and_target_playlist(
             SceneId.SUNSET: SceneConfig(playlist="test_pl", item_count=1),
         }
     )
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
     tick_history.update(
         _make_trace(
             tick_id=1,
@@ -304,7 +304,7 @@ def test_api_tick_history_window_invalid_count(app):
 
 
 def test_api_profile_returns_current_committed_profile(tick_history, profile_manager):
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
 
     status, body = wsgi_get(app, "/api/profile")
 
@@ -315,7 +315,7 @@ def test_api_profile_returns_current_committed_profile(tick_history, profile_man
 
 def test_api_setup_scans_wallpaper_engine_playlists(tmp_path: Path, tick_history):
     executable = _wallpaper_engine_path(tmp_path)
-    app = build_dashboard_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
 
     status, body = wsgi_post(
         app,
@@ -334,7 +334,7 @@ def test_api_setup_scans_wallpaper_engine_playlists(tmp_path: Path, tick_history
 
 
 def test_api_setup_reports_missing_wallpaper_engine_executable(tmp_path: Path, tick_history):
-    app = build_dashboard_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
 
     status, body = wsgi_post(
         app,
@@ -349,7 +349,7 @@ def test_api_setup_reports_missing_wallpaper_engine_executable(tmp_path: Path, t
 def test_api_setup_reports_unreadable_wallpaper_engine_config(tmp_path: Path, tick_history):
     executable = tmp_path / "wallpaper64.exe"
     executable.write_text("fake", encoding="utf-8")
-    app = build_dashboard_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
 
     status, body = wsgi_post(
         app,
@@ -365,7 +365,7 @@ def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history)
     executable = _wallpaper_engine_path(tmp_path)
     config_dir = tmp_path / "profile"
     manager = ProfileManager(str(config_dir))
-    app = build_dashboard_app(tick_history, manager)
+    app = build_api_app(tick_history, manager)
     draft = _profile_payload(executable)
 
     status, body = wsgi_post(app, "/api/profile/create", draft)
@@ -381,7 +381,7 @@ def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history)
 def test_api_create_profile_rejects_existing_profile(tick_history, profile_manager):
     current = profile_manager.get_profile()
     assert current is not None
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
 
     status, body = wsgi_post(
         app,
@@ -395,7 +395,7 @@ def test_api_create_profile_rejects_existing_profile(tick_history, profile_manag
 
 def test_api_create_profile_reports_failed_stage(tmp_path: Path, tick_history):
     manager = ProfileManager(str(tmp_path / "profile"))
-    app = build_dashboard_app(tick_history, manager)
+    app = build_api_app(tick_history, manager)
     invalid_runtime = _profile_payload(r"Z:\missing\wallpaper64.exe")
 
     status, body = wsgi_post(app, "/api/profile/create", invalid_runtime)
@@ -412,8 +412,8 @@ def test_setup_route_serves_frontend_spa(tmp_path: Path, monkeypatch, tick_histo
     frontend_dist = tmp_path / "frontend" / "dist"
     frontend_dist.mkdir(parents=True)
     (frontend_dist / "index.html").write_text("<main>setup frontend</main>", encoding="utf-8")
-    monkeypatch.setattr("ui.dashboard.get_app_root", lambda: str(tmp_path))
-    app = build_dashboard_app(tick_history, profile_manager)
+    monkeypatch.setattr("ui.api_server.get_app_root", lambda: str(tmp_path))
+    app = build_api_app(tick_history, profile_manager)
 
     status, body = wsgi_get(app, "/setup/")
 
@@ -424,7 +424,7 @@ def test_setup_route_serves_frontend_spa(tmp_path: Path, monkeypatch, tick_histo
 def test_api_apply_profile_returns_normalized_committed_profile(tick_history, profile_manager):
     draft = _profile_payload_for(profile_manager, playlist="NEW")
     committed = Profile.model_validate(draft)
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
 
     status, body = wsgi_post(app, "/api/profile/apply", draft)
 
@@ -440,7 +440,7 @@ def test_api_apply_profile_returns_normalized_committed_profile(tick_history, pr
 
 
 def test_api_apply_profile_rejects_invalid_payload(tick_history, profile_manager):
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
     payload = _profile_payload_for(profile_manager)
     payload["disturbance"]["avoid_fullscreen"] = False
 
@@ -453,7 +453,7 @@ def test_api_apply_profile_rejects_invalid_payload(tick_history, profile_manager
 
 
 def test_api_apply_profile_rejects_malformed_json(tick_history, profile_manager):
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
 
     status, body = wsgi_request(app, "POST", "/api/profile/apply", body=b"{invalid")
 
@@ -463,7 +463,7 @@ def test_api_apply_profile_rejects_malformed_json(tick_history, profile_manager)
 
 
 def test_api_apply_profile_rejects_non_json_content_type(tick_history, profile_manager):
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
     body_bytes = json.dumps(_profile_payload_for(profile_manager)).encode("utf-8")
 
     status, body = wsgi_request(
@@ -480,7 +480,7 @@ def test_api_apply_profile_rejects_non_json_content_type(tick_history, profile_m
 
 
 def test_api_apply_profile_reports_failed_stage(tick_history, profile_manager):
-    app = build_dashboard_app(tick_history, profile_manager)
+    app = build_api_app(tick_history, profile_manager)
     invalid_runtime = _profile_payload(r"Z:\missing\wallpaper64.exe", playlist="NEW")
 
     status, body = wsgi_post(app, "/api/profile/apply", invalid_runtime)
@@ -493,9 +493,9 @@ def test_api_apply_profile_reports_failed_stage(tick_history, profile_manager):
     }
 
 
-def test_dashboard_http_server_binds_requested_port(app):
+def test_api_server_binds_requested_port(app):
     requested_port = _find_free_port()
-    server = DashboardHTTPServer(
+    server = APIServer(
         app,
         requested_port=requested_port,
     )

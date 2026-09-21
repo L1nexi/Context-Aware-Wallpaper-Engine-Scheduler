@@ -102,14 +102,6 @@ class WeatherPolicy(Policy):
             weather_main=weather.main if weather is not None else None,
             available=weather is not None,
         )
-        if not self.enabled:
-            return self._make_evaluation(
-                details=details,
-                raw_direction=None,
-                salience=0.0,
-                intensity=0.0,
-            )
-
         if weather is None:
             return self._make_evaluation(
                 details=details,

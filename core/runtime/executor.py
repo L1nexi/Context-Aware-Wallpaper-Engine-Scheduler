@@ -77,6 +77,3 @@ class WEExecutor:
 
     def open_playlist(self, playlist_name: str) -> bool:
         return self._run_command(["openPlaylist", "-playlist", playlist_name])
-
-    def next_wallpaper(self) -> bool:
-        return self._run_command(["nextWallpaper"])

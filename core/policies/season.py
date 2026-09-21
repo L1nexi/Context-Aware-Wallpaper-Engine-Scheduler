@@ -27,13 +27,6 @@ class SeasonPolicy(Policy):
             day_of_year=day_of_year,
             peaks=self._peaks.copy(),
         )
-        if not self.enabled:
-            return self._make_evaluation(
-                details=details,
-                raw_direction=None,
-                salience=0.0,
-                intensity=0.0,
-            )
 
         raw: dict[str, float] = {}
         best_weight = 0.0

@@ -82,17 +82,6 @@ class ActivityPolicy(Policy):
         self._mag_ema: float = 0.0
 
     def evaluate(self, context: Context) -> ActivityEvaluation:
-        if not self.enabled:
-            return self._make_evaluation(
-                details=ActivityDetails(
-                    window_title=context.window.title,
-                    process=context.window.process,
-                ),
-                raw_direction=None,
-                salience=0.0,
-                intensity=0.0,
-            )
-
         instant_dir, details = self._get_instant_signal(context)
 
         all_tags = set(self._dir_ema.keys()) | set(instant_dir.keys())

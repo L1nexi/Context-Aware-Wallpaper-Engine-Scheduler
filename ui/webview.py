@@ -52,7 +52,7 @@ def _set_window_icon() -> None:
         logger.exception("Failed to set window icon")
 
 
-class _DashboardAPI:
+class _WindowAPI:
     def close(self) -> None:
         import webview
 
@@ -60,8 +60,8 @@ class _DashboardAPI:
             webview.windows[0].destroy()
 
 
-class DashboardWindow:
-    def __init__(self, api_port: int, locale: str, *, path: str = "/", title_key: str = "dashboard_title"):
+class AppWindow:
+    def __init__(self, api_port: int, locale: str, *, path: str = "/", title_key: str = "setup_title"):
         self._url = f"http://127.0.0.1:{api_port}{path}?locale={locale}"
         self._title = t(title_key)
 
@@ -75,7 +75,7 @@ class DashboardWindow:
             height=650,
             resizable=True,
             text_select=True,
-            js_api=_DashboardAPI(),
+            js_api=_WindowAPI(),
         )
 
         webview.start(gui="edgechromium", func=_set_window_icon)

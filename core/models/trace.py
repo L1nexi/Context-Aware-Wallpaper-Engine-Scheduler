@@ -37,11 +37,10 @@ class ActivityDetails:
 
 @dataclass
 class TimeDetails:
-    auto: bool = False
     hour: float = 0.0
     virtual_hour: float = 0.0
-    day_start_hour: float = 0.0
-    night_start_hour: float = 0.0
+    day_start_hour: float | None = None
+    night_start_hour: float | None = None
     peaks: dict[str, float] = field(default_factory=dict)
 
 
@@ -62,7 +61,6 @@ class WeatherDetails:
 @dataclass
 class BaseEvaluation:
     policy_id: str
-    enabled: bool
     active: bool
     weight: float
     salience: float
