@@ -125,6 +125,21 @@ class ProfileManager:
                 return None
             return self._profile.model_copy(deep=True)
 
+    def has_committed_profile(self) -> bool:
+        """Check loaded and persisted initial Profile state.
+
+        Raises:
+            ProfileStoreError: If the persisted Profile cannot be read.
+        """
+        with self._creation_lock:
+            return self._has_committed_profile()
+
+    def _has_committed_profile(self) -> bool:
+        with self._profile_lock:
+            if self._profile is not None:
+                return True
+        return self._store.load() is not None
+
     def create_initial_profile(self, profile: Profile) -> Profile:
         """Validate and persist the first Profile before Scheduler startup.
 
@@ -137,12 +152,8 @@ class ProfileManager:
         """
 
         with self._creation_lock:
-            with self._profile_lock:
-                if self._profile is not None:
-                    raise ProfileAlreadyExists("profile is already initialized")
-
-            if self._store.load() is not None:
-                raise ProfileAlreadyExists(f"Profile already exists at: {self._store.path}")
+            if self._has_committed_profile():
+                raise ProfileAlreadyExists("profile is already committed")
 
             try:
                 config = self._compile(profile)

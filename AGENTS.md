@@ -16,7 +16,9 @@
 - `core/runtime/` 放 Scheduler、Engine 及 Profile 运行时应用组件。
 - `core/policies/` 放 Policy 基类及具体实现。
 - `core/sensors/` 放 Sensor 基类及具体实现。
-- `ui/` 放托盘 UI、Bottle API、pywebview 窗口、Tick History 与 DTO 转换、i18n 和图标生成。
+- `server/` 放 Bottle 本地服务宿主、Profile 资源路由、辅助资源路由和前端静态文件服务。
+- `integrations/` 放 OpenWeatherMap 与公网 IP 地点服务的请求和响应解析。
+- `ui/` 放托盘 UI、pywebview 窗口、Tick History 的 DTO 转换与导出、i18n 和图标生成。
 - `frontend/` 是 Vue 3 + shadcn-vue 产品界面工作区（setup 与运行时设置）。
 - `config/` 是本机真实运行配置目录，正式用户契约是其中的 `profile.json`；可用于真实运行与手工验证，不要当作 disposable fixture 覆盖或清空。
 - `tests/` 放 pytest 测试。
@@ -39,6 +41,10 @@ Commit:   SchedulerState.commit()      -> cache persist
 
 - `core/runtime/engine.py` — 配置绑定的调度执行对象及候选替换边界
 - `core/runtime/profile_manager.py` — Profile 读取、编译、持久化和单写者应用队列
+- `server/app.py` — Bottle 应用组合与健康检查、Tick History 路由
+- `server/routes/profile.py` — `GET`、`POST`、`PUT /api/profile` 的 HTTP 适配
+- `server/routes/profile_support.py` — Scene 目录、播放列表扫描和地点估算接口
+- `integrations/openweather.py` — 天气观测请求、解析及稳定异常
 - `app/event_logger.py` — 稀疏运行事件的持久化 JSONL 日志
 - `core/state/tick_history.py` — 近期 `TickTrace` 的线程安全有界内存记录
 - `ui/tick_history.py` — Tick History 的 HTTP DTO 转换

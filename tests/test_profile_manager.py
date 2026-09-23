@@ -25,7 +25,7 @@ from core.runtime.profile_manager import (
 @pytest.fixture(autouse=True)
 def weather_api(monkeypatch):
     class Response:
-        ok = True
+        status_code = 200
 
         @staticmethod
         def json():
@@ -34,7 +34,7 @@ def weather_api(monkeypatch):
                 "sys": {"sunrise": 1, "sunset": 2},
             }
 
-    monkeypatch.setattr("core.sensors.weather.requests.get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
 
 
 def _wallpaper_engine_path(tmp_path: Path, *playlists: tuple[str, int]) -> str:

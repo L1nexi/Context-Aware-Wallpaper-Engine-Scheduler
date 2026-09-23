@@ -7,7 +7,7 @@ from core.sensors.weather import WeatherSensor
 
 
 class _Response:
-    ok = True
+    status_code = 200
 
     @staticmethod
     def json():
@@ -23,7 +23,7 @@ def _config() -> WeatherPolicyConfig:
 
 def test_weather_sensor_construction_makes_no_request(monkeypatch):
     calls: list[int] = []
-    monkeypatch.setattr("core.sensors.weather.requests.get", lambda *_args, **_kwargs: calls.append(1))
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: calls.append(1))
 
     WeatherSensor(_config())
 
@@ -37,7 +37,7 @@ def test_weather_sensor_starts_first_fetch_on_collect(monkeypatch):
         fetched.set()
         return _Response()
 
-    monkeypatch.setattr("core.sensors.weather.requests.get", fake_get)
+    monkeypatch.setattr("integrations.openweather.requests.get", fake_get)
     sensor = WeatherSensor(_config())
 
     sensor.collect()

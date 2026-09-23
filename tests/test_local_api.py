@@ -30,10 +30,8 @@ from core.models.trace import (
 from core.runtime.engine import Engine
 from core.runtime.profile_manager import ProfileManager
 from core.state.tick_history import TickHistoryStore
-from ui.api_server import (
-    APIServer,
-    build_api_app,
-)
+from server.app import build_api_app
+from server.host import APIServer
 
 
 @pytest.fixture(autouse=True)
@@ -58,7 +56,11 @@ def tick_history():
 @pytest.fixture(autouse=True)
 def weather_api(monkeypatch):
     class Response:
-        ok = True
+        status_code = 200
+
+        @property
+        def ok(self):
+            return self.status_code == 200
 
         @staticmethod
         def json():
@@ -67,7 +69,7 @@ def weather_api(monkeypatch):
                 "sys": {"sunrise": 1, "sunset": 2},
             }
 
-    monkeypatch.setattr("core.sensors.weather.requests.get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
 
 
 def _wallpaper_engine_path(tmp_path: Path) -> str:
@@ -158,6 +160,11 @@ def wsgi_post(app, path, data=None):
     return wsgi_request(app, "POST", path, body=body_bytes)
 
 
+def wsgi_put(app, path, data=None):
+    body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
+    return wsgi_request(app, "PUT", path, body=body_bytes)
+
+
 def _profile_payload(wallpaper_engine_path: str, *, playlist: str = "WORK") -> dict:
     return Profile.model_validate(
         {
@@ -242,7 +249,7 @@ def _find_free_port() -> int:
 
 
 def test_api_tick_history_window_empty(app):
-    status, body = wsgi_get(app, "/api/tick-history/window")
+    status, body = wsgi_get(app, "/api/tick-history")
     assert "200" in status
     assert body == {"liveTickId": None, "ticks": []}
 
@@ -252,7 +259,7 @@ def test_api_tick_history_window_returns_recent(tick_history, profile_manager):
     for tick_id in range(1, 5):
         tick_history.update(_make_trace(tick_id=tick_id))
 
-    status, body = wsgi_request(app, "GET", "/api/tick-history/window", query="count=2")
+    status, body = wsgi_request(app, "GET", "/api/tick-history", query="limit=2")
     assert "200" in status
     assert body["liveTickId"] == 4
     assert [tick["summary"]["tickId"] for tick in body["ticks"]] == [3, 4]
@@ -281,7 +288,7 @@ def test_api_tick_history_window_projects_scene_identity_and_target_playlist(
         )
     )
 
-    status, body = wsgi_get(app, "/api/tick-history/window")
+    status, body = wsgi_get(app, "/api/tick-history")
 
     assert "200" in status
     tick = body["ticks"][0]
@@ -294,13 +301,27 @@ def test_api_tick_history_window_projects_scene_identity_and_target_playlist(
 
 
 def test_api_tick_history_window_invalid_count(app):
-    status, body = wsgi_request(app, "GET", "/api/tick-history/window", query="count=abc")
-    assert "400" in status
+    status, body = wsgi_request(app, "GET", "/api/tick-history", query="limit=abc")
+    assert "422" in status
     assert body["error"] == "invalid_count"
 
-    status, body = wsgi_request(app, "GET", "/api/tick-history/window", query="count=0")
-    assert "400" in status
+    status, body = wsgi_request(app, "GET", "/api/tick-history", query="limit=0")
+    assert "422" in status
     assert body["error"] == "invalid_count"
+
+
+def test_removed_setup_api_does_not_fall_through_to_spa(app):
+    status, body = wsgi_get(app, "/api/setup/scenes")
+
+    assert "404" in status
+    assert body == {"error": "not_found"}
+
+
+def test_removed_profile_create_api_returns_json_not_found(app):
+    status, body = wsgi_post(app, "/api/profile/create", {"unused": True})
+
+    assert "404" in status
+    assert body == {"error": "not_found"}
 
 
 def test_api_profile_returns_current_committed_profile(tick_history, profile_manager):
@@ -319,11 +340,11 @@ def test_api_setup_scans_wallpaper_engine_playlists(tmp_path: Path, tick_history
 
     status, body = wsgi_post(
         app,
-        "/api/setup/wallpaper-engine/playlists",
+        "/api/wallpaper-engine/playlist-scans",
         {"wallpaper_engine_path": executable},
     )
 
-    assert "200" in status
+    assert "201" in status
     assert body == {
         "wallpaper_engine_path": executable,
         "playlists": [
@@ -338,7 +359,7 @@ def test_api_setup_reports_missing_wallpaper_engine_executable(tmp_path: Path, t
 
     status, body = wsgi_post(
         app,
-        "/api/setup/wallpaper-engine/playlists",
+        "/api/wallpaper-engine/playlist-scans",
         {"wallpaper_engine_path": str(tmp_path / "missing.exe")},
     )
 
@@ -353,12 +374,53 @@ def test_api_setup_reports_unreadable_wallpaper_engine_config(tmp_path: Path, ti
 
     status, body = wsgi_post(
         app,
-        "/api/setup/wallpaper-engine/playlists",
+        "/api/wallpaper-engine/playlist-scans",
         {"wallpaper_engine_path": str(executable)},
     )
 
     assert "422" in status
     assert body == {"error": "wallpaper_engine_config_not_found"}
+
+
+def test_api_setup_detects_city_location_without_exposing_ip(app, monkeypatch):
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {
+                "ip": "203.0.113.10",
+                "city": "Shanghai",
+                "region": "Shanghai",
+                "country_name": "China",
+                "latitude": 31.2304,
+                "longitude": 121.4737,
+            }
+
+    monkeypatch.setattr("integrations.ip_location.requests.get", lambda *_args, **_kwargs: Response())
+
+    status, body = wsgi_request(app, "POST", "/api/location-estimates")
+
+    assert "201" in status
+    assert body == {
+        "location": {
+            "name": "Shanghai, China",
+            "latitude": 31.2304,
+            "longitude": 121.4737,
+        }
+    }
+
+
+def test_api_setup_reports_unavailable_location_detection(app, monkeypatch):
+    class Response:
+        status_code = 429
+
+    monkeypatch.setattr("integrations.ip_location.requests.get", lambda *_args, **_kwargs: Response())
+
+    status, body = wsgi_request(app, "POST", "/api/location-estimates")
+
+    assert "503" in status
+    assert body == {"error": "location_detection_unavailable"}
 
 
 def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history):
@@ -368,7 +430,7 @@ def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history)
     app = build_api_app(tick_history, manager)
     draft = _profile_payload(executable)
 
-    status, body = wsgi_post(app, "/api/profile/create", draft)
+    status, body = wsgi_post(app, "/api/profile", draft)
 
     assert "201" in status
     assert body == {"status": "created", "profile": draft}
@@ -378,6 +440,94 @@ def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history)
     assert profile_body == {"profile": draft}
 
 
+def test_api_create_profile_leaves_profile_absent_when_weather_key_is_rejected(
+    tmp_path: Path,
+    tick_history,
+    monkeypatch,
+):
+    class Response:
+        status_code = 401
+
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
+    executable = _wallpaper_engine_path(tmp_path)
+    config_dir = tmp_path / "profile"
+    manager = ProfileManager(str(config_dir))
+    app = build_api_app(tick_history, manager)
+
+    status, body = wsgi_post(app, "/api/profile", _profile_payload(executable))
+
+    assert "422" in status
+    assert body == {
+        "error": "weather_validation_failed",
+        "issues": [
+            {
+                "path": ["weather", "api_key"],
+                "code": "weather_api_key_invalid",
+                "message": "weather_api_key_invalid",
+            }
+        ],
+    }
+
+    profile_status, profile_body = wsgi_get(app, "/api/profile")
+    assert "404" in profile_status
+    assert profile_body == {"error": "profile_not_found"}
+
+
+def test_api_create_profile_rejects_invalid_fields(tmp_path: Path, tick_history):
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_post(app, "/api/profile", {"weather": {}})
+
+    assert "422" in status
+    assert body["error"] == "invalid_profile"
+    assert body["issues"]
+
+
+def test_api_create_profile_leaves_profile_absent_when_weather_validation_is_unavailable(
+    tmp_path: Path,
+    tick_history,
+    monkeypatch,
+):
+    class Response:
+        status_code = 500
+
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
+    executable = _wallpaper_engine_path(tmp_path)
+    config_dir = tmp_path / "profile"
+    manager = ProfileManager(str(config_dir))
+    app = build_api_app(tick_history, manager)
+
+    status, body = wsgi_post(app, "/api/profile", _profile_payload(executable))
+
+    assert "503" in status
+    assert body == {"error": "weather_validation_unavailable"}
+
+    profile_status, profile_body = wsgi_get(app, "/api/profile")
+    assert "404" in profile_status
+    assert profile_body == {"error": "profile_not_found"}
+
+
+def test_api_create_profile_rejects_incomplete_weather_response(tmp_path: Path, tick_history, monkeypatch):
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"weather": []}
+
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
+    executable = _wallpaper_engine_path(tmp_path)
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_post(app, "/api/profile", _profile_payload(executable))
+
+    assert "503" in status
+    assert body == {"error": "weather_validation_unavailable"}
+    profile_status, profile_body = wsgi_get(app, "/api/profile")
+    assert "404" in profile_status
+    assert profile_body == {"error": "profile_not_found"}
+
+
 def test_api_create_profile_rejects_existing_profile(tick_history, profile_manager):
     current = profile_manager.get_profile()
     assert current is not None
@@ -385,9 +535,41 @@ def test_api_create_profile_rejects_existing_profile(tick_history, profile_manag
 
     status, body = wsgi_post(
         app,
-        "/api/profile/create",
+        "/api/profile",
         _profile_payload(current.wallpaper_engine_path, playlist="NEW"),
     )
+
+    assert "409" in status
+    assert body == {"error": "profile_already_exists"}
+
+
+def test_api_create_profile_reports_conflict_during_weather_outage(tick_history, profile_manager, monkeypatch):
+    class Response:
+        status_code = 500
+
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
+    current = profile_manager.get_profile()
+    assert current is not None
+    app = build_api_app(tick_history, profile_manager)
+
+    status, body = wsgi_post(app, "/api/profile", _profile_payload(current.wallpaper_engine_path))
+
+    assert "409" in status
+    assert body == {"error": "profile_already_exists"}
+
+
+def test_api_create_profile_reports_conflict_before_startup_load(tmp_path: Path, tick_history, monkeypatch):
+    class Response:
+        status_code = 500
+
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
+    executable = _wallpaper_engine_path(tmp_path)
+    config_dir = tmp_path / "profile"
+    draft = Profile.model_validate(_profile_payload(executable))
+    ProfileStore(str(config_dir)).commit(draft)
+    app = build_api_app(tick_history, ProfileManager(str(config_dir)))
+
+    status, body = wsgi_post(app, "/api/profile", draft.model_dump(mode="json"))
 
     assert "409" in status
     assert body == {"error": "profile_already_exists"}
@@ -398,7 +580,7 @@ def test_api_create_profile_reports_failed_stage(tmp_path: Path, tick_history):
     app = build_api_app(tick_history, manager)
     invalid_runtime = _profile_payload(r"Z:\missing\wallpaper64.exe")
 
-    status, body = wsgi_post(app, "/api/profile/create", invalid_runtime)
+    status, body = wsgi_post(app, "/api/profile", invalid_runtime)
 
     assert "500" in status
     assert body == {
@@ -412,7 +594,7 @@ def test_setup_route_serves_frontend_spa(tmp_path: Path, monkeypatch, tick_histo
     frontend_dist = tmp_path / "frontend" / "dist"
     frontend_dist.mkdir(parents=True)
     (frontend_dist / "index.html").write_text("<main>setup frontend</main>", encoding="utf-8")
-    monkeypatch.setattr("ui.api_server.get_app_root", lambda: str(tmp_path))
+    monkeypatch.setattr("server.spa.get_app_root", lambda: str(tmp_path))
     app = build_api_app(tick_history, profile_manager)
 
     status, body = wsgi_get(app, "/setup/")
@@ -426,7 +608,7 @@ def test_api_apply_profile_returns_normalized_committed_profile(tick_history, pr
     committed = Profile.model_validate(draft)
     app = build_api_app(tick_history, profile_manager)
 
-    status, body = wsgi_post(app, "/api/profile/apply", draft)
+    status, body = wsgi_put(app, "/api/profile", draft)
 
     assert "200" in status
     assert body == {
@@ -439,14 +621,67 @@ def test_api_apply_profile_returns_normalized_committed_profile(tick_history, pr
     assert profile_body["profile"]["scenes"] == {"day_work": "NEW"}
 
 
+def test_api_replace_profile_requires_existing_resource(tmp_path: Path, tick_history):
+    executable = _wallpaper_engine_path(tmp_path)
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_put(app, "/api/profile", _profile_payload(executable))
+
+    assert "404" in status
+    assert body == {"error": "profile_not_found"}
+
+
+def test_api_apply_profile_succeeds_during_weather_outage_when_weather_is_unchanged(
+    tick_history,
+    profile_manager,
+    monkeypatch,
+):
+    class Response:
+        status_code = 500
+
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
+    app = build_api_app(tick_history, profile_manager)
+    draft = _profile_payload_for(profile_manager, playlist="NEW")
+
+    status, body = wsgi_put(app, "/api/profile", draft)
+
+    assert "200" in status
+    assert body["status"] == "applied"
+
+
+def test_api_apply_profile_maps_rejected_location_to_weather_location_field(
+    tick_history,
+    profile_manager,
+    monkeypatch,
+):
+    class Response:
+        status_code = 404
+
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
+    app = build_api_app(tick_history, profile_manager)
+    draft = _profile_payload_for(profile_manager)
+    draft["weather"]["location"]["latitude"] = 30.0
+
+    status, body = wsgi_put(app, "/api/profile", draft)
+
+    assert "422" in status
+    assert body["issues"] == [
+        {
+            "path": ["weather", "location"],
+            "code": "weather_location_invalid",
+            "message": "weather_location_invalid",
+        }
+    ]
+
+
 def test_api_apply_profile_rejects_invalid_payload(tick_history, profile_manager):
     app = build_api_app(tick_history, profile_manager)
     payload = _profile_payload_for(profile_manager)
     payload["disturbance"]["avoid_fullscreen"] = False
 
-    status, body = wsgi_post(app, "/api/profile/apply", payload)
+    status, body = wsgi_put(app, "/api/profile", payload)
 
-    assert "400" in status
+    assert "422" in status
     assert body["error"] == "invalid_profile"
     assert body["issues"][0]["path"] == ["disturbance", "avoid_fullscreen"]
     assert profile_manager.get_profile().scenes == {"day_work": "WORK"}
@@ -455,7 +690,7 @@ def test_api_apply_profile_rejects_invalid_payload(tick_history, profile_manager
 def test_api_apply_profile_rejects_malformed_json(tick_history, profile_manager):
     app = build_api_app(tick_history, profile_manager)
 
-    status, body = wsgi_request(app, "POST", "/api/profile/apply", body=b"{invalid")
+    status, body = wsgi_request(app, "PUT", "/api/profile", body=b"{invalid")
 
     assert "400" in status
     assert body["error"] == "invalid_profile"
@@ -468,8 +703,8 @@ def test_api_apply_profile_rejects_non_json_content_type(tick_history, profile_m
 
     status, body = wsgi_request(
         app,
-        "POST",
-        "/api/profile/apply",
+        "PUT",
+        "/api/profile",
         body=body_bytes,
         content_type="text/plain",
     )
@@ -483,7 +718,7 @@ def test_api_apply_profile_reports_failed_stage(tick_history, profile_manager):
     app = build_api_app(tick_history, profile_manager)
     invalid_runtime = _profile_payload(r"Z:\missing\wallpaper64.exe", playlist="NEW")
 
-    status, body = wsgi_post(app, "/api/profile/apply", invalid_runtime)
+    status, body = wsgi_put(app, "/api/profile", invalid_runtime)
 
     assert "500" in status
     assert body == {

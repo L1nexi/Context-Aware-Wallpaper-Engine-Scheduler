@@ -1,4 +1,11 @@
 @echo off
+setlocal
+cd /d "%~dp0.."
+set "PYTHON=%CD%\.venv\Scripts\python.exe"
+if not exist "%PYTHON%" (
+    echo Virtual environment not found: %PYTHON%
+    exit /b 1
+)
 set FRONTEND_APP_DIR=frontend
 set FRONTEND_DIST_DIR=%FRONTEND_APP_DIR%\dist
 
@@ -7,7 +14,7 @@ echo      WEScheduler Build Script
 echo ==========================================
 
 echo [1/5] Installing dependencies...
-pip install -r requirements.txt
+"%PYTHON%" -m pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo Failed to install dependencies.
     pause
@@ -30,7 +37,7 @@ if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 
 echo [4/5] Running PyInstaller...
-pyinstaller --noconsole --onefile --name "WEScheduler" ^
+"%PYTHON%" -m PyInstaller --noconsole --onefile --name "WEScheduler" ^
     --icon "%CD%\packaging\AppIcon.ico" ^
     --add-data "%CD%\%FRONTEND_DIST_DIR%;%FRONTEND_DIST_DIR%" ^
     --add-data "%CD%\packaging\AppIcon.ico;." ^

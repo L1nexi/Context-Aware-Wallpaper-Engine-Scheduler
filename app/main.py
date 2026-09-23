@@ -90,9 +90,12 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, api_port: int = 0) -
     from core.runtime.profile_manager import ProfileManager
     from core.runtime.scheduler import WEScheduler
     from core.state.tick_history import TickHistoryStore
-    from ui.api_server import APIServer, build_api_app
+    from server.app import build_api_app
+    from server.host import APIServer
+    from ui.settings_window import SettingsWindowController
     from ui.tick_history_export import export_tick_history
     from ui.tray import TrayIcon
+    from ui.webview import focus_process_window
 
     data_dir = get_data_dir()
     profile_manager = ProfileManager(config_dir)
@@ -129,7 +132,11 @@ def _run_tray_mode(config_dir: str, logger: logging.Logger, api_port: int = 0) -
         scheduler.start()
 
         tray = TrayIcon(scheduler)
-        tray.on_show_settings = lambda: _spawn_window_subprocess(api_server.port)
+        settings_window = SettingsWindowController(
+            spawn=lambda: _spawn_window_subprocess(api_server.port),
+            focus=focus_process_window,
+        )
+        tray.on_show_settings = settings_window.show
         tray.on_export_tick_history = lambda: export_tick_history(
             tick_history,
             os.path.join(data_dir, "tick-history"),

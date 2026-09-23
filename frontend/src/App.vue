@@ -1,56 +1,77 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
+import { TriangleAlertIcon } from "@lucide/vue"
+import { onMounted, ref } from "vue"
 
+import type { Locale, Profile } from "@/api/profile"
 import { ApiError, getProfile } from "@/api/profile"
+import SetupWorkspace from "@/components/setup/SetupWorkspace.vue"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Toaster } from "@/components/ui/sonner"
+import { COPY } from "@/setup/copy"
 
-type AppMode = "loading" | "setup" | "settings" | "unavailable"
-type Locale = "zh" | "en"
+type AppState = "loading" | "ready" | "unavailable"
 
-const locale: Locale = new URLSearchParams(window.location.search).get("locale") === "zh" ? "zh" : "en"
-const messages: Record<Locale, Record<AppMode, { heading: string; description: string }>> = {
-  zh: {
-    loading: { heading: "正在连接 WEScheduler", description: "正在读取本地 Profile 状态。" },
-    setup: {
-      heading: "开始设置 WEScheduler",
-      description: "首次启动环境已就绪，可以开始配置 Wallpaper Engine、天气与场景绑定。",
-    },
-    settings: { heading: "WEScheduler 设置", description: "当前 Profile 已载入，可以进入设置编辑流程。" },
-    unavailable: { heading: "无法连接到 WEScheduler", description: "请确认 WEScheduler 主程序仍在运行。" },
-  },
-  en: {
-    loading: { heading: "Connecting to WEScheduler", description: "Reading the local Profile state." },
-    setup: {
-      heading: "Set up WEScheduler",
-      description: "First-run setup is ready for Wallpaper Engine, weather, and Scene assignments.",
-    },
-    settings: { heading: "WEScheduler Settings", description: "The current Profile is ready to edit." },
-    unavailable: { heading: "WEScheduler is unavailable", description: "Make sure WEScheduler is still running." },
-  },
+const initialLocale: Locale = new URLSearchParams(window.location.search).get("locale") === "zh" ? "zh" : "en"
+const state = ref<AppState>("loading")
+const profile = ref<Profile | null>(null)
+const detail = ref("")
+
+document.documentElement.lang = initialLocale === "zh" ? "zh-CN" : "en"
+document.title = initialLocale === "zh" ? "WEScheduler 设置" : "WEScheduler Settings"
+
+async function loadProfile(): Promise<void> {
+  state.value = "loading"
+  detail.value = ""
+  try {
+    profile.value = await getProfile()
+    state.value = "ready"
+  } catch (error) {
+    state.value = "unavailable"
+    detail.value = error instanceof ApiError ? error.message : COPY[initialLocale].errors.generic
+  }
 }
 
-const mode = ref<AppMode>("loading")
-const detail = ref("")
-const copy = computed(() => messages[locale][mode.value])
-
-document.documentElement.lang = locale === "zh" ? "zh-CN" : "en"
-document.title = locale === "zh" ? "WEScheduler 设置" : "WEScheduler Setup"
-
-onMounted(async () => {
-  try {
-    mode.value = (await getProfile()) === null ? "setup" : "settings"
-  } catch (error) {
-    mode.value = "unavailable"
-    detail.value = error instanceof ApiError ? error.message : locale === "zh" ? "发生未知错误。" : "Unknown error."
-  }
-})
+onMounted(loadProfile)
 </script>
 
 <template>
-  <main class="flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
-    <section class="flex max-w-xl flex-col gap-3 text-center" aria-live="polite">
-      <p class="text-sm font-medium text-muted-foreground">WEScheduler</p>
-      <h1 class="text-3xl font-semibold tracking-tight">{{ copy.heading }}</h1>
-      <p class="text-balance text-muted-foreground">{{ detail || copy.description }}</p>
-    </section>
+  <SetupWorkspace
+    v-if="state === 'ready'"
+    :initial-profile="profile"
+    :initial-locale="initialLocale"
+  />
+
+  <main v-else class="grid min-h-[100dvh] place-items-center bg-muted/40 p-6 text-foreground">
+    <Card v-if="state === 'loading'" class="w-full max-w-lg">
+      <CardHeader>
+        <CardTitle>{{ COPY[initialLocale].loading.title }}</CardTitle>
+        <CardDescription>{{ COPY[initialLocale].loading.description }}</CardDescription>
+      </CardHeader>
+      <CardContent class="flex flex-col gap-4">
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-24 w-full" />
+        <Skeleton class="h-10 w-2/3" />
+      </CardContent>
+    </Card>
+
+    <Card v-else class="w-full max-w-lg">
+      <CardHeader>
+        <CardTitle>{{ COPY[initialLocale].unavailable.title }}</CardTitle>
+        <CardDescription>{{ COPY[initialLocale].unavailable.description }}</CardDescription>
+      </CardHeader>
+      <CardContent class="flex flex-col gap-4">
+        <Alert variant="destructive">
+          <TriangleAlertIcon />
+          <AlertTitle>{{ COPY[initialLocale].unavailable.title }}</AlertTitle>
+          <AlertDescription>{{ detail }}</AlertDescription>
+        </Alert>
+        <Button class="self-start" @click="loadProfile">{{ COPY[initialLocale].unavailable.retry }}</Button>
+      </CardContent>
+    </Card>
   </main>
+
+  <Toaster position="top-center" rich-colors />
 </template>

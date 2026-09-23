@@ -1,6 +1,6 @@
 # 产品化转向简要规划
 
-状态：实施中；Profile 契约、原子持久化、运行时构造边界、独立的 `ProfileManager`、单写者应用队列、Bottle 接口、首次 Profile 创建、首次启动宿主分支、setup 场景目录与 playlist 扫描接口、Tick History 导出和旧 Diagnostics 下线已经建立；旧六 YAML 后端、配置 CLI、样例和发布入口已经删除；`tools/tuning` 保留用于后续 Preset 校准，当前尚未与新的配置层对齐。
+状态：实施中；Profile 契约、原子持久化、运行时构造边界、独立的 `ProfileManager`、单写者应用队列、`server/` 中的 Bottle 资源接口、首次启动宿主分支、Scene 目录与 Playlist 扫描、Tick History 导出和旧 Diagnostics 下线已经建立。首次创建与运行时设置共用 `frontend/`；旧六 YAML 后端、配置 CLI、样例和发布入口已经删除。独立冻结包构建及本地服务冒烟验证通过，仍需在真实桌面与目标网络环境验收。`tools/tuning` 保留用于后续 Preset 校准，当前尚未与新的配置层对齐。
 
 ## 目标
 
@@ -21,7 +21,7 @@
 - `app/main.py` 创建 `ProfileManager`，并将同一实例交给 Bottle API、首次启动流程和 `WEScheduler`；`WEScheduler` 依赖该实例、直接持有活动 Engine，并负责调度编排。
 - Profile 应用命令由调度线程在运行时安全边界处理，活动 Engine 仍保持单写者语义。
 - Profile 固定持久化为 `<config_dir>/profile.json`，由单写者队列串行更新并使用同目录原子替换，不使用乐观锁。
-- 天气是必选能力，凭据或连接故障会直接影响调度质量，需要尽快提醒用户。提醒接入位置有两个候选项：用户提交 profile 时做一次真实连接校验；每次正式启动调度器前，在配置完整性校验中顺带测试。两处都推迟到 setup/settings 前端成形后实现；在那之前运行时只记录日志并按抓取间隔重试，不引入额外运行时状态。
+- 天气是必选能力，凭据或连接故障会直接影响调度质量。首次创建 Profile 时必须通过一次 OpenWeatherMap 真实连接校验；运行中仅在 API Key 或地点发生变化时重新校验，避免天气服务临时故障阻塞无关设置。运行时仍按抓取间隔重试，不引入额外运行时状态。
 
 ## 第一阶段：配置产品化
 
@@ -56,7 +56,7 @@
 
 ### 2. 运行时修改与反馈
 
-运行中从托盘打开设置时，界面读取当前已提交的 profile，并在前端维护未保存草稿。setup 限制为单窗口，托盘重复打开时聚焦已有窗口。用户确认修改后，通过 Bottle 本地接口提交一次 `ApplyProfile` 操作：
+运行中从托盘打开设置时，界面读取当前已提交的 profile，并在前端维护未保存草稿。setup 限制为单窗口，托盘重复打开时聚焦已有窗口。用户确认修改后，通过 `PUT /api/profile` 完整替换 Profile 并等待应用结果：
 
 1. 主进程校验草稿并由 `Profile Compiler` 生成候选 `SchedulerConfig`；
 2. 将应用操作交给 `ProfileManager` 的单写者命令队列，并在调度安全点构造候选运行时；
@@ -88,7 +88,7 @@ setup GUI 使用 Vue、pywebview 和保留后的 Bottle 本地接口，覆盖两
 
 后端已经提供固定 SceneId 目录、Wallpaper Engine playlist 扫描和首份 Profile 创建接口。首次创建会在落盘前完成编译与完整运行时组件准备；重复创建不会覆盖已有 Profile，任一阶段失败也不会留下半成品。启动宿主识别到缺失 Profile 后打开 setup 窗口，并阻塞等待该子进程退出；setup GUI 负责采集并提交首份 Profile，收到创建成功响应后主动关闭窗口。宿主随后重新加载持久化 Profile：存在则初始化 Scheduler，不存在则按用户取消退出，不轮询 Profile 状态，也不增加额外的完成通知接口。
 
-初始界面只暴露产品语义，不提供 Sensor/Policy 开关、单 Policy 权重、标签权重、阈值或通用配置树；匹配偏好只显示统一的响应风格滑块。地点设置允许用户直接填写经纬度，也提供仅限 setup 的一次性自动定位辅助：按城市级别探测并填入经纬度，随后仍可手动修正。Profile 不保存自动定位开关，运行时不持续定位或自动更新位置。
+初始界面只暴露产品语义，不提供 Sensor/Policy 开关、单 Policy 权重、标签权重、阈值或通用配置树；匹配偏好只显示统一的响应风格滑块。首次创建与运行时设置都允许直接填写经纬度，也提供用户主动触发的一次性城市估算：通过 `ipapi.co` 按公网 IP 探测并填入城市级位置，随后仍可手动修正；应用不保存 IP。Profile 不保存自动定位开关，运行时不持续定位或自动更新位置。
 
 设置界面至少包含 Wallpaper Engine、天气与地点、场景绑定、打扰控制和 Activity 检测五组内容。运行时修改复用同一套 profile 表单和应用反馈，不提供另一套高级配置入口。
 

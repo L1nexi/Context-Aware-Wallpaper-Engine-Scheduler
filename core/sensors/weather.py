@@ -4,11 +4,10 @@ import logging
 import threading
 import time
 
-import requests
-
 from configurations.runtime_models import SchedulerConfig, WeatherPolicyConfig
 from core.models.context import WeatherData
 from core.sensors.base import Sensor
+from integrations.openweather import fetch_weather
 
 logger = logging.getLogger("WEScheduler.Sensor")
 
@@ -43,33 +42,27 @@ class WeatherSensor(Sensor):
     def _fetch_async(self) -> None:
         """Background fetch — updates ``_cached`` on success, never blocks tick loop."""
         try:
-            resp = requests.get(
-                "https://api.openweathermap.org/data/2.5/weather",
-                params={
-                    "lat": self.lat,
-                    "lon": self.lon,
-                    "appid": self.api_key,
-                    "units": "metric",
-                },
+            observation = fetch_weather(
+                self.api_key,
+                self.lat,
+                self.lon,
                 timeout=self.timeout,
             )
-            if resp.ok:
-                data = resp.json()
-                first = (data.get("weather") or [{}])[0]
-                sys_block = data.get("sys") or {}
-                self._cached = WeatherData(
-                    id=first.get("id", 0),
-                    main=first.get("main", ""),
-                    sunrise=sys_block.get("sunrise", 0),
-                    sunset=sys_block.get("sunset", 0),
-                )
-                logger.info(
-                    f"Weather updated: id={self._cached.id} main={self._cached.main} sunrise={self._cached.sunrise} sunset={self._cached.sunset}"
-                )
-            else:
-                logger.warning(f"Weather API error: {resp.status_code}")
+            self._cached = WeatherData(
+                id=observation.id,
+                main=observation.main,
+                sunrise=observation.sunrise,
+                sunset=observation.sunset,
+            )
+            logger.info(
+                "Weather updated: id=%s main=%s sunrise=%s sunset=%s",
+                observation.id,
+                observation.main,
+                observation.sunrise,
+                observation.sunset,
+            )
         except Exception as e:
-            logger.warning(f"Weather fetch failed: {e}")
+            logger.warning("Weather fetch failed: %s", e)
         finally:
             self._fetching = False
 

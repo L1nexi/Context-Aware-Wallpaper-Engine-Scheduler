@@ -20,6 +20,12 @@
 | ------------------------------ | ----------------------------------------------------------- | ------ |
 | `PRODUCTIZATION_PHASE_PLAN.md` | 配置 profile、Tick History 与 setup GUI 的产品化阶段规划。 | Active |
 
+## Architecture Decisions
+
+| 文档                                                     | 作用                                                               | 状态     |
+| -------------------------------------------------------- | ------------------------------------------------------------------ | -------- |
+| `adr/0001-productization-server-and-profile-editor.md`   | 产品化本地服务端、REST Profile 接口、城市定位与设置窗口的架构交接。 | Accepted |
+
 ## Half-Finished
 
 | 文档                                                    | 作用                                          |

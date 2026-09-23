@@ -64,7 +64,9 @@ Commit:   SchedulerState.commit()      -> cache persist
 - `core/models/`：领域模型与 trace。
 - `core/runtime/`：Engine、Scheduler、ProfileManager、Matcher、Controller、Actuator 和 Wallpaper Engine 边界。
 - `core/state/`：Scheduler 状态、Tick History 与 Action Event 写入。
-- `ui/`：托盘、Bottle API、pywebview、Tick History DTO 与导出。
+- `server/`：Bottle 本地服务、Profile 资源接口和前端静态文件服务。
+- `integrations/`：天气与公网 IP 地点服务的外部请求和响应解析。
+- `ui/`：托盘、pywebview、Tick History DTO 与导出。
 - `frontend/`：Vue 3 + shadcn-vue 产品界面（setup 与运行时设置）。
 - `config/`：本机真实配置目录，不得作为 disposable fixture 覆盖或清空。
 - `tests/`：pytest 行为测试。
@@ -76,5 +78,5 @@ Commit:   SchedulerState.commit()      -> cache persist
 - 不要让 Sensor、Policy、Engine 或 `WEScheduler` 直接读取 Profile。
 - 不要绕过 ProfileManager 队列修改运行时。
 - Tick History 是密集、近期、内存有界的逐 tick 记录；Event Log 是稀疏、持久化的运行事件。
-- 当前 Diagnostics 消费 `GET /api/tick-history/window`，不要恢复旧 summary 契约。
+- 旧 Diagnostics 页面已下线；Tick History 的本地读取接口为 `GET /api/tick-history?limit=<positive-int>`，排错入口是托盘导出。
 - 前端改动至少验证 `npm run type-check` 和 `npm run build-only`。

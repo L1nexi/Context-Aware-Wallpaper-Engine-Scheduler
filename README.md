@@ -27,8 +27,9 @@ WEScheduler 根据时段、季节、天气和当前活动判断适合的预设�
 
 - 正式持久化契约是 `config/profile.json`。
 - 旧六 YAML 配置、配置 CLI 和用户自定义 Playlist 标签模型已经退出后端。
-- 新的首次启动与设置界面正在 `frontend/` 中建设。
+- `frontend/` 中的界面已覆盖首次创建和运行时设置，仍在产品化验收阶段。
 - 首次启动宿主已能在缺少 `profile.json` 时打开 setup，并在创建成功后启动调度器。
+- 本地 HTTP 能力位于 `server/`；同一 Profile 使用 `GET`、`POST`、`PUT /api/profile` 读取、首次创建和完整替换。
 - 旧 Diagnostics 页面和工作区已经删除，排错入口是托盘中的 Tick History 导出。
 
 ## 开发运行

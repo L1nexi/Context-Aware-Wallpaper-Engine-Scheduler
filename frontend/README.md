@@ -5,12 +5,12 @@ Vue 3、TypeScript、Tailwind CSS 4 和 shadcn-vue 工作区。该界面承载�
 本地联调：
 
 ```powershell
-python main.py --dashboard-api-port 38417
+python main.py --api-port 38417
 cd frontend
 npm run dev
 ```
 
-使用其他端口时，将 `DASHBOARD_API_PORT` 设置为相同值。验证命令：
+使用其他端口时，将 `WESCHEDULER_API_PORT` 设置为相同值。验证命令：
 
 ```powershell
 npm run type-check
