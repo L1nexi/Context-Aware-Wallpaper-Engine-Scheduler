@@ -7,15 +7,6 @@ import bottle
 
 from app.context import get_app_root
 
-STATIC_APP_DIR = "frontend"
-STATIC_DIST_DIR = "dist"
-
-
-def _resolve_static_root(app_dir: str) -> str:
-    if getattr(sys, "frozen", False):
-        return os.path.join(sys._MEIPASS, app_dir, STATIC_DIST_DIR)
-    return os.path.join(get_app_root(), app_dir, STATIC_DIST_DIR)
-
 
 def _serve_spa(static_root: str, path: str) -> bottle.HTTPResponse:
     """Serve one SPA asset or its index fallback.
@@ -39,7 +30,8 @@ def _serve_spa(static_root: str, path: str) -> bottle.HTTPResponse:
 
 
 def register_spa_routes(app: bottle.Bottle) -> None:
-    static_root = _resolve_static_root(STATIC_APP_DIR)
+    app_root = sys._MEIPASS if getattr(sys, "frozen", False) else get_app_root()
+    static_root = os.path.join(app_root, "frontend", "dist")
 
     @app.route("/setup")
     def redirect_setup() -> bottle.HTTPResponse:

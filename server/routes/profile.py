@@ -7,6 +7,7 @@ import bottle
 from pydantic import ValidationError
 
 from configurations.profile import Profile
+from configurations.profile_store import ProfileStoreError
 from core.runtime.profile_manager import (
     ProfileAlreadyExists,
     ProfileApplyFailed,
@@ -20,17 +21,6 @@ logger = logging.getLogger("WEScheduler.API")
 PROFILE_APPLY_TIMEOUT_SECONDS = 2.0
 
 
-def _profile_validation_issues(exc: ValidationError) -> list[dict[str, object]]:
-    return [
-        {
-            "path": list(issue["loc"]),
-            "code": issue["type"],
-            "message": issue["msg"],
-        }
-        for issue in exc.errors()
-    ]
-
-
 def _read_json_object() -> dict[str, object]:
     payload = json.loads(bottle.request.body.read())
     if not isinstance(payload, dict):
@@ -40,17 +30,8 @@ def _read_json_object() -> dict[str, object]:
 
 def _request_validation_issues(exc: ValidationError | ValueError | TypeError) -> list[dict[str, object]]:
     if isinstance(exc, ValidationError):
-        return _profile_validation_issues(exc)
+        return [{"path": list(issue["loc"]), "code": issue["type"], "message": issue["msg"]} for issue in exc.errors()]
     return [{"path": [], "code": "json_type", "message": str(exc)}]
-
-
-def _validate_profile_weather(profile: Profile) -> None:
-    location = profile.weather.location
-    validate_weather_connection(
-        profile.weather.api_key,
-        location.latitude,
-        location.longitude,
-    )
 
 
 def _weather_rejection_response(exc: WeatherRejected) -> dict[str, object]:
@@ -65,11 +46,6 @@ def _weather_rejection_response(exc: WeatherRejected) -> dict[str, object]:
             }
         ],
     }
-
-
-def _weather_unavailable_response() -> dict[str, str]:
-    bottle.response.status = 503
-    return {"error": "weather_validation_unavailable"}
 
 
 def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager) -> None:
@@ -101,7 +77,8 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
         try:
             if profile_manager.has_committed_profile():
                 raise ProfileAlreadyExists("profile is already committed")
-            _validate_profile_weather(draft)
+            location = draft.weather.location
+            validate_weather_connection(draft.weather.api_key, location.latitude, location.longitude)
             committed = profile_manager.create_initial_profile(draft)
         except ProfileAlreadyExists:
             bottle.response.status = 409
@@ -109,7 +86,8 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
         except WeatherRejected as exc:
             return _weather_rejection_response(exc)
         except WeatherUnavailable:
-            return _weather_unavailable_response()
+            bottle.response.status = 503
+            return {"error": "weather_validation_unavailable"}
         except ProfileApplyFailed as exc:
             logger.exception("Initial Profile creation failed during %s", exc.stage)
             bottle.response.status = 500
@@ -118,7 +96,7 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
                 "stage": exc.stage,
                 "detail": str(exc),
             }
-        except Exception as exc:
+        except ProfileStoreError as exc:
             logger.exception("Initial Profile creation failed")
             bottle.response.status = 500
             return {"error": "profile_create_failed", "detail": str(exc)}
@@ -152,11 +130,13 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
 
         if committed_profile.weather != draft.weather:
             try:
-                _validate_profile_weather(draft)
+                location = draft.weather.location
+                validate_weather_connection(draft.weather.api_key, location.latitude, location.longitude)
             except WeatherRejected as exc:
                 return _weather_rejection_response(exc)
             except WeatherUnavailable:
-                return _weather_unavailable_response()
+                bottle.response.status = 503
+                return {"error": "weather_validation_unavailable"}
 
         try:
             committed = profile_manager.apply_profile(
@@ -177,11 +157,6 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
                 "stage": exc.stage,
                 "detail": str(exc),
             }
-        except Exception as exc:
-            logger.exception("Profile apply failed")
-            bottle.response.status = 500
-            return {"error": "profile_apply_failed", "detail": str(exc)}
-
         return {
             "status": "applied",
             "profile": committed.model_dump(mode="json"),

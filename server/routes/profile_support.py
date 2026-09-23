@@ -17,19 +17,6 @@ class PlaylistScanRequest(BaseModel):
     wallpaper_engine_path: str = ""
 
 
-def _read_json_object() -> dict[str, object]:
-    payload = json.loads(bottle.request.body.read())
-    if not isinstance(payload, dict):
-        raise TypeError("request body must be a JSON object")
-    return payload
-
-
-def _request_validation_issues(exc: ValidationError | ValueError | TypeError) -> list[dict[str, object]]:
-    if isinstance(exc, ValidationError):
-        return [{"path": list(issue["loc"]), "code": issue["type"], "message": issue["msg"]} for issue in exc.errors()]
-    return [{"path": [], "code": "json_type", "message": str(exc)}]
-
-
 def register_profile_support_routes(app: bottle.Bottle) -> None:
     @app.route("/api/scenes")
     def api_setup_scenes():
@@ -61,12 +48,19 @@ def register_profile_support_routes(app: bottle.Bottle) -> None:
             return {"error": "unsupported_media_type"}
 
         try:
-            scan_request = PlaylistScanRequest.model_validate(_read_json_object())
+            payload = json.loads(bottle.request.body.read())
+            if not isinstance(payload, dict):
+                raise TypeError("request body must be a JSON object")
+            scan_request = PlaylistScanRequest.model_validate(payload)
         except (ValidationError, ValueError, TypeError) as exc:
             bottle.response.status = 400 if isinstance(exc, (json.JSONDecodeError, UnicodeDecodeError)) else 422
+            if isinstance(exc, ValidationError):
+                issues = [{"path": list(issue["loc"]), "code": issue["type"], "message": issue["msg"]} for issue in exc.errors()]
+            else:
+                issues = [{"path": [], "code": "json_type", "message": str(exc)}]
             return {
                 "error": "invalid_wallpaper_engine_request",
-                "issues": _request_validation_issues(exc),
+                "issues": issues,
             }
 
         executable = resolve_wallpaper_engine_path(scan_request.wallpaper_engine_path)
