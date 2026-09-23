@@ -100,8 +100,8 @@ class AppWindow:
         webview.create_window(
             title=self._title,
             url=self._url,
-            width=900,
-            height=650,
+            width=1200,
+            height=780,
             resizable=True,
             text_select=True,
             js_api=_WindowAPI(),

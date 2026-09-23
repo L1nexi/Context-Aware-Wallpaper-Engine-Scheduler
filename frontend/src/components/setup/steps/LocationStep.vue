@@ -16,7 +16,6 @@ type Coordinate = "latitude" | "longitude"
 
 const props = defineProps<{
   locale: Locale
-  mode: "setup" | "settings"
   location: Location
   locating: boolean
   detectionStatus: "idle" | "success" | "error"
@@ -55,13 +54,6 @@ function setCoordinate(field: Coordinate, value: string | number): void {
 
 <template>
   <section class="flex flex-col gap-6">
-    <div class="max-w-2xl">
-      <h1 class="text-2xl font-semibold tracking-tight">{{ copy.location.title }}</h1>
-      <p class="mt-2 leading-relaxed text-muted-foreground">
-        {{ mode === "setup" ? copy.location.setupDescription : copy.location.settingsDescription }}
-      </p>
-    </div>
-
     <div class="flex flex-col items-start gap-2">
       <Button variant="outline" :disabled="locating" @click="emit('detect')">
         <Spinner v-if="locating" data-icon="inline-start" />

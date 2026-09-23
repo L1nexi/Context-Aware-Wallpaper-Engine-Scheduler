@@ -48,6 +48,7 @@ import type { StepId } from "@/setup/flow"
 import { buildProfile, createProfileDraft, profileFingerprint, validationIssueField } from "@/setup/model"
 import type { ProfileDraft } from "@/setup/model"
 import { usePlaylistScan } from "@/setup/usePlaylistScan"
+import { themeMode } from "@/theme"
 
 const props = defineProps<{
   initialProfile: Profile | null
@@ -90,6 +91,21 @@ const stepIcons: Record<StepId, Component> = {
   review: ClipboardCheckIcon,
 }
 const steps = computed(() => STEP_ORDER.map((id) => ({ id, ...copy.value.steps[id], icon: stepIcons[id] })))
+const activeHeading = computed(() => {
+  const content = copy.value
+  switch (activeStep.value) {
+    case "wallpaper": return { title: content.wallpaper.title, description: content.wallpaper.description }
+    case "weather": return { title: content.weather.title, description: content.weather.description }
+    case "location": return {
+      title: content.location.title,
+      description: mode.value === "setup" ? content.location.setupDescription : content.location.settingsDescription,
+    }
+    case "scenes": return { title: content.scenes.title, description: content.scenes.description }
+    case "scheduling": return { title: content.preferences.title, description: content.preferences.description }
+    case "activity": return { title: content.activity.title, description: content.activity.description }
+    case "review": return { title: content.review.title, description: content.review.description }
+  }
+})
 const evaluation = computed(() => evaluateSteps(draft, scan.ready.value, scan.usablePlaylists.value))
 const allValid = computed(() => Object.values(evaluation.value.validity).every(Boolean))
 const isDirty = computed(() => profileFingerprint(draft) !== baseline.value)
@@ -118,6 +134,10 @@ function clearStepFeedback(id: StepId): void {
   validationIssues.value = validationIssues.value.filter((issue) => stepForIssue(issue.path) !== id)
   if (activeStep.value === id) stepError.value = null
   submissionFailure.value = null
+}
+
+function setTheme(value: unknown): void {
+  if (value === "auto" || value === "light" || value === "dark") themeMode.value = value
 }
 
 function updatePath(value: string): void {
@@ -390,15 +410,15 @@ async function submitProfile(): Promise<void> {
 </script>
 
 <template>
-  <main class="min-h-[100dvh] bg-muted/40 p-4 text-foreground md:p-6">
-    <div class="mx-auto grid max-w-6xl gap-4 md:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside class="flex min-w-0 flex-col gap-5 rounded-xl bg-sidebar p-4 text-sidebar-foreground ring-1 ring-sidebar-border md:min-h-[calc(100dvh-3rem)]">
+  <main class="min-h-[100dvh] bg-muted/40 p-4 text-foreground md:h-[100dvh] md:overflow-hidden">
+    <div class="mx-auto grid w-full max-w-[100rem] gap-4 md:h-full md:min-h-0 md:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[18rem_minmax(0,1fr)]">
+      <aside class="flex min-w-0 flex-col gap-5 rounded-xl bg-sidebar p-4 text-sidebar-foreground ring-1 ring-sidebar-border md:h-full md:min-h-0 md:overflow-hidden">
         <header class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="text-sm font-semibold">{{ copy.appName }}</p>
             <p class="mt-1 text-sm text-muted-foreground">{{ copy.mode[mode] }}</p>
           </div>
-          <ToggleGroup type="single" variant="outline" size="sm" :model-value="locale" aria-label="Language" @update:model-value="setLocale">
+          <ToggleGroup type="single" variant="outline" size="sm" :model-value="locale" :aria-label="copy.nav.languageLabel" @update:model-value="setLocale">
             <ToggleGroupItem value="zh" aria-label="中文">中</ToggleGroupItem>
             <ToggleGroupItem value="en" aria-label="English">EN</ToggleGroupItem>
           </ToggleGroup>
@@ -408,12 +428,22 @@ async function submitProfile(): Promise<void> {
           {{ mode === "setup" ? copy.nav.setupDescription : copy.nav.settingsDescription }}
         </p>
 
-        <nav class="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible" aria-label="Setup progress">
+        <div class="flex flex-col gap-2">
+          <p class="text-xs font-medium text-muted-foreground">{{ copy.nav.themeLabel }}</p>
+          <ToggleGroup type="single" variant="outline" size="sm" class="w-full" :model-value="themeMode" :aria-label="copy.nav.themeLabel" @update:model-value="setTheme">
+            <ToggleGroupItem value="auto" class="min-w-0 flex-1 px-2">{{ copy.nav.themeSystem }}</ToggleGroupItem>
+            <ToggleGroupItem value="light" class="min-w-0 flex-1 px-2">{{ copy.nav.themeLight }}</ToggleGroupItem>
+            <ToggleGroupItem value="dark" class="min-w-0 flex-1 px-2">{{ copy.nav.themeDark }}</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
+        <nav class="flex gap-1 overflow-x-auto pb-1 md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto" :aria-label="mode === 'setup' ? copy.nav.setupNavigation : copy.nav.settingsNavigation">
           <Button
             v-for="(step, index) in steps"
             :key="step.id"
             type="button"
             :variant="currentIndex === index ? 'secondary' : 'ghost'"
+            :aria-current="currentIndex === index ? (mode === 'setup' ? 'step' : 'page') : undefined"
             class="h-auto min-w-52 justify-start px-3 py-2.5 text-left md:min-w-0"
             :disabled="!canNavigateTo(index)"
             @click="navigateTo(index)"
@@ -433,14 +463,12 @@ async function submitProfile(): Promise<void> {
         </div>
       </aside>
 
-      <Card class="min-w-0 min-h-[calc(100dvh-3rem)] md:h-[calc(100dvh-3rem)]">
+      <Card class="min-w-0 min-h-[32rem] md:h-full md:min-h-0">
         <CardHeader class="shrink-0">
-          <CardTitle>{{ steps[currentIndex]?.title }}</CardTitle>
-          <CardDescription>{{ steps[currentIndex]?.short }}</CardDescription>
+          <CardTitle><h1 class="text-2xl font-semibold tracking-tight">{{ activeHeading.title }}</h1></CardTitle>
+          <CardDescription>{{ activeHeading.description }}</CardDescription>
         </CardHeader>
-        <Separator />
-
-        <CardContent class="min-h-0 flex-1 overflow-y-auto py-6">
+        <CardContent class="min-h-0 flex-1 overflow-y-auto pt-0 pb-6">
           <Alert v-if="stepErrorText" variant="destructive" class="mb-6">
             <TriangleAlertIcon />
             <AlertTitle>{{ copy.common.needsAttention }}</AlertTitle>
@@ -483,7 +511,6 @@ async function submitProfile(): Promise<void> {
           <LocationStep
             v-else-if="activeStep === 'location'"
             :locale="locale"
-            :mode="mode"
             :location="draft.weather.location"
             :locating="locating"
             :detection-status="locationDetectionStatus"
@@ -526,7 +553,16 @@ async function submitProfile(): Promise<void> {
             :errors="issuesByStep.activity.activity ?? []"
             @update:activity="updateActivity"
           />
-          <ReviewStep v-else :locale="locale" :draft="draft" :valid="allValid" />
+          <ReviewStep
+            v-else
+            :locale="locale"
+            :draft="draft"
+            :valid="allValid"
+            :weather-status="weatherValidationStatus"
+            :weather-error="weatherValidationError"
+            :validating-weather="validatingWeather"
+            @validate-weather="testWeatherKey"
+          />
         </CardContent>
 
         <Separator />

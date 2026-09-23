@@ -32,11 +32,6 @@ const showApiKey = ref(false)
 
 <template>
   <section class="flex flex-col gap-6">
-    <div class="max-w-2xl">
-      <h1 class="text-2xl font-semibold tracking-tight">{{ copy.weather.title }}</h1>
-      <p class="mt-2 leading-relaxed text-muted-foreground">{{ copy.weather.description }}</p>
-    </div>
-
     <FieldGroup>
       <Field :data-invalid="invalid || errors.length > 0">
         <FieldLabel for="weather-api-key">{{ copy.weather.keyLabel }}</FieldLabel>
@@ -85,10 +80,10 @@ const showApiKey = ref(false)
 
     <div class="max-w-2xl rounded-lg border bg-muted/30 p-4">
       <h2 class="font-medium">{{ copy.weather.guideTitle }}</h2>
-      <ol class="mt-3 space-y-4 text-sm leading-relaxed">
+      <ol class="mt-3 flex flex-col gap-4 text-sm leading-relaxed">
         <li v-for="(step, index) in copy.weather.guideSteps" :key="step.title" class="flex gap-3">
           <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">{{ index + 1 }}</span>
-          <div class="min-w-0 space-y-1">
+          <div class="flex min-w-0 flex-col gap-1">
             <p class="font-medium">{{ step.title }}</p>
             <p class="text-muted-foreground">{{ step.action }}</p>
             <p class="text-muted-foreground">{{ step.expected }}</p>

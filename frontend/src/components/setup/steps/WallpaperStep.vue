@@ -9,6 +9,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { COPY } from "@/setup/copy"
 import type { ScanStatus } from "@/setup/usePlaylistScan"
 
@@ -35,11 +36,6 @@ const copy = computed(() => COPY[props.locale])
 
 <template>
   <section class="flex flex-col gap-6">
-    <div class="max-w-2xl">
-      <h1 class="text-2xl font-semibold tracking-tight">{{ copy.wallpaper.title }}</h1>
-      <p class="mt-2 leading-relaxed text-muted-foreground">{{ copy.wallpaper.description }}</p>
-    </div>
-
     <FieldGroup>
       <Field :data-invalid="invalid || errors.length > 0">
         <FieldLabel for="wallpaper-engine-path">{{ copy.wallpaper.pathLabel }}</FieldLabel>
@@ -99,20 +95,25 @@ const copy = computed(() => COPY[props.locale])
       </Alert>
       <p class="text-sm text-muted-foreground">{{ copy.wallpaper.englishNames }}</p>
       <div class="overflow-hidden rounded-lg border">
-        <div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
-          <span>{{ copy.wallpaper.playlistName }}</span>
-          <span class="text-right">{{ copy.wallpaper.wallpaperCount }}</span>
-        </div>
-        <div
-          v-for="playlist in playlists"
-          :key="playlist.name"
-          class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3 border-b px-3 py-2 last:border-b-0"
-        >
-          <span class="truncate text-sm font-medium" :title="playlist.name">{{ playlist.name }}</span>
-          <span class="text-right text-sm" :class="playlist.item_count > 0 ? 'text-foreground' : 'text-muted-foreground'">
-            {{ playlist.item_count > 0 ? copy.wallpaper.itemCount(playlist.item_count) : copy.wallpaper.zeroItem }}
-          </span>
-        </div>
+        <Table class="table-fixed">
+          <TableCaption class="sr-only">{{ copy.wallpaper.scanResultsLabel }}</TableCaption>
+          <TableHeader class="bg-muted/40">
+            <TableRow>
+              <TableHead>{{ copy.wallpaper.playlistName }}</TableHead>
+              <TableHead class="w-28 text-right">{{ copy.wallpaper.wallpaperCount }}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="playlist in playlists" :key="playlist.name">
+              <TableCell class="min-w-0">
+                <span class="block truncate font-medium" :title="playlist.name">{{ playlist.name }}</span>
+              </TableCell>
+              <TableCell class="text-right" :class="playlist.item_count > 0 ? 'text-foreground' : 'text-muted-foreground'">
+                {{ playlist.item_count > 0 ? copy.wallpaper.itemCount(playlist.item_count) : copy.wallpaper.zeroItem }}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
     </div>
   </section>

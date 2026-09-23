@@ -62,11 +62,6 @@ function setTiming(field: DisturbanceKey, value: string | number): void {
 
 <template>
   <section class="flex flex-col gap-8">
-    <div class="max-w-2xl">
-      <h1 class="text-2xl font-semibold tracking-tight">{{ copy.preferences.title }}</h1>
-      <p class="mt-2 leading-relaxed text-muted-foreground">{{ copy.preferences.description }}</p>
-    </div>
-
     <FieldSet :data-invalid="messages('matching.response_style').length > 0">
       <FieldLegend>{{ copy.preferences.responseTitle }}</FieldLegend>
       <FieldDescription>{{ copy.preferences.responseDescription }}</FieldDescription>

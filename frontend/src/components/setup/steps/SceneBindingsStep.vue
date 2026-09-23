@@ -4,10 +4,9 @@ import { computed } from "vue"
 
 import type { Locale, PlaylistScanResult, SceneCatalogItem, SceneId } from "@/api/profile"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Field, FieldContent, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { COPY, SCENE_LABELS } from "@/setup/copy"
 import type { ProfileDraft } from "@/setup/model"
@@ -33,7 +32,7 @@ const emit = defineEmits<{
 
 const copy = computed(() => COPY[props.locale])
 const supportedScenes = computed(() => new Set(props.catalog.map((scene) => scene.id)))
-const recommendedScenes = new Set<SceneId>(["day_work", "day_leisure", "night_work", "night_leisure", "rain"])
+const availablePlaylists = computed(() => new Set(props.playlists.map((playlist) => playlist.name)))
 const sceneGroups = computed(() => [
   {
     id: "context",
@@ -65,15 +64,14 @@ function toggleScene(sceneId: SceneId, enabled: boolean | "indeterminate"): void
 function setPlaylist(sceneId: SceneId, value: unknown): void {
   if (typeof value === "string") emit("update:scenes", { ...props.scenes, [sceneId]: value })
 }
+
+function assignmentInvalid(sceneId: SceneId): boolean {
+  return sceneId in props.scenes && !availablePlaylists.value.has(props.scenes[sceneId] ?? "")
+}
 </script>
 
 <template>
   <section class="flex flex-col gap-6">
-    <div class="max-w-2xl">
-      <h1 class="text-2xl font-semibold tracking-tight">{{ copy.scenes.title }}</h1>
-      <p class="mt-2 leading-relaxed text-muted-foreground">{{ copy.scenes.description }}</p>
-    </div>
-
     <Alert v-if="mode === 'setup'">
       <LightbulbIcon />
       <AlertDescription>{{ copy.scenes.defaultHint }}</AlertDescription>
@@ -97,7 +95,8 @@ function setPlaylist(sceneId: SceneId, value: unknown): void {
           v-for="sceneId in group.scenes.filter((id) => supportedScenes.has(id))"
           :key="sceneId"
           orientation="responsive"
-          class="rounded-lg border p-3"
+          :data-invalid="attempted && assignmentInvalid(sceneId)"
+          class="min-w-0 rounded-lg border p-3"
         >
           <div class="flex min-w-44 items-center gap-3">
             <Checkbox
@@ -109,24 +108,36 @@ function setPlaylist(sceneId: SceneId, value: unknown): void {
             <FieldLabel :for="`scene-${sceneId}`" class="font-normal">
               {{ SCENE_LABELS[locale][sceneId] }}
             </FieldLabel>
-            <Badge v-if="recommendedScenes.has(sceneId)" variant="secondary">{{ copy.scenes.recommended }}</Badge>
           </div>
-          <Select
-            :model-value="scenes[sceneId]"
-            :disabled="!(sceneId in scenes)"
-            @update:model-value="(value) => setPlaylist(sceneId, value)"
-          >
-            <SelectTrigger :aria-label="`${SCENE_LABELS[locale][sceneId]}: ${copy.scenes.playlist}`">
-              <SelectValue :placeholder="copy.scenes.choosePlaylist" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem v-for="playlist in playlists" :key="playlist.name" :value="playlist.name">
-                  {{ playlist.name }} ({{ playlist.item_count }})
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <FieldContent class="min-w-0">
+            <Select
+              :model-value="scenes[sceneId]"
+              :disabled="!(sceneId in scenes)"
+              @update:model-value="(value) => setPlaylist(sceneId, value)"
+            >
+              <SelectTrigger
+                class="min-w-0 w-full max-w-full"
+                :aria-label="`${SCENE_LABELS[locale][sceneId]}: ${copy.scenes.playlist}`"
+                :aria-invalid="attempted && assignmentInvalid(sceneId)"
+                :aria-describedby="attempted && assignmentInvalid(sceneId) ? `scene-error-${sceneId}` : undefined"
+                :title="scenes[sceneId] || undefined"
+              >
+                <SelectValue :placeholder="copy.scenes.choosePlaylist" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem v-for="playlist in playlists" :key="playlist.name" :value="playlist.name">
+                    {{ copy.scenes.playlistOption(playlist.name, playlist.item_count) }}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <FieldError
+              v-if="attempted && assignmentInvalid(sceneId)"
+              :id="`scene-error-${sceneId}`"
+              :errors="[scenes[sceneId] ? copy.scenes.unavailablePlaylist : copy.scenes.bindingRequired]"
+            />
+          </FieldContent>
         </Field>
       </FieldGroup>
     </FieldSet>

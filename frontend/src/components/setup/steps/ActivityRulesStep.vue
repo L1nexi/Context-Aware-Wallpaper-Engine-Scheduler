@@ -43,11 +43,6 @@ function setList(field: keyof Activity, values: string[]): void {
 
 <template>
   <section class="flex flex-col gap-6">
-    <div class="max-w-2xl">
-      <h1 class="text-2xl font-semibold tracking-tight">{{ copy.activity.title }}</h1>
-      <p class="mt-2 leading-relaxed text-muted-foreground">{{ copy.activity.description }}</p>
-    </div>
-
     <Alert v-if="conflicts.length" variant="destructive">
       <TriangleAlertIcon />
       <AlertTitle>{{ copy.activity.conflictTitle }}</AlertTitle>
