@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 import requests
 
+from integrations.request_failure import request_failure_reason
+
 LOCATION_LOOKUP_URL = "https://ipapi.co/json/"
 LOCATION_REQUEST_TIMEOUT_SECONDS = 8.0
 
@@ -18,6 +20,11 @@ class DetectedLocation:
 
 class LocationDetectionUnavailable(RuntimeError):
     """Raised when a city-level location cannot be detected."""
+
+    def __init__(self, message: str, *, reason: str, http_status: int | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.http_status = http_status
 
 
 def detect_city_location() -> DetectedLocation:
@@ -35,24 +42,24 @@ def detect_city_location() -> DetectedLocation:
             timeout=LOCATION_REQUEST_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
-        raise LocationDetectionUnavailable("location provider is unavailable") from exc
+        raise LocationDetectionUnavailable("location provider is unavailable", reason=request_failure_reason(exc)) from exc
 
     if response.status_code != 200:
-        raise LocationDetectionUnavailable("location provider rejected the request")
+        raise LocationDetectionUnavailable("location provider rejected the request", reason="http_status", http_status=response.status_code)
 
     try:
         payload = response.json()
     except ValueError as exc:
-        raise LocationDetectionUnavailable("location provider returned invalid JSON") from exc
+        raise LocationDetectionUnavailable("location provider returned invalid JSON", reason="invalid_json") from exc
 
     if not isinstance(payload, dict) or payload.get("error") is True:
-        raise LocationDetectionUnavailable("location provider returned an error")
+        raise LocationDetectionUnavailable("location provider returned an error", reason="provider_error")
 
     latitude = _finite_coordinate(payload.get("latitude"), minimum=-90, maximum=90)
     longitude = _finite_coordinate(payload.get("longitude"), minimum=-180, maximum=180)
     name = _location_name(payload)
     if latitude is None or longitude is None or not name:
-        raise LocationDetectionUnavailable("location provider returned incomplete data")
+        raise LocationDetectionUnavailable("location provider returned incomplete data", reason="invalid_response")
 
     return DetectedLocation(name=name, latitude=latitude, longitude=longitude)
 

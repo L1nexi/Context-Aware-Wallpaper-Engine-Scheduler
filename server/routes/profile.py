@@ -78,14 +78,22 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
             if profile_manager.has_committed_profile():
                 raise ProfileAlreadyExists("profile is already committed")
             location = draft.weather.location
+            logger.debug("Weather validation started: operation=create")
             validate_weather_connection(draft.weather.api_key, location.latitude, location.longitude)
+            logger.debug("Weather validation succeeded: operation=create")
             committed = profile_manager.create_initial_profile(draft)
         except ProfileAlreadyExists:
             bottle.response.status = 409
             return {"error": "profile_already_exists"}
         except WeatherRejected as exc:
+            logger.warning("Weather validation rejected: operation=create reason=%s", exc.code)
             return _weather_rejection_response(exc)
-        except WeatherUnavailable:
+        except WeatherUnavailable as exc:
+            logger.warning(
+                "Weather validation unavailable: operation=create reason=%s http_status=%s",
+                exc.reason,
+                exc.http_status,
+            )
             bottle.response.status = 503
             return {"error": "weather_validation_unavailable"}
         except ProfileApplyFailed as exc:
@@ -128,13 +136,23 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
             bottle.response.status = 404
             return {"error": "profile_not_found"}
 
-        if committed_profile.weather != draft.weather:
+        weather_changed = committed_profile.weather != draft.weather
+        logger.debug("Profile replace requested: weather_changed=%s", weather_changed)
+        if weather_changed:
             try:
                 location = draft.weather.location
+                logger.debug("Weather validation started: operation=replace")
                 validate_weather_connection(draft.weather.api_key, location.latitude, location.longitude)
+                logger.debug("Weather validation succeeded: operation=replace")
             except WeatherRejected as exc:
+                logger.warning("Weather validation rejected: operation=replace reason=%s", exc.code)
                 return _weather_rejection_response(exc)
-            except WeatherUnavailable:
+            except WeatherUnavailable as exc:
+                logger.warning(
+                    "Weather validation unavailable: operation=replace reason=%s http_status=%s",
+                    exc.reason,
+                    exc.http_status,
+                )
                 bottle.response.status = 503
                 return {"error": "weather_validation_unavailable"}
 
@@ -144,9 +162,11 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
                 timeout=PROFILE_APPLY_TIMEOUT_SECONDS,
             )
         except ProfileApplyTimeout:
+            logger.warning("Profile apply timed out")
             bottle.response.status = 503
             return {"error": "profile_apply_timeout"}
         except ProfileApplyUnavailable:
+            logger.warning("Profile apply unavailable")
             bottle.response.status = 503
             return {"error": "profile_apply_unavailable"}
         except ProfileApplyFailed as exc:

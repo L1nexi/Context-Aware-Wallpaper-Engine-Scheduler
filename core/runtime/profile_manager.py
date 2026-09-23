@@ -231,23 +231,30 @@ class ProfileManager:
                 fails.
         """
 
+        with self._profile_lock:
+            weather_changed = self._profile is None or self._profile.weather != profile.weather
+        logger.debug("Profile apply started: weather_changed=%s", weather_changed)
+
         try:
             config = self._compile(profile)
         except Exception as exc:
             raise ProfileApplyFailed("compile", exc) from exc
+        logger.debug("Profile apply compiled")
 
         try:
             replacement = engine.prepare_replacement(config)
         except Exception as exc:
             raise ProfileApplyFailed("prepare", exc) from exc
+        logger.debug("Profile apply prepared")
 
         try:
             committed = self._store.commit(profile)
         except Exception as exc:
             raise ProfileApplyFailed("persist", exc) from exc
+        logger.debug("Profile apply persisted")
 
         engine.install_replacement(replacement)
         with self._profile_lock:
             self._profile = committed
-        logger.info("Applied Profile update.")
+        logger.info("Applied Profile update: weather_changed=%s", weather_changed)
         return committed.model_copy(deep=True)

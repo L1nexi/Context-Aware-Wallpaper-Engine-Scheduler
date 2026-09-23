@@ -5,13 +5,24 @@ from logging.handlers import RotatingFileHandler
 
 from app.context import get_app_root
 
+_LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
 
-def setup_logger(name: str = "WEScheduler", log_file: str = "scheduler.log", level: int = logging.INFO) -> logging.Logger:
+
+def setup_logger(name: str = "WEScheduler", log_file: str = "scheduler.log", level: int | None = None) -> logging.Logger:
     """
     Sets up a logger with console and file handlers.
     Logs are saved to the 'logs' directory in the project root.
     """
     logger = logging.getLogger(name)
+    if level is None:
+        configured = os.environ.get("WESCHEDULER_LOG_LEVEL", "INFO").strip().upper()
+        level = _LOG_LEVELS.get(configured, logging.INFO)
     logger.setLevel(level)
 
     # Avoid adding handlers multiple times

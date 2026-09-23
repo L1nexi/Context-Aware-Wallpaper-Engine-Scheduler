@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import threading
+import time
+
+import requests
 
 from configurations.runtime_models import WeatherPolicyConfig
 from core.sensors.weather import WeatherSensor
@@ -43,3 +46,21 @@ def test_weather_sensor_starts_first_fetch_on_collect(monkeypatch):
     sensor.collect()
 
     assert fetched.wait(timeout=1)
+
+
+def test_weather_sensor_warning_identifies_timeout_without_exposing_request(monkeypatch, caplog):
+    def timeout(*_args, **_kwargs):
+        raise requests.Timeout("request URL contained appid=fake-secret")
+
+    monkeypatch.setattr("integrations.openweather.requests.get", timeout)
+    sensor = WeatherSensor(_config())
+
+    sensor.collect()
+
+    deadline = time.monotonic() + 1
+    while time.monotonic() < deadline and not any("Weather fetch failed:" in record.message for record in caplog.records):
+        time.sleep(0.01)
+
+    warnings = [record.message for record in caplog.records if record.name == "WEScheduler.Sensor"]
+    assert any("reason=timeout" in message for message in warnings)
+    assert all("fake-secret" not in message for message in warnings)

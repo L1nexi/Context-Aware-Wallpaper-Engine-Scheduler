@@ -57,6 +57,14 @@ npm run dev
 .\.venv\Scripts\python.exe -m ruff format .
 ```
 
+排查本地服务或天气故障时，可在当前 PowerShell 会话临时开启 DEBUG 日志；默认级别为 INFO，关键失败仍会写入 WARNING。日志文件位于 `logs/scheduler.log`，分享前应检查并去除敏感内容。
+
+```powershell
+$env:WESCHEDULER_LOG_LEVEL = 'DEBUG'
+.\.venv\Scripts\python.exe main.py
+Remove-Item Env:WESCHEDULER_LOG_LEVEL
+```
+
 ## 配置与数据
 
 - `config/profile.json`：唯一正式用户配置。

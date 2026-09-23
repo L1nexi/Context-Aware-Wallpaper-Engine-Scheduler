@@ -3,6 +3,7 @@ from __future__ import annotations
 import getpass
 import io
 import json
+import logging
 import socket
 import threading
 import time
@@ -10,6 +11,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
+import requests
 
 from configurations.profile import Profile
 from configurations.profile_store import ProfileStore
@@ -423,6 +425,20 @@ def test_api_setup_reports_unavailable_location_detection(app, monkeypatch):
     assert body == {"error": "location_detection_unavailable"}
 
 
+def test_api_setup_logs_safe_location_failure_reason(app, monkeypatch, caplog):
+    def proxy_error(*_args, **_kwargs):
+        raise requests.exceptions.ProxyError("proxy URL included private-token=fake-secret")
+
+    monkeypatch.setattr("integrations.ip_location.requests.get", proxy_error)
+
+    status, _body = wsgi_request(app, "POST", "/api/location-estimates")
+
+    assert "503" in status
+    warnings = [record.message for record in caplog.records if record.name == "WEScheduler.API"]
+    assert any("Location estimate unavailable: reason=proxy_error" in message for message in warnings)
+    assert all("fake-secret" not in message for message in warnings)
+
+
 def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history):
     executable = _wallpaper_engine_path(tmp_path)
     config_dir = tmp_path / "profile"
@@ -444,6 +460,7 @@ def test_api_create_profile_leaves_profile_absent_when_weather_key_is_rejected(
     tmp_path: Path,
     tick_history,
     monkeypatch,
+    caplog,
 ):
     class Response:
         status_code = 401
@@ -471,6 +488,11 @@ def test_api_create_profile_leaves_profile_absent_when_weather_key_is_rejected(
     profile_status, profile_body = wsgi_get(app, "/api/profile")
     assert "404" in profile_status
     assert profile_body == {"error": "profile_not_found"}
+    assert any(
+        "Weather validation rejected: operation=create reason=weather_api_key_invalid" in record.message
+        for record in caplog.records
+        if record.name == "WEScheduler.API"
+    )
 
 
 def test_api_create_profile_rejects_invalid_fields(tmp_path: Path, tick_history):
@@ -505,6 +527,22 @@ def test_api_create_profile_leaves_profile_absent_when_weather_validation_is_una
     profile_status, profile_body = wsgi_get(app, "/api/profile")
     assert "404" in profile_status
     assert profile_body == {"error": "profile_not_found"}
+
+
+def test_api_create_profile_logs_safe_weather_timeout_reason(tmp_path: Path, tick_history, monkeypatch, caplog):
+    def timeout(*_args, **_kwargs):
+        raise requests.Timeout("request URL contained appid=fake-secret")
+
+    monkeypatch.setattr("integrations.openweather.requests.get", timeout)
+    executable = _wallpaper_engine_path(tmp_path)
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, _body = wsgi_post(app, "/api/profile", _profile_payload(executable))
+
+    assert "503" in status
+    warnings = [record.message for record in caplog.records if record.name == "WEScheduler.API"]
+    assert any("Weather validation unavailable: operation=create reason=timeout" in message for message in warnings)
+    assert all("fake-secret" not in message for message in warnings)
 
 
 def test_api_create_profile_rejects_incomplete_weather_response(tmp_path: Path, tick_history, monkeypatch):
@@ -619,6 +657,25 @@ def test_api_apply_profile_returns_normalized_committed_profile(tick_history, pr
     profile_status, profile_body = wsgi_get(app, "/api/profile")
     assert "200" in profile_status
     assert profile_body["profile"]["scenes"] == {"day_work": "NEW"}
+
+
+def test_profile_apply_log_distinguishes_weather_change(tick_history, profile_manager, caplog):
+    caplog.set_level(logging.INFO, logger="WEScheduler.Profile")
+    app = build_api_app(tick_history, profile_manager)
+    scene_draft = _profile_payload_for(profile_manager, playlist="NEW")
+
+    scene_status, _scene_body = wsgi_put(app, "/api/profile", scene_draft)
+
+    weather_draft = _profile_payload_for(profile_manager, playlist="NEW")
+    weather_draft["weather"]["api_key"] = "fake-new-key"
+    weather_status, _weather_body = wsgi_put(app, "/api/profile", weather_draft)
+
+    assert "200" in scene_status
+    assert "200" in weather_status
+    messages = [record.message for record in caplog.records if record.name == "WEScheduler.Profile"]
+    assert any("weather_changed=False" in message for message in messages)
+    assert any("weather_changed=True" in message for message in messages)
+    assert all("fake-new-key" not in message for message in messages)
 
 
 def test_api_replace_profile_requires_existing_resource(tmp_path: Path, tick_history):

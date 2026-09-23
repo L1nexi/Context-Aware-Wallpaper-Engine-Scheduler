@@ -6,13 +6,19 @@
 
 | 路径                   | 定位                                        | 管理规则                                                                                                      |
 | ---------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `docs/*.md`            | 当前或近期正在推进的 active spec            | 完成后移入 `archived/done/`；废弃后移入 `archived/deprecated/` 或 `archived/outdated/`。                      |
+| `docs/*.md`            | 当前或近期正在推进的 active spec 与问题列表 | 规格完成后移入 `archived/done/`；废弃后移入 `archived/deprecated/` 或 `archived/outdated/`。问题列表持续更新。 |
 | `half-finished/`       | 暂停的规格、研究记录、访谈和未来方向        | 想法仍有价值但不在当前实现路径上时保留在这里。                                                                |
 | `superpowers/`         | 本地 agent 工作过程记录                     | 作为 scratch / work-in-progress 使用，默认不推远端；有长期价值的完成记录归档到 `archived/done/superpowers/`。 |
 | `archived/done/`       | 已完成规格和实施记录                        | 完成态历史记录。可以解释当前行为，但不作为持续维护的 current contract。                                       |
 | `archived/deprecated/` | 明确放弃的产品或架构路线                    | 只用于说明为什么不应按原路线继续。                                                                            |
 | `archived/outdated/`   | 已不匹配当前项目的大文档或旧入口            | 仅作历史背景，不作为实现依据。                                                                                |
 | `archived/reference/`  | 事实参考、POC、外部行为记录或推迟的架构备忘 | 可作为背景材料引用，不等同于 active task plan。                                                               |
+
+## 问题列表
+
+| 文档                   | 作用                         |
+| ---------------------- | ---------------------------- |
+| `ACCEPTANCE_ISSUES.md` | 2026-09-23 桌面验收开放问题。 |
 
 ## Active Specs
 

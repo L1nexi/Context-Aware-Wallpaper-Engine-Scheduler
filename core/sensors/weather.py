@@ -7,7 +7,7 @@ import time
 from configurations.runtime_models import SchedulerConfig, WeatherPolicyConfig
 from core.models.context import WeatherData
 from core.sensors.base import Sensor
-from integrations.openweather import fetch_weather
+from integrations.openweather import WeatherRejected, WeatherUnavailable, fetch_weather
 
 logger = logging.getLogger("WEScheduler.Sensor")
 
@@ -42,6 +42,7 @@ class WeatherSensor(Sensor):
     def _fetch_async(self) -> None:
         """Background fetch — updates ``_cached`` on success, never blocks tick loop."""
         try:
+            logger.debug("Weather fetch started")
             observation = fetch_weather(
                 self.api_key,
                 self.lat,
@@ -61,8 +62,12 @@ class WeatherSensor(Sensor):
                 observation.sunrise,
                 observation.sunset,
             )
-        except Exception as e:
-            logger.warning("Weather fetch failed: %s", e)
+        except WeatherRejected as exc:
+            logger.warning("Weather fetch failed: reason=%s", exc.code)
+        except WeatherUnavailable as exc:
+            logger.warning("Weather fetch failed: reason=%s http_status=%s", exc.reason, exc.http_status)
+        except Exception as exc:
+            logger.warning("Weather fetch failed: reason=unexpected_error exception_type=%s", type(exc).__name__)
         finally:
             self._fetching = False
 

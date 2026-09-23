@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import bottle
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -9,6 +10,8 @@ from core.models.scene import SceneId
 from core.runtime.we_config import WEConfigProber, WEConfigReadError
 from core.runtime.we_path import resolve_wallpaper_engine_path
 from integrations.ip_location import LocationDetectionUnavailable, detect_city_location
+
+logger = logging.getLogger("WEScheduler.API")
 
 
 class PlaylistScanRequest(BaseModel):
@@ -26,11 +29,14 @@ def register_profile_support_routes(app: bottle.Bottle) -> None:
     @app.post("/api/location-estimates")
     def api_detect_setup_location():
         bottle.response.content_type = "application/json; charset=utf-8"
+        logger.debug("Location estimate started")
         try:
             location = detect_city_location()
-        except LocationDetectionUnavailable:
+        except LocationDetectionUnavailable as exc:
+            logger.warning("Location estimate unavailable: reason=%s http_status=%s", exc.reason, exc.http_status)
             bottle.response.status = 503
             return {"error": "location_detection_unavailable"}
+        logger.debug("Location estimate succeeded")
         bottle.response.status = 201
         return {
             "location": {
