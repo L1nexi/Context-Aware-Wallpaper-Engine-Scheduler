@@ -422,7 +422,7 @@ def test_api_setup_reports_unavailable_location_detection(app, monkeypatch):
     status, body = wsgi_request(app, "POST", "/api/location-estimates")
 
     assert "503" in status
-    assert body == {"error": "location_detection_unavailable"}
+    assert body == {"error": "location_detection_unavailable", "reason": "http_status", "http_status": 429}
 
 
 def test_api_setup_logs_safe_location_failure_reason(app, monkeypatch, caplog):
@@ -431,12 +431,53 @@ def test_api_setup_logs_safe_location_failure_reason(app, monkeypatch, caplog):
 
     monkeypatch.setattr("integrations.ip_location.requests.get", proxy_error)
 
-    status, _body = wsgi_request(app, "POST", "/api/location-estimates")
+    status, body = wsgi_request(app, "POST", "/api/location-estimates")
 
     assert "503" in status
+    assert body == {"error": "location_detection_unavailable", "reason": "proxy_error"}
     warnings = [record.message for record in caplog.records if record.name == "WEScheduler.API"]
     assert any("Location estimate unavailable: reason=proxy_error" in message for message in warnings)
     assert all("fake-secret" not in message for message in warnings)
+
+
+def test_api_weather_key_test_checks_connection_without_creating_profile(tmp_path: Path, tick_history):
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_post(app, "/api/weather-key-validations", {"api_key": "sample-key"})
+    profile_status, profile_body = wsgi_get(app, "/api/profile")
+
+    assert "200" in status
+    assert body == {"status": "valid"}
+    assert "404" in profile_status
+    assert profile_body == {"error": "profile_not_found"}
+
+
+def test_api_weather_key_test_reports_rejection_without_exposing_key(tmp_path: Path, tick_history, monkeypatch):
+    class Response:
+        status_code = 401
+
+    monkeypatch.setattr("integrations.openweather.requests.get", lambda *_args, **_kwargs: Response())
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_post(app, "/api/weather-key-validations", {"api_key": "private-key"})
+
+    assert "422" in status
+    assert body["issues"][0]["code"] == "weather_api_key_invalid"
+    assert "private-key" not in json.dumps(body)
+
+
+def test_api_weather_key_test_reports_safe_timeout_reason(tmp_path: Path, tick_history, monkeypatch):
+    def timeout(*_args, **_kwargs):
+        raise requests.Timeout("request URL contained appid=private-key")
+
+    monkeypatch.setattr("integrations.openweather.requests.get", timeout)
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+
+    status, body = wsgi_post(app, "/api/weather-key-validations", {"api_key": "private-key"})
+
+    assert "503" in status
+    assert body == {"error": "weather_validation_unavailable", "reason": "timeout"}
+    assert "private-key" not in json.dumps(body)
 
 
 def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history):
@@ -522,7 +563,7 @@ def test_api_create_profile_leaves_profile_absent_when_weather_validation_is_una
     status, body = wsgi_post(app, "/api/profile", _profile_payload(executable))
 
     assert "503" in status
-    assert body == {"error": "weather_validation_unavailable"}
+    assert body == {"error": "weather_validation_unavailable", "reason": "http_status", "http_status": 500}
 
     profile_status, profile_body = wsgi_get(app, "/api/profile")
     assert "404" in profile_status
@@ -560,7 +601,7 @@ def test_api_create_profile_rejects_incomplete_weather_response(tmp_path: Path, 
     status, body = wsgi_post(app, "/api/profile", _profile_payload(executable))
 
     assert "503" in status
-    assert body == {"error": "weather_validation_unavailable"}
+    assert body == {"error": "weather_validation_unavailable", "reason": "invalid_response"}
     profile_status, profile_body = wsgi_get(app, "/api/profile")
     assert "404" in profile_status
     assert profile_body == {"error": "profile_not_found"}

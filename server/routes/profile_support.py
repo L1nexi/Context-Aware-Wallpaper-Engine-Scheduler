@@ -35,7 +35,10 @@ def register_profile_support_routes(app: bottle.Bottle) -> None:
         except LocationDetectionUnavailable as exc:
             logger.warning("Location estimate unavailable: reason=%s http_status=%s", exc.reason, exc.http_status)
             bottle.response.status = 503
-            return {"error": "location_detection_unavailable"}
+            payload: dict[str, object] = {"error": "location_detection_unavailable", "reason": exc.reason}
+            if exc.http_status is not None:
+                payload["http_status"] = exc.http_status
+            return payload
         logger.debug("Location estimate succeeded")
         bottle.response.status = 201
         return {

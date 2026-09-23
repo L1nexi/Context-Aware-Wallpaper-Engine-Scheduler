@@ -4,7 +4,6 @@ import { computed } from "vue"
 
 import type { Locale, PlaylistScanResult } from "@/api/profile"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -98,16 +97,21 @@ const copy = computed(() => COPY[props.locale])
         <AlertTitle>{{ copy.wallpaper.found }}</AlertTitle>
         <AlertDescription>{{ copy.wallpaper.foundDescription(usableCount) }}</AlertDescription>
       </Alert>
-      <div class="grid gap-2 sm:grid-cols-2">
+      <p class="text-sm text-muted-foreground">{{ copy.wallpaper.englishNames }}</p>
+      <div class="overflow-hidden rounded-lg border">
+        <div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
+          <span>{{ copy.wallpaper.playlistName }}</span>
+          <span class="text-right">{{ copy.wallpaper.wallpaperCount }}</span>
+        </div>
         <div
           v-for="playlist in playlists"
           :key="playlist.name"
-          class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+          class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3 border-b px-3 py-2 last:border-b-0"
         >
-          <span class="truncate text-sm font-medium">{{ playlist.name }}</span>
-          <Badge :variant="playlist.item_count > 0 ? 'secondary' : 'outline'">
-            {{ playlist.item_count > 0 ? playlist.item_count : copy.wallpaper.zeroItem }}
-          </Badge>
+          <span class="truncate text-sm font-medium" :title="playlist.name">{{ playlist.name }}</span>
+          <span class="text-right text-sm" :class="playlist.item_count > 0 ? 'text-foreground' : 'text-muted-foreground'">
+            {{ playlist.item_count > 0 ? copy.wallpaper.itemCount(playlist.item_count) : copy.wallpaper.zeroItem }}
+          </span>
         </div>
       </div>
     </div>

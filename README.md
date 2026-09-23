@@ -50,6 +50,8 @@ cd frontend
 npm run dev
 ```
 
+前端检查可在 `frontend/` 运行 `npm test`、`npm run type-check` 和 `npm run build-only`。设置页浏览器验收测试使用本机 Microsoft Edge，运行 `npm run test:e2e`；测试会启动独立的 Vite 服务，并在浏览器边界替代本地 API 响应，不会读取或修改真实 `config/profile.json`。
+
 后端格式化与检查：
 
 ```powershell

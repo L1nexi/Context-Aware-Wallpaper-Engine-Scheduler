@@ -81,6 +81,8 @@ export interface ApiErrorPayload {
   issues?: ValidationIssue[]
   stage?: "compile" | "prepare" | "persist"
   detail?: string
+  reason?: string
+  http_status?: number
 }
 
 export class ApiError extends Error {
@@ -132,6 +134,10 @@ export async function getSceneCatalog(): Promise<SceneCatalogItem[]> {
 export async function detectLocation(): Promise<DetectedLocation> {
   const response = await requestJson<{ location: DetectedLocation }>("/api/location-estimates", { method: "POST" })
   return response.location
+}
+
+export async function validateWeatherKey(apiKey: string): Promise<void> {
+  await requestJson<{ status: "valid" }>("/api/weather-key-validations", jsonRequest({ api_key: apiKey }))
 }
 
 export function scanPlaylists(wallpaperEnginePath: string): Promise<PlaylistScanResult> {

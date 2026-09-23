@@ -129,7 +129,13 @@ export function createProfileDraft(profile: Profile | null, locale: Locale): Pro
         longitude: null,
       },
     },
-    scenes: {},
+    scenes: {
+      day_work: "",
+      day_leisure: "",
+      night_work: "",
+      night_leisure: "",
+      rain: "",
+    },
     matching: {
       response_style: "balanced",
     },

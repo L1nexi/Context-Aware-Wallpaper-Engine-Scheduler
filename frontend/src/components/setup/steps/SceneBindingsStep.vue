@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { TriangleAlertIcon } from "@lucide/vue"
+import { LightbulbIcon, TriangleAlertIcon } from "@lucide/vue"
 import { computed } from "vue"
 
 import type { Locale, PlaylistScanResult, SceneCatalogItem, SceneId } from "@/api/profile"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
@@ -15,6 +16,7 @@ type Scenes = ProfileDraft["scenes"]
 
 const props = defineProps<{
   locale: Locale
+  mode: "setup" | "settings"
   scenes: Scenes
   catalog: SceneCatalogItem[]
   playlists: PlaylistScanResult["playlists"]
@@ -31,6 +33,7 @@ const emit = defineEmits<{
 
 const copy = computed(() => COPY[props.locale])
 const supportedScenes = computed(() => new Set(props.catalog.map((scene) => scene.id)))
+const recommendedScenes = new Set<SceneId>(["day_work", "day_leisure", "night_work", "night_leisure", "rain"])
 const sceneGroups = computed(() => [
   {
     id: "context",
@@ -71,6 +74,11 @@ function setPlaylist(sceneId: SceneId, value: unknown): void {
       <p class="mt-2 leading-relaxed text-muted-foreground">{{ copy.scenes.description }}</p>
     </div>
 
+    <Alert v-if="mode === 'setup'">
+      <LightbulbIcon />
+      <AlertDescription>{{ copy.scenes.defaultHint }}</AlertDescription>
+    </Alert>
+
     <Alert v-if="catalogError" variant="destructive">
       <TriangleAlertIcon />
       <AlertDescription>{{ catalogError }}</AlertDescription>
@@ -101,6 +109,7 @@ function setPlaylist(sceneId: SceneId, value: unknown): void {
             <FieldLabel :for="`scene-${sceneId}`" class="font-normal">
               {{ SCENE_LABELS[locale][sceneId] }}
             </FieldLabel>
+            <Badge v-if="recommendedScenes.has(sceneId)" variant="secondary">{{ copy.scenes.recommended }}</Badge>
           </div>
           <Select
             :model-value="scenes[sceneId]"

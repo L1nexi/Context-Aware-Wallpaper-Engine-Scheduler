@@ -17,7 +17,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, toRef,
 import { toast } from "vue-sonner"
 
 import type { Locale, Profile, SceneCatalogItem, ValidationIssue } from "@/api/profile"
-import { ApiError, applyProfile, createInitialProfile, detectLocation, getSceneCatalog } from "@/api/profile"
+import { ApiError, applyProfile, createInitialProfile, detectLocation, getSceneCatalog, validateWeatherKey } from "@/api/profile"
 import ActivityRulesStep from "@/components/setup/steps/ActivityRulesStep.vue"
 import LocationStep from "@/components/setup/steps/LocationStep.vue"
 import ReviewStep from "@/components/setup/steps/ReviewStep.vue"
@@ -71,6 +71,10 @@ const catalogFailure = shallowRef<unknown>(null)
 const submitting = ref(false)
 const locating = ref(false)
 const locationDetectionStatus = ref<"idle" | "success" | "error">("idle")
+const locationDetectionError = ref("")
+const validatingWeather = ref(false)
+const weatherValidationStatus = ref<"idle" | "success" | "error">("idle")
+const weatherValidationError = ref("")
 const timingOpen = ref(false)
 const closeDialogOpen = ref(false)
 const hasNativeBridge = ref(Boolean(window.pywebview?.api))
@@ -123,11 +127,15 @@ function updatePath(value: string): void {
 
 function updateApiKey(value: string): void {
   draft.weather.api_key = value
+  weatherValidationStatus.value = "idle"
+  weatherValidationError.value = ""
   clearStepFeedback("weather")
 }
 
 function updateLocation(value: ProfileDraft["weather"]["location"]): void {
   draft.weather.location = value
+  locationDetectionStatus.value = "idle"
+  locationDetectionError.value = ""
   clearStepFeedback("location")
 }
 
@@ -220,12 +228,61 @@ function describeError(error: unknown): string {
   if (error.payload.error === "profile_already_exists") return copy.value.errors.profileAlreadyExists
   if (error.payload.error === "profile_apply_timeout") return copy.value.errors.applyTimeout
   if (error.payload.error === "profile_apply_unavailable") return copy.value.errors.applyUnavailable
-  if (error.payload.error === "weather_validation_unavailable") return copy.value.errors.weatherValidationUnavailable
+  if (error.payload.error === "weather_validation_unavailable") {
+    return `${copy.value.errors.weatherValidationUnavailable} ${describeNetworkFailure(error)}`.trim()
+  }
   if (error.payload.stage) {
     const stage = copy.value.errors.stages[error.payload.stage]
     return `${stage}: ${error.payload.detail || error.payload.error}`
   }
   return error.message || copy.value.errors.generic
+}
+
+function describeNetworkFailure(error: ApiError): string {
+  const { reason, http_status: status } = error.payload
+  if (reason === "http_status" && status !== undefined) {
+    if (status === 429) return copy.value.errors.httpRateLimited
+    if (status === 403) return copy.value.errors.httpForbidden
+    if (status >= 500) return copy.value.errors.httpServerError
+    return copy.value.errors.httpOther(status)
+  }
+  const messages = copy.value.errors.networkReasons as Record<string, string>
+  return reason ? (messages[reason] ?? "") : ""
+}
+
+function describeWeatherTestError(error: unknown): string {
+  if (!(error instanceof ApiError)) return copy.value.errors.generic
+  const issue = error.payload.issues?.[0]
+  if (issue) {
+    const messages = copy.value.errors.issueCodes as Record<string, string>
+    return messages[issue.code] ?? copy.value.errors.generic
+  }
+  if (error.payload.error === "weather_validation_unavailable") {
+    return `${copy.value.errors.weatherValidationUnavailable} ${describeNetworkFailure(error)}`.trim()
+  }
+  return copy.value.errors.generic
+}
+
+async function testWeatherKey(): Promise<void> {
+  const apiKey = draft.weather.api_key.trim()
+  if (!apiKey) {
+    weatherValidationStatus.value = "error"
+    weatherValidationError.value = copy.value.weather.validationMissing
+    return
+  }
+  validatingWeather.value = true
+  weatherValidationStatus.value = "idle"
+  try {
+    await validateWeatherKey(apiKey)
+    if (draft.weather.api_key.trim() === apiKey) weatherValidationStatus.value = "success"
+  } catch (error) {
+    if (draft.weather.api_key.trim() === apiKey) {
+      weatherValidationStatus.value = "error"
+      weatherValidationError.value = describeWeatherTestError(error)
+    }
+  } finally {
+    validatingWeather.value = false
+  }
 }
 
 function applyValidationIssues(error: unknown): boolean {
@@ -243,12 +300,15 @@ function applyValidationIssues(error: unknown): boolean {
 async function detectCity(): Promise<void> {
   locating.value = true
   locationDetectionStatus.value = "idle"
+  locationDetectionError.value = ""
   try {
     const detected = await detectLocation()
     updateLocation(detected)
     locationDetectionStatus.value = "success"
-  } catch {
+  } catch (error) {
     locationDetectionStatus.value = "error"
+    const detail = error instanceof ApiError ? describeNetworkFailure(error) : ""
+    locationDetectionError.value = `${copy.value.errors.locationValidationUnavailable} ${detail}`.trim()
   } finally {
     locating.value = false
   }
@@ -413,7 +473,11 @@ async function submitProfile(): Promise<void> {
             :api-key="draft.weather.api_key"
             :invalid="Boolean(stepError) && !isStepValid('weather')"
             :errors="issuesByStep.weather['weather.api_key'] ?? []"
+            :validating="validatingWeather"
+            :validation-status="weatherValidationStatus"
+            :validation-error="weatherValidationError"
             @update:api-key="updateApiKey"
+            @validate="testWeatherKey"
             @open-key-page="openExternal('https://home.openweathermap.org/api_keys')"
           />
           <LocationStep
@@ -423,6 +487,7 @@ async function submitProfile(): Promise<void> {
             :location="draft.weather.location"
             :locating="locating"
             :detection-status="locationDetectionStatus"
+            :detection-error="locationDetectionError"
             :attempted="Boolean(stepError)"
             :errors="issuesByStep.location"
             @update:location="updateLocation"
@@ -431,6 +496,7 @@ async function submitProfile(): Promise<void> {
           <SceneBindingsStep
             v-else-if="activeStep === 'scenes'"
             :locale="locale"
+            :mode="mode"
             :scenes="draft.scenes"
             :catalog="sceneCatalog"
             :playlists="scan.usablePlaylists.value"

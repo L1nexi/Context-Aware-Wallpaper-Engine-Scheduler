@@ -4,7 +4,7 @@ import json
 import logging
 
 import bottle
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from configurations.profile import Profile
 from configurations.profile_store import ProfileStoreError
@@ -19,6 +19,14 @@ from integrations.openweather import WeatherRejected, WeatherUnavailable, valida
 
 logger = logging.getLogger("WEScheduler.API")
 PROFILE_APPLY_TIMEOUT_SECONDS = 2.0
+WEATHER_KEY_TEST_LATITUDE = 51.5072
+WEATHER_KEY_TEST_LONGITUDE = -0.1276
+
+
+class WeatherKeyValidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    api_key: str = Field(min_length=1)
 
 
 def _read_json_object() -> dict[str, object]:
@@ -48,7 +56,40 @@ def _weather_rejection_response(exc: WeatherRejected) -> dict[str, object]:
     }
 
 
+def _weather_unavailable_response(exc: WeatherUnavailable) -> dict[str, object]:
+    bottle.response.status = 503
+    payload: dict[str, object] = {"error": "weather_validation_unavailable", "reason": exc.reason}
+    if exc.http_status is not None:
+        payload["http_status"] = exc.http_status
+    return payload
+
+
 def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager) -> None:
+    @app.post("/api/weather-key-validations")
+    def api_validate_weather_key():
+        bottle.response.content_type = "application/json; charset=utf-8"
+        if bottle.request.content_type != "application/json":
+            bottle.response.status = 415
+            return {"error": "unsupported_media_type"}
+        try:
+            request = WeatherKeyValidationRequest.model_validate(_read_json_object())
+        except (ValidationError, ValueError, TypeError) as exc:
+            bottle.response.status = 400 if isinstance(exc, (json.JSONDecodeError, UnicodeDecodeError)) else 422
+            return {"error": "invalid_weather_key_request", "issues": _request_validation_issues(exc)}
+
+        try:
+            logger.debug("Weather key test started")
+            validate_weather_connection(request.api_key, WEATHER_KEY_TEST_LATITUDE, WEATHER_KEY_TEST_LONGITUDE)
+        except WeatherRejected as exc:
+            logger.warning("Weather key test rejected: reason=%s", exc.code)
+            return _weather_rejection_response(exc)
+        except WeatherUnavailable as exc:
+            logger.warning("Weather key test unavailable: reason=%s http_status=%s", exc.reason, exc.http_status)
+            return _weather_unavailable_response(exc)
+
+        logger.debug("Weather key test succeeded")
+        return {"status": "valid"}
+
     @app.route("/api/profile")
     def api_profile():
         bottle.response.content_type = "application/json; charset=utf-8"
@@ -94,8 +135,7 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
                 exc.reason,
                 exc.http_status,
             )
-            bottle.response.status = 503
-            return {"error": "weather_validation_unavailable"}
+            return _weather_unavailable_response(exc)
         except ProfileApplyFailed as exc:
             logger.exception("Initial Profile creation failed during %s", exc.stage)
             bottle.response.status = 500
@@ -153,8 +193,7 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
                     exc.reason,
                     exc.http_status,
                 )
-                bottle.response.status = 503
-                return {"error": "weather_validation_unavailable"}
+                return _weather_unavailable_response(exc)
 
         try:
             committed = profile_manager.apply_profile(

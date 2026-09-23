@@ -20,6 +20,7 @@ const props = defineProps<{
   location: Location
   locating: boolean
   detectionStatus: "idle" | "success" | "error"
+  detectionError: string
   attempted: boolean
   errors: Record<string, string[]>
 }>()
@@ -76,7 +77,7 @@ function setCoordinate(field: Coordinate, value: string | number): void {
     </Alert>
     <Alert v-else-if="detectionStatus === 'error'" variant="destructive">
       <TriangleAlertIcon />
-      <AlertDescription>{{ copy.location.detectionUnavailable }}</AlertDescription>
+      <AlertDescription>{{ detectionError }} {{ copy.location.detectionUnavailable }}</AlertDescription>
     </Alert>
 
     <FieldGroup>
