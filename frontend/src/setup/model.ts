@@ -88,16 +88,6 @@ export function validationIssueField(path: Array<string | number>): string {
   return root
 }
 
-export function validationIssueStep(path: Array<string | number>): number {
-  const root = path[0]
-  if (root === "wallpaper_engine_path") return 0
-  if (root === "weather") return path[1] === "location" ? 2 : 1
-  if (root === "scenes") return 3
-  if (root === "matching" || root === "disturbance") return 4
-  if (root === "activity") return 5
-  return 6
-}
-
 function requireNonNegativeInteger(value: number | null): number {
   if (!isNonNegativeInteger(value)) throw new Error("non_negative_integer_required")
   return value
@@ -190,11 +180,7 @@ export function buildProfile(draft: ProfileDraft): Profile {
   }
 }
 
-export function applyDisturbancePreset(draft: ProfileDraft, preset: DisturbancePreset): void {
-  draft.disturbance = { ...DISTURBANCE_PRESETS[preset] }
-}
-
-export function detectDisturbancePreset(draft: ProfileDraft): DisturbancePreset | "custom" {
+export function detectDisturbancePreset(draft: Pick<ProfileDraft, "disturbance">): DisturbancePreset | "custom" {
   const match = Object.entries(DISTURBANCE_PRESETS).find(([, values]) =>
     Object.entries(values).every(
       ([key, value]) => draft.disturbance[key as keyof ProfileDraft["disturbance"]] === value,

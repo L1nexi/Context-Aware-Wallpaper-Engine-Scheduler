@@ -5,8 +5,8 @@ import {
   isNonNegativeInteger,
   parseNumberInput,
   validationIssueField,
-  validationIssueStep,
 } from "../src/setup/model.ts"
+import { stepForIssue } from "../src/setup/flow.ts"
 
 test("number input parsing preserves valid and invalid numeric edits", () => {
   assert.equal(parseNumberInput("42"), 42)
@@ -31,10 +31,10 @@ test("server validation paths map to setup fields", () => {
 })
 
 test("server validation paths map to the owning setup step", () => {
-  assert.equal(validationIssueStep(["wallpaper_engine_path"]), 0)
-  assert.equal(validationIssueStep(["weather", "api_key"]), 1)
-  assert.equal(validationIssueStep(["weather", "location"]), 2)
-  assert.equal(validationIssueStep(["scenes"]), 3)
-  assert.equal(validationIssueStep(["disturbance", "startup_grace_seconds"]), 4)
-  assert.equal(validationIssueStep(["activity"]), 5)
+  assert.equal(stepForIssue(["wallpaper_engine_path"]), "wallpaper")
+  assert.equal(stepForIssue(["weather", "api_key"]), "weather")
+  assert.equal(stepForIssue(["weather", "location"]), "location")
+  assert.equal(stepForIssue(["scenes"]), "scenes")
+  assert.equal(stepForIssue(["disturbance", "startup_grace_seconds"]), "scheduling")
+  assert.equal(stepForIssue(["activity"]), "activity")
 })
