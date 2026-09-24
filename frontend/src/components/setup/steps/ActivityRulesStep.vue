@@ -6,7 +6,7 @@ import type { Locale } from "@/api/profile"
 import ActivityListInput from "@/components/setup/ActivityListInput.vue"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
-import { COPY } from "@/setup/copy"
+import { COPY, ZH_ACTIVITY_NOTE } from "@/setup/copy"
 import type { ProfileDraft } from "@/setup/model"
 
 type Activity = ProfileDraft["activity"]
@@ -43,6 +43,7 @@ function setList(field: keyof Activity, values: string[]): void {
 
 <template>
   <section class="flex flex-col gap-6">
+    <p v-if="locale === 'zh'" class="text-sm text-muted-foreground">{{ ZH_ACTIVITY_NOTE }}</p>
     <Alert v-if="conflicts.length" variant="destructive">
       <TriangleAlertIcon />
       <AlertTitle>{{ copy.activity.conflictTitle }}</AlertTitle>

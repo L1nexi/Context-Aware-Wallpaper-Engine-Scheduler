@@ -119,9 +119,12 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
             if profile_manager.has_committed_profile():
                 raise ProfileAlreadyExists("profile is already committed")
             location = draft.weather.location
-            logger.debug("Weather validation started: operation=create")
-            validate_weather_connection(draft.weather.api_key, location.latitude, location.longitude)
-            logger.debug("Weather validation succeeded: operation=create")
+            if bottle.request.query.get("allow_unverified_weather") != "1":
+                logger.debug("Weather validation started: operation=create")
+                validate_weather_connection(draft.weather.api_key, location.latitude, location.longitude)
+                logger.debug("Weather validation succeeded: operation=create")
+            else:
+                logger.info("Weather validation bypassed: operation=create")
             committed = profile_manager.create_initial_profile(draft)
         except ProfileAlreadyExists:
             bottle.response.status = 409
@@ -178,7 +181,7 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
 
         weather_changed = committed_profile.weather != draft.weather
         logger.debug("Profile replace requested: weather_changed=%s", weather_changed)
-        if weather_changed:
+        if weather_changed and bottle.request.query.get("allow_unverified_weather") != "1":
             try:
                 location = draft.weather.location
                 logger.debug("Weather validation started: operation=replace")
@@ -194,6 +197,8 @@ def register_profile_routes(app: bottle.Bottle, profile_manager: ProfileManager)
                     exc.http_status,
                 )
                 return _weather_unavailable_response(exc)
+        elif weather_changed:
+            logger.info("Weather validation bypassed: operation=replace")
 
         try:
             committed = profile_manager.apply_profile(

@@ -1,34 +1,39 @@
-import type { Locale, SceneId } from "@/api/profile"
-import type { DisturbancePreset } from "@/setup/model"
+import type { Locale, SceneId } from "@/api/profile";
+import type { DisturbancePreset } from "@/setup/model";
 
 const zh = {
   appName: "WEScheduler",
   mode: { setup: "首次设置", settings: "设置" },
-  loading: { title: "正在读取设置", description: "连接本地调度器并准备 Profile 草稿。" },
+  loading: {
+    title: "正在读取设置",
+    description: "连接本地调度器并准备设置草稿。",
+  },
   unavailable: {
-    title: "无法连接到 WEScheduler",
+    title: "无法连接到 WEScheduler 服务",
     description: "请确认主程序仍在运行，然后重试。",
     retry: "重试",
   },
   steps: {
-    wallpaper: { title: "Wallpaper Engine", short: "找到安装位置并读取播放列表" },
-    weather: { title: "天气服务", short: "填写 OpenWeatherMap API Key" },
-    location: { title: "所在地点", short: "设置用于天气判断的位置" },
-    scenes: { title: "场景绑定", short: "把使用情境连接到播放列表" },
-    scheduling: { title: "调度体验", short: "决定响应方式和打扰程度" },
-    activity: { title: "Activity 检测", short: "识别工作与休闲活动" },
-    review: { title: "检查并完成", short: "确认草稿并一次性保存" },
+    wallpaper: { title: "Wallpaper Engine" },
+    weather: { title: "天气服务" },
+    location: { title: "当前城市及经纬度" },
+    scenes: { title: "场景绑定" },
+    scheduling: { title: "调度风格" },
+    activity: { title: "活动进程检测" },
+    review: { title: "查看配置草稿" },
   },
   nav: {
-    setupDescription: "完成必要设置后，调度器才会启动。",
-    settingsDescription: "修改只保存在草稿中，保存后才会生效。",
+    settingsDescription: "",
     languageLabel: "语言",
     themeLabel: "外观",
     themeSystem: "跟随系统",
     themeLight: "浅色",
     themeDark: "深色",
-    setupNavigation: "设置步骤",
-    settingsNavigation: "设置分类",
+    setupNavigation: "设置项",
+    settingsNavigation: "设置项",
+    reviewSetup: "查看配置草稿",
+    reviewSettings: "查看配置草稿",
+    backToSettings: "返回设置",
     current: "当前",
     complete: "完成",
     optional: "可跳过",
@@ -50,32 +55,36 @@ const zh = {
   },
   wallpaper: {
     title: "连接 Wallpaper Engine",
-    description: "先读取 Wallpaper Engine 的本地配置，后续场景只会绑定到实际存在的播放列表。",
+    description: "",
     pathLabel: "Wallpaper Engine 可执行文件",
-    pathDescription: "通常是 Steam 安装目录中的 wallpaper64.exe。留空时会尝试自动检测。",
-    pathPlaceholder: "自动检测，或选择 wallpaper64.exe",
+    pathDescription:
+      "选择 Wallpaper Engine 可执行文件，如 wallpaper64.exe。留空以尝试自动检测。",
+    pathPlaceholder: "选择 Wallpaper Engine 可执行文件",
     choose: "选择文件",
     detect: "自动检测",
     scan: "扫描播放列表",
     scanning: "正在扫描",
-    found: "已连接",
+    found: "有效文件",
     foundDescription: (count: number) => `找到 ${count} 个可用播放列表。`,
-    scanResultsLabel: "扫描到的播放列表及壁纸数量",
+    scanResultsLabel: "播放列表及对应壁纸数量",
     playlistName: "Wallpaper Engine 中的播放列表名称",
     wallpaperCount: "壁纸数量",
     itemCount: (count: number) => `${count} 张`,
-    englishNames: "为降低命令行调用时的兼容问题，建议播放列表名称优先使用英文字母和数字。已有中文名称可以继续扫描；若切换失败，可先尝试改为英文名称。",
-    emptyTitle: "没有找到可用播放列表",
-    emptyDescription: "请先在 Wallpaper Engine 中创建至少一个包含壁纸的播放列表，然后重新扫描。",
-    zeroItem: "没有壁纸",
+    englishNames:
+      "为降低命令行调用时的兼容问题，建议播放列表名称优先使用英文字母与数字的组合。",
+    emptyTitle: "未找到可用播放列表",
+    emptyDescription:
+      "请于 Wallpaper Engine 中创建至少一个包含壁纸的播放列表后重新尝试扫描。",
+    zeroItem: "未找到壁纸",
     scanAgain: "重新扫描",
     manualHint: "如果自动检测失败，请手动选择 wallpaper64.exe。",
   },
   weather: {
     title: "连接天气服务",
-    description: "WEScheduler 使用 OpenWeatherMap 判断晴雨、日出和日落。Key 只保存在本机 Profile 中。",
+    description:
+      "WEScheduler 使用 OpenWeatherMap 获取天气以及日出和日落信息。密钥仅保存于本地。",
     keyLabel: "OpenWeatherMap API Key",
-    keyDescription: "请输入有效的 Current Weather API Key。保存天气设置时会进行一次联网校验。",
+    keyDescription: "保存天气设置时会联网校验 API Key 有效性。",
     keyPlaceholder: "粘贴 API Key",
     getKey: "获取 API Key",
     guideTitle: "如何获取 API Key",
@@ -83,39 +92,42 @@ const zh = {
       {
         title: "注册账号",
         action: "打开 OpenWeatherMap，注册账号并登录。已有账号可直接登录。",
-        expected: "登录后可以进入 API keys 页面。",
-        fallback: "如果页面要求验证邮箱，请先按网站提示完成验证。",
+        expected: "登录后点击个人头像，进入 API keys 页面。",
+        fallback: "",
       },
       {
         title: "生成 API Key",
         action: "在 API keys 页面点击 Generate 生成 API Key。",
-        expected: "新 Key 出现在账户的 Key 列表中。",
-        fallback: "找不到页面时，可用这里的“获取 API Key”按钮打开账户页面。",
+        expected: "确认新 Key 出现在账户的 Key 列表中。",
+        fallback: "",
       },
       {
         title: "确认状态并粘贴",
-        action: "确认该 Key 的 Status 为 Active，再复制 Key 本身并粘贴到上方输入框。",
-        expected: "点击“测试连接”后看到通过提示，再继续填写地点。",
-        fallback: "若未显示 Active，请先检查账户中的 Key 状态；测试失败时核对复制内容或按页面提示排查网络。",
+        action: "确认该 Key 的 Status 为 Active，再粘贴 Key 到上方输入框。",
+        expected: "使用“测试连接”确认 API Key 有效性以及网络连通性。",
+        fallback: "",
       },
     ],
     validate: "测试连接",
     validating: "正在测试",
-    validationSuccess: "API Key 已通过联网测试。保存时仍会验证你填写的地点。",
+    validationSuccess: "API Key 联网测试通过。",
     validationMissing: "请先填写 API Key，再测试连接。",
-    validationOnSubmit: "测试只检查 API Key，不保存草稿；完成设置或修改天气信息时还会验证 API Key 与地点。",
+    validationOnSubmit: "",
   },
   location: {
-    title: "设置所在地点",
-    setupDescription: "可以按公网 IP 粗略定位到城市，也可以直接填写。检测结果不会自动更新，并且仍可手工修正。",
-    settingsDescription: "位置只用于天气请求。修改后可以在保存前验证。",
+    title: "设置当前城市及经纬度",
+    setupDescription:
+      "WEScheduler 利用经纬度信息获取更准确的天气以及日出和日落信息。城市及经纬度信息仅保存于本地。",
+    settingsDescription:
+      "WEScheduler 利用经纬度信息获取更准确的天气以及日出和日落信息。城市及经纬度信息仅保存于本地。",
     detect: "自动定位城市",
     detecting: "正在定位",
-    detectHint: "仅在点击时通过 ipapi.co 查询公网 IP 对应的城市级位置，不保存 IP。",
-    detected: "已填入检测到的城市位置，请确认是否准确。",
-    detectionUnavailable: "你仍可手工填写城市和经纬度，或排查后重试。",
-    nameLabel: "地点名称",
-    namePlaceholder: "例如：上海",
+    detectHint: "尝试使用 ipapi.co 查询公网 IP 对应的城市级位置。",
+    detected: "已填入检测到的城市位置。",
+    detectionUnavailable:
+      "无法连接到 ipapi.co 服务。请重试，或手动填写城市和经纬度。",
+    nameLabel: "城市名称",
+    namePlaceholder: "城市名",
     latitudeLabel: "纬度",
     longitudeLabel: "经度",
     latitudePlaceholder: "-90 到 90",
@@ -125,26 +137,29 @@ const zh = {
   },
   scenes: {
     title: "绑定使用场景",
-    description: "启用需要的内置场景，并为每个场景选择 Wallpaper Engine 播放列表。多个场景可以共用一个播放列表。",
-    defaultHint: "首次设置已预选 4 个日常场景和雨天。请为每个已选场景指定播放列表；可以复用同一个，也可以取消不需要的场景。",
+    description:
+      "启用需要的内置场景，并为每个场景选择 Wallpaper Engine 播放列表。多个场景可以共用一个播放列表。",
+    defaultHint: "",
     enabled: "启用",
     playlist: "播放列表",
     choosePlaylist: "选择播放列表",
-    playlistOption: (name: string, count: number) => `${name}（${count} 张壁纸）`,
+    playlistOption: (name: string, count: number) =>
+      `列表含 ${name}（${count} 张壁纸）`,
     bindingRequired: "请为此场景选择播放列表。",
     unavailablePlaylist: "已选播放列表不在扫描结果中，请重新选择。",
     required: "至少启用并绑定一个场景。",
-    unavailable: "请先返回并扫描到至少一个非空播放列表。",
+    unavailable: "场景绑定需要至少一个包含壁纸的播放列表。",
     groups: { context: "日常情境", season: "季节氛围", weather: "天气氛围" },
   },
   preferences: {
-    title: "调整调度体验",
-    description: "响应风格决定什么信息更重要；打扰程度决定何时适合切换。",
+    title: "调整调度风格",
+    description: "",
     responseTitle: "响应风格",
-    responseDescription: "从长期背景氛围到当前天气和活动，选择调度器更偏向哪一侧。",
-    disturbanceTitle: "打扰程度",
-    disturbanceDescription: "选择一个预设，或展开具体时间进行微调。",
-    fineTune: "微调具体时间",
+    responseDescription:
+      "调节调度器以更偏向长期背景氛围，或是更偏向当前天气和活动。",
+    disturbanceTitle: "防打扰程度",
+    disturbanceDescription: "调节调度器执行壁纸切换时的防打扰程度。",
+    fineTune: "自定义防打扰设置",
     startupGrace: "启动等待",
     idleBeforeSwitch: "空闲等待",
     maximumDeferral: "最长延后",
@@ -155,9 +170,9 @@ const zh = {
   },
   activity: {
     title: "识别当前活动",
-    description: "这一项可以跳过。匹配忽略大小写，进程名中的 .exe 后缀也会自动忽略。",
-    workTitle: "工作",
-    leisureTitle: "休闲",
+    description: "确定调度器如何根据当前前台窗口信息判定当前活动状态。",
+    workTitle: "工作场景规则",
+    leisureTitle: "休闲场景规则",
     processLabel: "进程名",
     titleKeywordLabel: "窗口标题关键词",
     processPlaceholder: "输入进程名，按 Enter 添加",
@@ -165,25 +180,30 @@ const zh = {
     add: "添加",
     empty: "暂未添加",
     conflictTitle: "存在冲突规则",
-    conflictDescription: (values: string) => `这些项目同时出现在工作和休闲中：${values}`,
+    conflictDescription: (values: string) =>
+      `这些项目同时出现在工作和休闲场景规则中：${values}`,
   },
   review: {
-    title: "检查后保存",
-    description: "此前内容仍然只是草稿。确认后才会一次性写入 Profile。",
+    title: "查看配置草稿",
+    description: "",
+    missingTitle: "配置项缺失",
+    missingDescription: "保存配置前需完成以下配置项。",
     wallpaper: "Wallpaper Engine 路径",
     weather: "天气服务可用性",
-    location: "地点",
+    location: "当前城市及经纬度",
     scenes: "已启用场景",
     response: "响应风格",
-    disturbance: "打扰程度",
-    activity: "Activity 规则",
+    disturbance: "防打扰程度",
+    activity: "活动识别规则",
     weatherUntested: "尚未测试",
-    weatherPassed: "本次草稿测试通过",
-    weatherFailed: "本次测试未通过",
-    weatherNote: "测试仅验证 API Key；保存时会同时校验地点。",
+    weatherPassed: "API Key 可用性测试通过",
+    weatherFailed: "API Key 可用性测试未通过",
+    weatherNote: "",
     sceneCount: (count: number) => `${count} 个场景`,
-    activityCount: (windows: number, processes: number) => `窗口 ${windows} 条，进程名 ${processes} 条`,
-    coordinates: (name: string, latitude: number, longitude: number) => `${name}（纬度 ${latitude}，经度 ${longitude}）`,
+    activityCount: (windows: number, processes: number) =>
+      `窗口名规则 ${windows} 条，进程名规则 ${processes} 条`,
+    coordinates: (name: string, latitude: number, longitude: number) =>
+      `${name}（纬度 ${latitude}，经度 ${longitude}）`,
     create: "完成设置",
     creating: "正在创建",
     save: "保存并应用",
@@ -192,13 +212,13 @@ const zh = {
     setupSuccess: "设置已完成，正在启动调度器。",
   },
   errors: {
-    validation: "请先完成当前页面的必填内容。",
-    fieldValidation: "服务端发现了需要修改的字段，请按下方提示修正。",
-    profileAlreadyExists: "Profile 已经存在。请关闭窗口后从托盘重新打开设置。",
-    applyTimeout: "调度器暂时没有完成应用。草稿仍然保留，请重试。",
-    applyUnavailable: "调度器当前不接受配置修改，请稍后重试。",
-    weatherValidationUnavailable: "天气服务校验未完成，草稿仍然保留。",
-    locationValidationUnavailable: "自动定位失败。",
+    validation: "请完成当前配置项的全部必填内容。",
+    fieldValidation: "配置存在无效字段，请按下方提示修正。",
+    profileAlreadyExists: "配置已存在。请关闭窗口后从托盘重新打开设置。",
+    applyTimeout: "调度器暂时没有完成应用，请重试。",
+    applyUnavailable: "配置修改不可用，请稍后重试。",
+    weatherValidationUnavailable: "天气服务可用性测试未通过。",
+    locationValidationUnavailable: "自动定位服务不可用。",
     networkReasons: {
       timeout: "连接超时，请检查网络或代理后重试。",
       proxy_error: "代理连接失败，请检查系统代理设置或改用可用的网络。",
@@ -215,48 +235,65 @@ const zh = {
     httpOther: (status: number) => `服务返回 HTTP ${status}，请稍后重试。`,
     generic: "操作失败。草稿仍然保留，请重试。",
     scanCodes: {
-      wallpaper_engine_executable_not_found: "没有找到 wallpaper64.exe。请手动选择安装位置。",
-      wallpaper_engine_config_not_found: "没有找到 Wallpaper Engine config.json。请先启动一次 Wallpaper Engine，然后重试。",
-      wallpaper_engine_config_read_failed: "Wallpaper Engine 配置暂时无法读取。请关闭可能正在写入配置的窗口后重试。",
-      unexpected_wallpaper_engine_config_format: "Wallpaper Engine 配置格式无法识别。",
+      wallpaper_engine_executable_not_found:
+        "没有找到 Wallpaper Engine 可执行文件。请手动选择安装位置。",
+      wallpaper_engine_config_not_found:
+        "没有找到 Wallpaper Engine 配置文件。请先启动一次 Wallpaper Engine，然后重试。",
+      wallpaper_engine_config_read_failed:
+        "Wallpaper Engine 配置文件暂时无法读取。请关闭可能正在写入配置的窗口后重试。",
+      unexpected_wallpaper_engine_config_format:
+        "Wallpaper Engine 配置文件格式无法识别。",
     },
     issueCodes: {
-      weather_api_key_invalid: "这个 API Key 无效。",
-      weather_location_invalid: "OpenWeatherMap 无法使用这个地点，请检查经纬度。",
-      weather_api_quota_exceeded: "这个 API Key 当前已达到请求配额，请稍后重试或更换 Key。",
+      weather_api_key_invalid: "无效的 API Key。",
+      weather_location_invalid:
+        "OpenWeatherMap 无法使用这个地点，请检查经纬度。",
+      weather_api_quota_exceeded:
+        "API Key 已达到请求配额，请稍后重试或更换 Key。",
     },
-    stages: { compile: "配置编译", prepare: "运行时准备", persist: "Profile 写入" },
+    stages: {
+      compile: "配置编译",
+      prepare: "运行时准备",
+      persist: "Profile 写入",
+    },
   },
-}
+};
 
 const en: typeof zh = {
   appName: "WEScheduler",
   mode: { setup: "First-time setup", settings: "Settings" },
-  loading: { title: "Loading settings", description: "Connecting to the local scheduler and preparing a Profile draft." },
+  loading: {
+    title: "Loading settings",
+    description:
+      "Connecting to the local scheduler and preparing a Profile draft.",
+  },
   unavailable: {
     title: "WEScheduler is unavailable",
-    description: "Make sure the main application is still running, then try again.",
+    description:
+      "Make sure the main application is still running, then try again.",
     retry: "Try again",
   },
   steps: {
-    wallpaper: { title: "Wallpaper Engine", short: "Find the installation and read playlists" },
-    weather: { title: "Weather service", short: "Enter an OpenWeatherMap API key" },
-    location: { title: "Location", short: "Set the location used for weather" },
-    scenes: { title: "Scene assignments", short: "Connect contexts to playlists" },
-    scheduling: { title: "Scheduling feel", short: "Choose responsiveness and interruption" },
-    activity: { title: "Activity detection", short: "Recognize work and leisure activity" },
-    review: { title: "Review and finish", short: "Review the draft and save once" },
+    wallpaper: { title: "Wallpaper Engine" },
+    weather: { title: "Weather service" },
+    location: { title: "Location" },
+    scenes: { title: "Scene assignments" },
+    scheduling: { title: "Scheduling feel" },
+    activity: { title: "Activity detection" },
+    review: { title: "Review and finish" },
   },
   nav: {
-    setupDescription: "The scheduler starts after the required setup is complete.",
     settingsDescription: "Changes stay in this draft until you save them.",
     languageLabel: "Language",
     themeLabel: "Appearance",
     themeSystem: "System",
     themeLight: "Light",
     themeDark: "Dark",
-    setupNavigation: "Setup steps",
-    settingsNavigation: "Settings sections",
+    setupNavigation: "Settings",
+    settingsNavigation: "Settings",
+    reviewSetup: "Review and finish",
+    reviewSettings: "Review and save",
+    backToSettings: "Back to settings",
     current: "Current",
     complete: "Complete",
     optional: "Optional",
@@ -278,9 +315,11 @@ const en: typeof zh = {
   },
   wallpaper: {
     title: "Connect Wallpaper Engine",
-    description: "Read Wallpaper Engine's local configuration first, so Scenes can only use playlists that actually exist.",
+    description:
+      "Read Wallpaper Engine's local configuration first, so Scenes can only use playlists that actually exist.",
     pathLabel: "Wallpaper Engine executable",
-    pathDescription: "Usually wallpaper64.exe inside the Steam installation. Leave blank to try automatic detection.",
+    pathDescription:
+      "Usually wallpaper64.exe inside the Steam installation. Leave blank to try automatic detection.",
     pathPlaceholder: "Auto-detect, or choose wallpaper64.exe",
     choose: "Choose file",
     detect: "Auto-detect",
@@ -292,56 +331,74 @@ const en: typeof zh = {
     playlistName: "Playlist name in Wallpaper Engine",
     wallpaperCount: "Wallpaper count",
     itemCount: (count: number) => `${count} wallpapers`,
-    englishNames: "For command-line compatibility, prefer English letters and digits in playlist names. Existing non-English names can still be scanned; if switching fails, try renaming the playlist in English.",
+    englishNames:
+      "For command-line compatibility, prefer English letters and digits in playlist names. Existing non-English names can still be scanned; if switching fails, try renaming the playlist in English.",
     emptyTitle: "No usable playlists found",
-    emptyDescription: "Create at least one Wallpaper Engine playlist containing a wallpaper, then scan again.",
+    emptyDescription:
+      "Create at least one Wallpaper Engine playlist containing a wallpaper, then scan again.",
     zeroItem: "No wallpapers",
     scanAgain: "Scan again",
-    manualHint: "If automatic detection fails, choose wallpaper64.exe manually.",
+    manualHint:
+      "If automatic detection fails, choose wallpaper64.exe manually.",
   },
   weather: {
     title: "Connect weather",
-    description: "WEScheduler uses OpenWeatherMap for conditions, sunrise, and sunset. The key stays in the local Profile.",
+    description:
+      "WEScheduler uses OpenWeatherMap for conditions, sunrise, and sunset. The key stays in the local Profile.",
     keyLabel: "OpenWeatherMap API key",
-    keyDescription: "Enter a valid Current Weather API key. Weather changes are checked online before saving.",
+    keyDescription:
+      "Enter a valid Current Weather API key. Weather changes are checked online before saving.",
     keyPlaceholder: "Paste API key",
     getKey: "Get an API key",
     guideTitle: "How to get an API key",
     guideSteps: [
       {
         title: "Create an account",
-        action: "Create an OpenWeatherMap account and sign in. If you already have one, sign in.",
+        action:
+          "Create an OpenWeatherMap account and sign in. If you already have one, sign in.",
         expected: "You can open the API keys page after signing in.",
-        fallback: "If the site asks you to verify your email, follow its instructions first.",
+        fallback:
+          "If the site asks you to verify your email, follow its instructions first.",
       },
       {
         title: "Generate an API key",
         action: "Click Generate on the API keys page.",
         expected: "The new key appears in your account's key list.",
-        fallback: "Use the Get an API key button here if you cannot find the page.",
+        fallback:
+          "Use the Get an API key button here if you cannot find the page.",
       },
       {
         title: "Check status and paste",
-        action: "Make sure the key's Status is Active, then copy the key itself into the field above.",
-        expected: "Select Test connection and continue to location after it succeeds.",
-        fallback: "If Active is not shown, check the key status in your account. For a failed test, check the copied key or follow the network guidance shown here.",
+        action:
+          "Make sure the key's Status is Active, then copy the key itself into the field above.",
+        expected:
+          "Select Test connection and continue to location after it succeeds.",
+        fallback:
+          "If Active is not shown, check the key status in your account. For a failed test, check the copied key or follow the network guidance shown here.",
       },
     ],
     validate: "Test connection",
     validating: "Testing",
-    validationSuccess: "The API key passed the online test. Saving will also validate your location.",
+    validationSuccess:
+      "The API key passed the online test. Saving will also validate your location.",
     validationMissing: "Enter an API key before testing the connection.",
-    validationOnSubmit: "This test checks the API key without saving your draft. Setup and weather changes also validate the key and location before saving.",
+    validationOnSubmit:
+      "This test checks the API key without saving your draft. Setup and weather changes also validate the key and location before saving.",
   },
   location: {
     title: "Set your location",
-    setupDescription: "Estimate a city from your public IP, or enter the location directly. The result is not updated automatically and remains editable.",
-    settingsDescription: "Location is used only for weather requests. Changes are validated before saving.",
+    setupDescription:
+      "Estimate a city from your public IP, or enter the location directly. The result is not updated automatically and remains editable.",
+    settingsDescription:
+      "Location is used only for weather requests. Changes are validated before saving.",
     detect: "Detect my city",
     detecting: "Detecting",
-    detectHint: "Only when clicked, ipapi.co estimates a city-level location from your public IP. The IP is not saved.",
-    detected: "The detected city location was filled in. Confirm that it is accurate.",
-    detectionUnavailable: "You can enter the city and coordinates manually, or try again after checking the issue.",
+    detectHint:
+      "Only when clicked, ipapi.co estimates a city-level location from your public IP. The IP is not saved.",
+    detected:
+      "The detected city location was filled in. Confirm that it is accurate.",
+    detectionUnavailable:
+      "You can enter the city and coordinates manually, or try again after checking the issue.",
     nameLabel: "Location name",
     namePlaceholder: "For example: Shanghai",
     latitudeLabel: "Latitude",
@@ -353,25 +410,37 @@ const en: typeof zh = {
   },
   scenes: {
     title: "Assign Scenes",
-    description: "Enable built-in Scenes and choose a Wallpaper Engine playlist for each. Multiple Scenes may share a playlist.",
-    defaultHint: "First-time setup preselects four everyday Scenes and Rain. Assign a playlist to each selected Scene; you can reuse one or turn off any Scene you do not need.",
+    description:
+      "Enable built-in Scenes and choose a Wallpaper Engine playlist for each. Multiple Scenes may share a playlist.",
+    defaultHint:
+      "First-time setup preselects four everyday Scenes and Rain. Assign a playlist to each selected Scene; you can reuse one or turn off any Scene you do not need.",
     enabled: "Enabled",
     playlist: "Playlist",
     choosePlaylist: "Choose a playlist",
-    playlistOption: (name: string, count: number) => `${name} (${count} wallpapers)`,
+    playlistOption: (name: string, count: number) =>
+      `${name} (${count} wallpapers)`,
     bindingRequired: "Choose a playlist for this Scene.",
-    unavailablePlaylist: "The selected playlist is missing from the scan. Choose another.",
+    unavailablePlaylist:
+      "The selected playlist is missing from the scan. Choose another.",
     required: "Enable and assign at least one Scene.",
-    unavailable: "Go back and scan at least one non-empty playlist first.",
-    groups: { context: "Everyday context", season: "Seasonal atmosphere", weather: "Weather atmosphere" },
+    unavailable:
+      "Scene assignments need at least one playlist containing wallpapers.",
+    groups: {
+      context: "Everyday context",
+      season: "Seasonal atmosphere",
+      weather: "Weather atmosphere",
+    },
   },
   preferences: {
     title: "Tune scheduling",
-    description: "Response style sets what matters most. Interruption level controls when a switch is appropriate.",
+    description:
+      "Response style sets what matters most. Interruption level controls when a switch is appropriate.",
     responseTitle: "Response style",
-    responseDescription: "Choose whether long-term atmosphere or current weather and activity should carry more weight.",
+    responseDescription:
+      "Choose whether long-term atmosphere or current weather and activity should carry more weight.",
     disturbanceTitle: "Interruption level",
-    disturbanceDescription: "Choose a preset, or expand the exact timing values.",
+    disturbanceDescription:
+      "Choose a preset, or expand the exact timing values.",
     fineTune: "Fine-tune timing",
     startupGrace: "Startup wait",
     idleBeforeSwitch: "Idle wait",
@@ -383,7 +452,8 @@ const en: typeof zh = {
   },
   activity: {
     title: "Recognize activity",
-    description: "This step is optional. Matching ignores letter case and the .exe suffix in process names.",
+    description:
+      "This step is optional. Matching ignores letter case and the .exe suffix in process names.",
     workTitle: "Work",
     leisureTitle: "Leisure",
     processLabel: "Process names",
@@ -393,11 +463,15 @@ const en: typeof zh = {
     add: "Add",
     empty: "Nothing added",
     conflictTitle: "Conflicting rules",
-    conflictDescription: (values: string) => `These items appear in both work and leisure: ${values}`,
+    conflictDescription: (values: string) =>
+      `These items appear in both work and leisure: ${values}`,
   },
   review: {
     title: "Review and save",
-    description: "Everything above is still a draft. Confirm once to write the Profile.",
+    description:
+      "These settings remain a draft until you confirm and save the Profile.",
+    missingTitle: "Needed before saving",
+    missingDescription: "Complete these settings in any order.",
     wallpaper: "Wallpaper Engine path",
     weather: "Weather service availability",
     location: "Location",
@@ -408,10 +482,13 @@ const en: typeof zh = {
     weatherUntested: "Not tested",
     weatherPassed: "This draft passed the connection test",
     weatherFailed: "This test failed",
-    weatherNote: "This test checks the API key; saving also validates the location.",
+    weatherNote:
+      "This test checks the API key; saving also validates the location.",
     sceneCount: (count: number) => `${count} Scenes`,
-    activityCount: (windows: number, processes: number) => `${windows} window rules, ${processes} process names`,
-    coordinates: (name: string, latitude: number, longitude: number) => `${name} (latitude ${latitude}, longitude ${longitude})`,
+    activityCount: (windows: number, processes: number) =>
+      `${windows} window rules, ${processes} process names`,
+    coordinates: (name: string, latitude: number, longitude: number) =>
+      `${name} (latitude ${latitude}, longitude ${longitude})`,
     create: "Finish setup",
     creating: "Creating",
     save: "Save and apply",
@@ -421,43 +498,85 @@ const en: typeof zh = {
   },
   errors: {
     validation: "Complete the required fields on this page first.",
-    fieldValidation: "The server found fields that need changes. Follow the messages below.",
-    profileAlreadyExists: "A Profile already exists. Close this window and reopen Settings from the tray.",
-    applyTimeout: "The scheduler did not finish applying the change. Your draft is still here; try again.",
-    applyUnavailable: "The scheduler is not accepting configuration changes right now. Try again shortly.",
-    weatherValidationUnavailable: "The weather check could not finish. Your draft is still here.",
+    fieldValidation:
+      "The server found fields that need changes. Follow the messages below.",
+    profileAlreadyExists:
+      "A Profile already exists. Close this window and reopen Settings from the tray.",
+    applyTimeout:
+      "The scheduler did not finish applying the change. Your draft is still here; try again.",
+    applyUnavailable:
+      "The scheduler is not accepting configuration changes right now. Try again shortly.",
+    weatherValidationUnavailable:
+      "The weather check could not finish. Your draft is still here.",
     locationValidationUnavailable: "Automatic location detection failed.",
     networkReasons: {
-      timeout: "The connection timed out. Check your network or proxy and try again.",
-      proxy_error: "The proxy connection failed. Check the system proxy or try another network.",
-      tls_error: "The secure connection failed. Check your network, proxy, and system clock.",
-      connection_error: "A connection could not be established. Check your network or proxy.",
-      request_error: "The network request failed. Check your connection and try again.",
+      timeout:
+        "The connection timed out. Check your network or proxy and try again.",
+      proxy_error:
+        "The proxy connection failed. Check the system proxy or try another network.",
+      tls_error:
+        "The secure connection failed. Check your network, proxy, and system clock.",
+      connection_error:
+        "A connection could not be established. Check your network or proxy.",
+      request_error:
+        "The network request failed. Check your connection and try again.",
       invalid_json: "The service returned unreadable data. Try again later.",
-      invalid_response: "The service returned incomplete data. Try again later.",
-      provider_error: "The location service rejected the lookup. Enter your location manually or try again later.",
+      invalid_response:
+        "The service returned incomplete data. Try again later.",
+      provider_error:
+        "The location service rejected the lookup. Enter your location manually or try again later.",
     },
     httpRateLimited: "The service is limiting requests. Try again later.",
-    httpForbidden: "The service denied the request. Check your network or proxy.",
+    httpForbidden:
+      "The service denied the request. Check your network or proxy.",
     httpServerError: "The service is temporarily failing. Try again later.",
-    httpOther: (status: number) => `The service returned HTTP ${status}. Try again later.`,
+    httpOther: (status: number) =>
+      `The service returned HTTP ${status}. Try again later.`,
     generic: "The operation failed. Your draft is still here; try again.",
     scanCodes: {
-      wallpaper_engine_executable_not_found: "wallpaper64.exe was not found. Choose the installation manually.",
-      wallpaper_engine_config_not_found: "Wallpaper Engine config.json was not found. Start Wallpaper Engine once, then try again.",
-      wallpaper_engine_config_read_failed: "Wallpaper Engine configuration could not be read. Close anything writing it, then try again.",
-      unexpected_wallpaper_engine_config_format: "The Wallpaper Engine configuration format was not recognized.",
+      wallpaper_engine_executable_not_found:
+        "wallpaper64.exe was not found. Choose the installation manually.",
+      wallpaper_engine_config_not_found:
+        "Wallpaper Engine config.json was not found. Start Wallpaper Engine once, then try again.",
+      wallpaper_engine_config_read_failed:
+        "Wallpaper Engine configuration could not be read. Close anything writing it, then try again.",
+      unexpected_wallpaper_engine_config_format:
+        "The Wallpaper Engine configuration format was not recognized.",
     },
     issueCodes: {
       weather_api_key_invalid: "This API key is invalid.",
-      weather_location_invalid: "OpenWeatherMap could not use this location. Check the coordinates.",
-      weather_api_quota_exceeded: "This API key has reached its request quota. Try later or use another key.",
+      weather_location_invalid:
+        "OpenWeatherMap could not use this location. Check the coordinates.",
+      weather_api_quota_exceeded:
+        "This API key has reached its request quota. Try later or use another key.",
     },
-    stages: { compile: "configuration compilation", prepare: "runtime preparation", persist: "Profile write" },
+    stages: {
+      compile: "configuration compilation",
+      prepare: "runtime preparation",
+      persist: "Profile write",
+    },
   },
-}
+};
 
-export const COPY = { zh, en } satisfies Record<Locale, typeof zh>
+export const COPY = { zh, en } satisfies Record<Locale, typeof zh>;
+
+export const ZH_TIMING_HINTS = {
+  startupGrace:
+    "调度器启动至能够尝试切换的最短等待时间，更高的启动等待时间通常可以增加壁纸选择的稳定性。",
+  idleBeforeSwitch:
+    "停止操作多久后，允许壁纸切换。更短的空闲等待时间通常可以带来更及时的壁纸响应，但也会增加切换次数。",
+  maximumDeferral: "距上次壁纸切换达到此时长后，场景切换可不再等待空闲时机。",
+  cycleInterval:
+    "保持在同一场景时，在当前场景对应的播放列表内进行壁纸轮播时允许的最短间隔。",
+} as const;
+
+export const ZH_ACTIVITY_NOTE =
+  "休闲指有意进行的娱乐活动。对于不具明确指向性活动，无需进行场景规则配置。";
+
+export const ZH_WEATHER_SAVE_PROMPT = {
+  title: "API Key 连通性测试未通过，仍要保存吗？",
+  description: "保存后，天气相关场景可能暂时无法响应。你可以稍后重新测试连接。",
+} as const;
 
 export const SCENE_LABELS: Record<Locale, Record<SceneId, string>> = {
   zh: {
@@ -484,9 +603,12 @@ export const SCENE_LABELS: Record<Locale, Record<SceneId, string>> = {
     sunset: "Sunset",
     rain: "Rain",
   },
-}
+};
 
-export const RESPONSE_STYLE_LABELS: Record<Locale, Record<import("@/api/profile").ResponseStyle, string>> = {
+export const RESPONSE_STYLE_LABELS: Record<
+  Locale,
+  Record<import("@/api/profile").ResponseStyle, string>
+> = {
   zh: {
     background: "背景优先",
     background_leaning: "偏向背景",
@@ -501,9 +623,24 @@ export const RESPONSE_STYLE_LABELS: Record<Locale, Record<import("@/api/profile"
     current_leaning: "Lean current",
     current: "Current first",
   },
-}
+};
 
-export const DISTURBANCE_LABELS: Record<Locale, Record<DisturbancePreset, string>> = {
-  zh: { eager: "积极", responsive: "灵敏", balanced: "平衡", quiet: "安静", minimal: "最少打扰" },
-  en: { eager: "Eager", responsive: "Responsive", balanced: "Balanced", quiet: "Quiet", minimal: "Minimal" },
-}
+export const DISTURBANCE_LABELS: Record<
+  Locale,
+  Record<DisturbancePreset, string>
+> = {
+  zh: {
+    eager: "积极",
+    responsive: "灵敏",
+    balanced: "平衡",
+    quiet: "安静",
+    minimal: "最少打扰",
+  },
+  en: {
+    eager: "Eager",
+    responsive: "Responsive",
+    balanced: "Balanced",
+    quiet: "Quiet",
+    minimal: "Minimal",
+  },
+};

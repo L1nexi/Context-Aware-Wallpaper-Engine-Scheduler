@@ -570,6 +570,27 @@ def test_api_create_profile_leaves_profile_absent_when_weather_validation_is_una
     assert profile_body == {"error": "profile_not_found"}
 
 
+def test_api_create_profile_can_save_after_explicit_weather_confirmation(tmp_path: Path, tick_history, monkeypatch):
+    def unexpected_validation(*_args, **_kwargs):
+        raise AssertionError("weather validation should be skipped after confirmation")
+
+    monkeypatch.setattr("server.routes.profile.validate_weather_connection", unexpected_validation)
+    executable = _wallpaper_engine_path(tmp_path)
+    app = build_api_app(tick_history, ProfileManager(str(tmp_path / "profile")))
+    draft = _profile_payload(executable)
+
+    status, body = wsgi_request(
+        app,
+        "POST",
+        "/api/profile",
+        query="allow_unverified_weather=1",
+        body=json.dumps(draft).encode("utf-8"),
+    )
+
+    assert "201" in status
+    assert body["profile"] == draft
+
+
 def test_api_create_profile_logs_safe_weather_timeout_reason(tmp_path: Path, tick_history, monkeypatch, caplog):
     def timeout(*_args, **_kwargs):
         raise requests.Timeout("request URL contained appid=fake-secret")
@@ -745,6 +766,31 @@ def test_api_apply_profile_succeeds_during_weather_outage_when_weather_is_unchan
 
     assert "200" in status
     assert body["status"] == "applied"
+
+
+def test_api_apply_profile_can_save_changed_weather_after_explicit_confirmation(
+    tick_history,
+    profile_manager,
+    monkeypatch,
+):
+    def unexpected_validation(*_args, **_kwargs):
+        raise AssertionError("weather validation should be skipped after confirmation")
+
+    monkeypatch.setattr("server.routes.profile.validate_weather_connection", unexpected_validation)
+    app = build_api_app(tick_history, profile_manager)
+    draft = _profile_payload_for(profile_manager)
+    draft["weather"]["api_key"] = "replacement-key"
+
+    status, body = wsgi_request(
+        app,
+        "PUT",
+        "/api/profile",
+        query="allow_unverified_weather=1",
+        body=json.dumps(draft).encode("utf-8"),
+    )
+
+    assert "200" in status
+    assert body["profile"]["weather"]["api_key"] == "replacement-key"
 
 
 def test_api_apply_profile_maps_rejected_location_to_weather_location_field(

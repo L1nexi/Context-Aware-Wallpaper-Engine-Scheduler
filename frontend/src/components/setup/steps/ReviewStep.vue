@@ -3,10 +3,11 @@ import { FlaskConicalIcon, TriangleAlertIcon } from "@lucide/vue"
 import { computed } from "vue"
 
 import type { Locale } from "@/api/profile"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { COPY, DISTURBANCE_LABELS, RESPONSE_STYLE_LABELS } from "@/setup/copy"
+import type { StepId } from "@/setup/flow"
 import { detectDisturbancePreset } from "@/setup/model"
 import type { ProfileDraft } from "@/setup/model"
 
@@ -14,6 +15,7 @@ const props = defineProps<{
   locale: Locale
   draft: ProfileDraft
   valid: boolean
+  missingSteps: Array<{ id: StepId, title: string }>
   weatherStatus: "idle" | "success" | "error"
   weatherError: string
   validatingWeather: boolean
@@ -21,6 +23,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   validateWeather: []
+  openStep: [id: StepId]
 }>()
 
 const copy = computed(() => COPY[props.locale])
@@ -63,8 +66,8 @@ const rows = computed(() => [
           <div v-if="row.id === 'weather'" class="flex min-w-0 flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-sm font-medium" role="status">{{ row.value }}</p>
-              <p v-if="weatherStatus === 'error'" class="mt-1 text-sm text-destructive">{{ weatherError }}</p>
-              <p class="mt-1 text-xs text-muted-foreground">{{ copy.review.weatherNote }}</p>
+              <p v-if="weatherError" class="mt-1 text-sm" :class="weatherStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'">{{ weatherError }}</p>
+              <p v-if="copy.review.weatherNote" class="mt-1 text-xs text-muted-foreground">{{ copy.review.weatherNote }}</p>
             </div>
             <Button size="sm" variant="outline" :disabled="validatingWeather || !draft.weather.api_key.trim()" @click="emit('validateWeather')">
               <Spinner v-if="validatingWeather" data-icon="inline-start" />
@@ -79,7 +82,13 @@ const rows = computed(() => [
 
     <Alert v-if="!valid" variant="destructive">
       <TriangleAlertIcon />
-      <AlertDescription>{{ copy.errors.validation }}</AlertDescription>
+      <AlertTitle>{{ copy.review.missingTitle }}</AlertTitle>
+      <AlertDescription class="flex flex-col gap-3">
+        <span>{{ copy.review.missingDescription }}</span>
+        <span class="flex flex-wrap gap-2">
+          <Button v-for="step in missingSteps" :key="step.id" size="sm" variant="outline" @click="emit('openStep', step.id)">{{ step.title }}</Button>
+        </span>
+      </AlertDescription>
     </Alert>
   </section>
 </template>

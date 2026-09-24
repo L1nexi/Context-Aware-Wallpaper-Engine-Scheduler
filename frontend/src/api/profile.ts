@@ -147,17 +147,17 @@ export function scanPlaylists(wallpaperEnginePath: string): Promise<PlaylistScan
   )
 }
 
-export async function createInitialProfile(profile: Profile): Promise<Profile> {
+export async function createInitialProfile(profile: Profile, allowUnverifiedWeather = false): Promise<Profile> {
   const response = await requestJson<{ status: "created"; profile: Profile }>(
-    "/api/profile",
+    allowUnverifiedWeather ? "/api/profile?allow_unverified_weather=1" : "/api/profile",
     jsonRequest(profile),
   )
   return response.profile
 }
 
-export async function applyProfile(profile: Profile): Promise<Profile> {
+export async function applyProfile(profile: Profile, allowUnverifiedWeather = false): Promise<Profile> {
   const response = await requestJson<{ status: "applied"; profile: Profile }>(
-    "/api/profile",
+    allowUnverifiedWeather ? "/api/profile?allow_unverified_weather=1" : "/api/profile",
     jsonRequest(profile, "PUT"),
   )
   return response.profile

@@ -73,7 +73,7 @@ const showApiKey = ref(false)
       <CheckCircle2Icon />
       <AlertDescription>{{ copy.weather.validationSuccess }}</AlertDescription>
     </Alert>
-    <Alert v-else-if="validationStatus === 'error'" variant="destructive">
+    <Alert v-if="validationError" :variant="validationStatus === 'error' ? 'destructive' : 'default'">
       <TriangleAlertIcon />
       <AlertDescription>{{ validationError }}</AlertDescription>
     </Alert>
@@ -87,13 +87,13 @@ const showApiKey = ref(false)
             <p class="font-medium">{{ step.title }}</p>
             <p class="text-muted-foreground">{{ step.action }}</p>
             <p class="text-muted-foreground">{{ step.expected }}</p>
-            <p class="text-muted-foreground">{{ step.fallback }}</p>
+            <p v-if="step.fallback" class="text-muted-foreground">{{ step.fallback }}</p>
           </div>
         </li>
       </ol>
     </div>
 
-    <Alert>
+    <Alert v-if="copy.weather.validationOnSubmit">
       <CloudSunIcon />
       <AlertDescription>{{ copy.weather.validationOnSubmit }}</AlertDescription>
     </Alert>

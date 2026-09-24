@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { SlidersHorizontalIcon } from "@lucide/vue"
+import { CircleHelpIcon, SlidersHorizontalIcon } from "@lucide/vue"
 import { computed } from "vue"
 
 import type { Locale, ResponseStyle } from "@/api/profile"
@@ -9,7 +9,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { COPY, DISTURBANCE_LABELS, RESPONSE_STYLE_LABELS } from "@/setup/copy"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { COPY, DISTURBANCE_LABELS, RESPONSE_STYLE_LABELS, ZH_TIMING_HINTS } from "@/setup/copy"
 import { detectDisturbancePreset, DISTURBANCE_PRESETS, isNonNegativeInteger, parseNumberInput } from "@/setup/model"
 import type { DisturbancePreset, ProfileDraft } from "@/setup/model"
 
@@ -34,10 +35,10 @@ const emit = defineEmits<{
 const copy = computed(() => COPY[props.locale])
 const preset = computed(() => detectDisturbancePreset({ disturbance: props.disturbance }))
 const timingFields = computed(() => [
-  ["startup_grace_seconds", copy.value.preferences.startupGrace, copy.value.preferences.seconds],
-  ["idle_before_switch_seconds", copy.value.preferences.idleBeforeSwitch, copy.value.preferences.seconds],
-  ["maximum_deferral_minutes", copy.value.preferences.maximumDeferral, copy.value.preferences.minutes],
-  ["cycle_interval_minutes", copy.value.preferences.cycleInterval, copy.value.preferences.minutes],
+  ["startup_grace_seconds", copy.value.preferences.startupGrace, copy.value.preferences.seconds, props.locale === "zh" ? ZH_TIMING_HINTS.startupGrace : ""],
+  ["idle_before_switch_seconds", copy.value.preferences.idleBeforeSwitch, copy.value.preferences.seconds, props.locale === "zh" ? ZH_TIMING_HINTS.idleBeforeSwitch : ""],
+  ["maximum_deferral_minutes", copy.value.preferences.maximumDeferral, copy.value.preferences.minutes, props.locale === "zh" ? ZH_TIMING_HINTS.maximumDeferral : ""],
+  ["cycle_interval_minutes", copy.value.preferences.cycleInterval, copy.value.preferences.minutes, props.locale === "zh" ? ZH_TIMING_HINTS.cycleInterval : ""],
 ] as const)
 
 function messages(...fields: string[]): string[] {
@@ -117,13 +118,24 @@ function setTiming(field: DisturbanceKey, value: string | number): void {
       </CollapsibleTrigger>
       <CollapsibleContent class="pt-4">
         <FieldGroup>
-          <div class="grid gap-5 sm:grid-cols-2">
+          <TooltipProvider>
+            <div class="grid gap-5 sm:grid-cols-2">
             <Field
               v-for="field in timingFields"
               :key="field[0]"
               :data-invalid="!isNonNegativeInteger(disturbance[field[0]]) || messages('disturbance', `disturbance.${field[0]}`).length > 0"
             >
-              <FieldLabel :for="field[0]">{{ field[1] }}</FieldLabel>
+              <div class="flex items-center gap-1">
+                <FieldLabel :for="field[0]">{{ field[1] }}</FieldLabel>
+                <Tooltip v-if="field[3]">
+                  <TooltipTrigger as-child>
+                    <Button type="button" variant="ghost" size="icon-xs" :aria-label="`${field[1]}说明`">
+                      <CircleHelpIcon />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" class="max-w-72 leading-relaxed">{{ field[3] }}</TooltipContent>
+                </Tooltip>
+              </div>
               <InputGroup>
                 <InputGroupInput
                   :id="field[0]"
@@ -142,7 +154,8 @@ function setTiming(field: DisturbanceKey, value: string | number): void {
                 :errors="messages('disturbance', `disturbance.${field[0]}`)"
               />
             </Field>
-          </div>
+            </div>
+          </TooltipProvider>
         </FieldGroup>
       </CollapsibleContent>
     </Collapsible>

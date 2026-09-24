@@ -3,14 +3,15 @@ import type { Component } from "vue"
 import {
   AppWindowIcon,
   CheckIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   ClipboardCheckIcon,
   CloudSunIcon,
   LayersIcon,
   MapPinIcon,
   MonitorIcon,
+  MoonIcon,
   SlidersHorizontalIcon,
+  SunIcon,
   TriangleAlertIcon,
 } from "@lucide/vue"
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, toRef, watch } from "vue"
@@ -38,11 +39,11 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { COPY } from "@/setup/copy"
+import { COPY, ZH_WEATHER_SAVE_PROMPT } from "@/setup/copy"
 import { evaluateSteps, STEP_ORDER, stepForIssue } from "@/setup/flow"
 import type { StepId } from "@/setup/flow"
 import { buildProfile, createProfileDraft, profileFingerprint, validationIssueField } from "@/setup/model"
@@ -63,7 +64,7 @@ const baseline = ref(profileFingerprint(draft))
 const scan = usePlaylistScan(toRef(draft, "wallpaper_engine_path"))
 
 const currentIndex = ref(0)
-const furthestIndex = ref(mode.value === "settings" ? STEP_ORDER.length - 1 : 0)
+const previousSectionIndex = ref(0)
 const activeStep = computed<StepId>(() => STEP_ORDER[currentIndex.value] ?? "wallpaper")
 const stepError = ref<"validation" | "fieldValidation" | null>(null)
 const validationIssues = ref<ValidationIssue[]>([])
@@ -76,6 +77,10 @@ const locationDetectionError = ref("")
 const validatingWeather = ref(false)
 const weatherValidationStatus = ref<"idle" | "success" | "error">("idle")
 const weatherValidationError = ref("")
+const weatherValidationFailure = shallowRef<unknown>(null)
+const verifiedWeatherKey = ref<string | null>(null)
+const weatherSaveDialogOpen = ref(false)
+const weatherSaveFailure = ref("")
 const timingOpen = ref(false)
 const closeDialogOpen = ref(false)
 const hasNativeBridge = ref(Boolean(window.pywebview?.api))
@@ -91,6 +96,13 @@ const stepIcons: Record<StepId, Component> = {
   review: ClipboardCheckIcon,
 }
 const steps = computed(() => STEP_ORDER.map((id) => ({ id, ...copy.value.steps[id], icon: stepIcons[id] })))
+const themeIcon = computed(() => ({ auto: MonitorIcon, light: SunIcon, dark: MoonIcon })[themeMode.value])
+const themeLabel = computed(() => ({
+  auto: copy.value.nav.themeSystem,
+  light: copy.value.nav.themeLight,
+  dark: copy.value.nav.themeDark,
+})[themeMode.value])
+const missingSteps = computed(() => steps.value.filter((step) => step.id !== "review" && !isStepValid(step.id)))
 const activeHeading = computed(() => {
   const content = copy.value
   switch (activeStep.value) {
@@ -103,13 +115,15 @@ const activeHeading = computed(() => {
     case "scenes": return { title: content.scenes.title, description: content.scenes.description }
     case "scheduling": return { title: content.preferences.title, description: content.preferences.description }
     case "activity": return { title: content.activity.title, description: content.activity.description }
-    case "review": return { title: content.review.title, description: content.review.description }
+    case "review": return {
+      title: mode.value === "setup" ? content.nav.reviewSetup : content.nav.reviewSettings,
+      description: content.review.description,
+    }
   }
 })
 const evaluation = computed(() => evaluateSteps(draft, scan.ready.value, scan.usablePlaylists.value))
 const allValid = computed(() => Object.values(evaluation.value.validity).every(Boolean))
 const isDirty = computed(() => profileFingerprint(draft) !== baseline.value)
-const progressValue = computed(() => ((currentIndex.value + 1) / STEP_ORDER.length) * 100)
 const stepErrorText = computed(() => stepError.value ? copy.value.errors[stepError.value] : "")
 const submissionError = computed(() => submissionFailure.value ? describeError(submissionFailure.value) : "")
 const catalogError = computed(() => catalogFailure.value ? describeError(catalogFailure.value) : "")
@@ -147,8 +161,9 @@ function updatePath(value: string): void {
 
 function updateApiKey(value: string): void {
   draft.weather.api_key = value
-  weatherValidationStatus.value = "idle"
+  weatherValidationStatus.value = verifiedWeatherKey.value !== null && value.trim() === verifiedWeatherKey.value ? "success" : "idle"
   weatherValidationError.value = ""
+  weatherValidationFailure.value = null
   clearStepFeedback("weather")
 }
 
@@ -283,6 +298,13 @@ function describeWeatherTestError(error: unknown): string {
   return copy.value.errors.generic
 }
 
+function isSoftWeatherFailure(error: unknown): boolean {
+  return error instanceof ApiError && (
+    error.payload.error === "weather_validation_unavailable"
+    || error.payload.issues?.some((issue) => issue.code === "weather_api_quota_exceeded") === true
+  )
+}
+
 async function testWeatherKey(): Promise<void> {
   const apiKey = draft.weather.api_key.trim()
   if (!apiKey) {
@@ -291,14 +313,22 @@ async function testWeatherKey(): Promise<void> {
     return
   }
   validatingWeather.value = true
-  weatherValidationStatus.value = "idle"
+  weatherValidationStatus.value = verifiedWeatherKey.value === apiKey ? "success" : "idle"
+  weatherValidationError.value = ""
+  weatherValidationFailure.value = null
   try {
     await validateWeatherKey(apiKey)
-    if (draft.weather.api_key.trim() === apiKey) weatherValidationStatus.value = "success"
+    if (draft.weather.api_key.trim() === apiKey) {
+      verifiedWeatherKey.value = apiKey
+      weatherValidationStatus.value = "success"
+    }
   } catch (error) {
     if (draft.weather.api_key.trim() === apiKey) {
-      weatherValidationStatus.value = "error"
+      const keyRejected = error instanceof ApiError && error.payload.issues?.some((issue) => issue.code === "weather_api_key_invalid")
+      if (keyRejected) verifiedWeatherKey.value = null
+      weatherValidationStatus.value = verifiedWeatherKey.value === apiKey ? "success" : "error"
       weatherValidationError.value = describeWeatherTestError(error)
+      weatherValidationFailure.value = error
     }
   } finally {
     validatingWeather.value = false
@@ -310,7 +340,6 @@ function applyValidationIssues(error: unknown): boolean {
   validationIssues.value = error.payload.issues
   const target = Math.min(...error.payload.issues.map((issue) => STEP_ORDER.indexOf(stepForIssue(issue.path))))
   currentIndex.value = target
-  furthestIndex.value = Math.max(furthestIndex.value, target)
   if (error.payload.issues.some((issue) => issue.path[0] === "disturbance")) timingOpen.value = true
   stepError.value = "fieldValidation"
   submissionFailure.value = null
@@ -334,31 +363,17 @@ async function detectCity(): Promise<void> {
   }
 }
 
-function canNavigateTo(index: number): boolean {
-  return mode.value === "settings" || index <= furthestIndex.value
-}
-
 function navigateTo(index: number): void {
-  if (!canNavigateTo(index)) return
+  if (activeStep.value !== "review" && index === STEP_ORDER.length - 1) previousSectionIndex.value = currentIndex.value
   currentIndex.value = index
   stepError.value = null
   submissionFailure.value = null
 }
 
-function goNext(): void {
-  if (!isStepValid(activeStep.value)) {
-    stepError.value = "validation"
-    return
-  }
-  const next = Math.min(currentIndex.value + 1, STEP_ORDER.length - 1)
-  furthestIndex.value = Math.max(furthestIndex.value, next)
-  currentIndex.value = next
-  stepError.value = null
-}
-
-function goBack(): void {
-  currentIndex.value = Math.max(0, currentIndex.value - 1)
-  stepError.value = null
+function navigateToStep(id: StepId): void {
+  const needsAttention = activeStep.value === "review" && !isStepValid(id)
+  navigateTo(STEP_ORDER.indexOf(id))
+  if (needsAttention) stepError.value = "validation"
 }
 
 function setLocale(value: unknown): void {
@@ -377,12 +392,18 @@ async function closeWindow(): Promise<void> {
   if (window.pywebview?.api) await window.pywebview.api.close()
 }
 
-async function submitProfile(): Promise<void> {
+async function submitProfile(allowUnverifiedWeather = false): Promise<void> {
   if (!allValid.value) {
     const invalidIndex = STEP_ORDER.findIndex((id) => !isStepValid(id))
     currentIndex.value = Math.max(0, invalidIndex)
-    furthestIndex.value = Math.max(furthestIndex.value, currentIndex.value)
     stepError.value = "validation"
+    return
+  }
+
+  const hasVerifiedKey = verifiedWeatherKey.value === draft.weather.api_key.trim()
+  if (!allowUnverifiedWeather && !hasVerifiedKey && isSoftWeatherFailure(weatherValidationFailure.value)) {
+    weatherSaveFailure.value = describeWeatherTestError(weatherValidationFailure.value)
+    weatherSaveDialogOpen.value = true
     return
   }
 
@@ -390,11 +411,16 @@ async function submitProfile(): Promise<void> {
   submissionFailure.value = null
   try {
     const profile = buildProfile(draft)
-    const committed = mode.value === "setup" ? await createInitialProfile(profile) : await applyProfile(profile)
+    const skipWeatherValidation = allowUnverifiedWeather || hasVerifiedKey
+    const committed = mode.value === "setup"
+      ? await createInitialProfile(profile, skipWeatherValidation)
+      : await applyProfile(profile, skipWeatherValidation)
     Object.assign(draft, createProfileDraft(committed, locale.value))
     baseline.value = profileFingerprint(draft)
     validationIssues.value = []
     stepError.value = null
+    weatherValidationFailure.value = null
+    weatherSaveFailure.value = ""
     if (mode.value === "setup") {
       toast.success(copy.value.review.setupSuccess)
       await closeWindow()
@@ -402,7 +428,10 @@ async function submitProfile(): Promise<void> {
       toast.success(copy.value.review.success)
     }
   } catch (error) {
-    if (!applyValidationIssues(error)) submissionFailure.value = error
+    if (isSoftWeatherFailure(error) && !allowUnverifiedWeather) {
+      weatherSaveFailure.value = describeWeatherTestError(error)
+      weatherSaveDialogOpen.value = true
+    } else if (!applyValidationIssues(error)) submissionFailure.value = error
   } finally {
     submitting.value = false
   }
@@ -413,60 +442,51 @@ async function submitProfile(): Promise<void> {
   <main class="min-h-[100dvh] bg-muted/40 p-4 text-foreground md:h-[100dvh] md:overflow-hidden">
     <div class="mx-auto grid w-full max-w-[100rem] gap-4 md:h-full md:min-h-0 md:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[18rem_minmax(0,1fr)]">
       <aside class="flex min-w-0 flex-col gap-5 rounded-xl bg-sidebar p-4 text-sidebar-foreground ring-1 ring-sidebar-border md:h-full md:min-h-0 md:overflow-hidden">
-        <header class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-sm font-semibold">{{ copy.appName }}</p>
-            <p class="mt-1 text-sm text-muted-foreground">{{ copy.mode[mode] }}</p>
-          </div>
-          <ToggleGroup type="single" variant="outline" size="sm" :model-value="locale" :aria-label="copy.nav.languageLabel" @update:model-value="setLocale">
-            <ToggleGroupItem value="zh" aria-label="中文">中</ToggleGroupItem>
-            <ToggleGroupItem value="en" aria-label="English">EN</ToggleGroupItem>
-          </ToggleGroup>
+        <header>
+          <p class="text-2xl leading-8 font-semibold tracking-tight">{{ copy.appName }}</p>
+          <p class="mt-1 text-sm leading-5 text-muted-foreground">{{ copy.mode[mode] }}</p>
         </header>
 
-        <p class="text-sm leading-relaxed text-muted-foreground">
-          {{ mode === "setup" ? copy.nav.setupDescription : copy.nav.settingsDescription }}
-        </p>
-
-        <div class="flex flex-col gap-2">
-          <p class="text-xs font-medium text-muted-foreground">{{ copy.nav.themeLabel }}</p>
-          <ToggleGroup type="single" variant="outline" size="sm" class="w-full" :model-value="themeMode" :aria-label="copy.nav.themeLabel" @update:model-value="setTheme">
-            <ToggleGroupItem value="auto" class="min-w-0 flex-1 px-2">{{ copy.nav.themeSystem }}</ToggleGroupItem>
-            <ToggleGroupItem value="light" class="min-w-0 flex-1 px-2">{{ copy.nav.themeLight }}</ToggleGroupItem>
-            <ToggleGroupItem value="dark" class="min-w-0 flex-1 px-2">{{ copy.nav.themeDark }}</ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-
         <nav class="flex gap-1 overflow-x-auto pb-1 md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto" :aria-label="mode === 'setup' ? copy.nav.setupNavigation : copy.nav.settingsNavigation">
+          <p class="hidden px-3 pb-1 text-xs font-medium text-muted-foreground md:block">{{ mode === 'setup' ? copy.nav.setupNavigation : copy.nav.settingsNavigation }}</p>
           <Button
             v-for="(step, index) in steps"
             :key="step.id"
             type="button"
             :variant="currentIndex === index ? 'secondary' : 'ghost'"
-            :aria-current="currentIndex === index ? (mode === 'setup' ? 'step' : 'page') : undefined"
-            class="h-auto min-w-52 justify-start px-3 py-2.5 text-left md:min-w-0"
-            :disabled="!canNavigateTo(index)"
+            :aria-current="currentIndex === index ? 'page' : undefined"
+            class="min-w-44 justify-start px-3 text-left md:min-w-0"
             @click="navigateTo(index)"
           >
             <component :is="step.icon" data-icon="inline-start" />
-            <span class="min-w-0 flex-1">
-              <span class="block truncate font-medium">{{ step.title }}</span>
-              <span class="mt-0.5 block truncate text-xs font-normal text-muted-foreground">{{ step.short }}</span>
-            </span>
-            <CheckIcon v-if="isStepValid(step.id) && (mode === 'settings' || index < furthestIndex) && index !== currentIndex" data-icon="inline-end" />
+            <span class="min-w-0 flex-1 truncate font-medium">{{ step.id === 'review' ? (mode === 'setup' ? copy.nav.reviewSetup : copy.nav.reviewSettings) : step.title }}</span>
           </Button>
         </nav>
 
-        <div class="mt-auto flex flex-col gap-2">
-          <Progress :model-value="progressValue" />
-          <p class="text-xs text-muted-foreground">{{ currentIndex + 1 }} / {{ steps.length }}</p>
+        <div class="mt-auto flex items-center justify-between border-t border-sidebar-border pt-3">
+          <ToggleGroup type="single" size="sm" :spacing="1" class="shrink-0 rounded-xl border border-sidebar-border bg-muted/40 p-0.5" :model-value="locale" :aria-label="copy.nav.languageLabel" @update:model-value="setLocale">
+            <ToggleGroupItem value="zh" class="rounded-lg data-[state=on]:bg-background" aria-label="中文">中</ToggleGroupItem>
+            <ToggleGroupItem value="en" class="rounded-lg data-[state=on]:bg-background" aria-label="English">EN</ToggleGroupItem>
+          </ToggleGroup>
+          <Select :model-value="themeMode" @update:model-value="setTheme">
+            <SelectTrigger class="size-9 justify-center gap-0 rounded-xl border border-sidebar-border bg-transparent p-0 hover:bg-sidebar-accent [&_svg:last-child]:hidden" :aria-label="`${copy.nav.themeLabel}: ${themeLabel}`" :title="`${copy.nav.themeLabel}: ${themeLabel}`">
+              <component :is="themeIcon" class="size-4" />
+            </SelectTrigger>
+            <SelectContent position="popper" align="end">
+              <SelectGroup>
+                <SelectItem value="auto">{{ copy.nav.themeSystem }}</SelectItem>
+                <SelectItem value="light">{{ copy.nav.themeLight }}</SelectItem>
+                <SelectItem value="dark">{{ copy.nav.themeDark }}</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       </aside>
 
       <Card class="min-w-0 min-h-[32rem] md:h-full md:min-h-0">
         <CardHeader class="shrink-0">
-          <CardTitle><h1 class="text-2xl font-semibold tracking-tight">{{ activeHeading.title }}</h1></CardTitle>
-          <CardDescription>{{ activeHeading.description }}</CardDescription>
+          <CardTitle><h1 class="text-[1.375rem] leading-7 font-semibold tracking-tight">{{ activeHeading.title }}</h1></CardTitle>
+          <CardDescription v-if="activeHeading.description">{{ activeHeading.description }}</CardDescription>
         </CardHeader>
         <CardContent class="min-h-0 flex-1 overflow-y-auto pt-0 pb-6">
           <Alert v-if="stepErrorText" variant="destructive" class="mb-6">
@@ -533,6 +553,7 @@ async function submitProfile(): Promise<void> {
             :errors="issuesByStep.scenes.scenes ?? []"
             @update:scenes="updateScenes"
             @retry-catalog="loadSceneCatalog"
+            @open-wallpaper="navigateToStep('wallpaper')"
           />
           <SchedulingStep
             v-else-if="activeStep === 'scheduling'"
@@ -558,28 +579,25 @@ async function submitProfile(): Promise<void> {
             :locale="locale"
             :draft="draft"
             :valid="allValid"
+            :missing-steps="missingSteps"
             :weather-status="weatherValidationStatus"
             :weather-error="weatherValidationError"
             :validating-weather="validatingWeather"
             @validate-weather="testWeatherKey"
+            @open-step="navigateToStep"
           />
         </CardContent>
 
         <Separator />
         <CardFooter class="shrink-0 justify-between gap-3">
-          <div class="flex gap-2">
-            <Button v-if="currentIndex > 0" variant="outline" :disabled="submitting" @click="goBack">
-              <ChevronLeftIcon data-icon="inline-start" />
-              {{ copy.common.back }}
-            </Button>
-            <Button v-else variant="ghost" :disabled="submitting" @click="requestClose">{{ copy.common.cancel }}</Button>
-          </div>
+          <Button v-if="activeStep === 'review'" variant="outline" :disabled="submitting" @click="navigateTo(previousSectionIndex)">{{ copy.nav.backToSettings }}</Button>
+          <Button v-else variant="ghost" :disabled="submitting" @click="requestClose">{{ mode === 'setup' ? copy.common.cancel : copy.common.close }}</Button>
 
-          <Button v-if="activeStep !== 'review'" :disabled="submitting" @click="goNext">
-            {{ copy.common.next }}
+          <Button v-if="activeStep !== 'review'" variant="outline" :disabled="submitting" @click="navigateToStep('review')">
+            {{ mode === 'setup' ? copy.nav.reviewSetup : copy.nav.reviewSettings }}
             <ChevronRightIcon data-icon="inline-end" />
           </Button>
-          <Button v-else :disabled="submitting || !allValid" @click="submitProfile">
+          <Button v-else :disabled="submitting || !allValid" @click="submitProfile()">
             <Spinner v-if="submitting" data-icon="inline-start" />
             <CheckIcon v-else data-icon="inline-start" />
             {{ submitting
@@ -594,11 +612,27 @@ async function submitProfile(): Promise<void> {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{{ mode === "setup" ? copy.common.cancel : copy.common.close }}</AlertDialogTitle>
-          <AlertDialogDescription>{{ copy.nav.settingsDescription }}</AlertDialogDescription>
+          <AlertDialogDescription v-if="copy.nav.settingsDescription">{{ copy.nav.settingsDescription }}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{{ copy.common.back }}</AlertDialogCancel>
           <AlertDialogAction @click="closeWindow">{{ copy.common.close }}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog v-model:open="weatherSaveDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{ locale === "zh" ? ZH_WEATHER_SAVE_PROMPT.title : copy.errors.weatherValidationUnavailable }}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ weatherSaveFailure }}
+            <template v-if="locale === 'zh'">{{ ZH_WEATHER_SAVE_PROMPT.description }}</template>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{{ copy.common.back }}</AlertDialogCancel>
+          <AlertDialogAction :disabled="submitting" @click="submitProfile(true)">{{ mode === "setup" ? copy.review.create : copy.review.save }}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

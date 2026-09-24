@@ -28,6 +28,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:scenes": [value: Scenes]
   retryCatalog: []
+  openWallpaper: []
 }>()
 
 const copy = computed(() => COPY[props.locale])
@@ -72,7 +73,7 @@ function assignmentInvalid(sceneId: SceneId): boolean {
 
 <template>
   <section class="flex flex-col gap-6">
-    <Alert v-if="mode === 'setup'">
+    <Alert v-if="mode === 'setup' && copy.scenes.defaultHint">
       <LightbulbIcon />
       <AlertDescription>{{ copy.scenes.defaultHint }}</AlertDescription>
     </Alert>
@@ -86,6 +87,7 @@ function assignmentInvalid(sceneId: SceneId): boolean {
     <Alert v-if="playlists.length === 0" variant="destructive">
       <TriangleAlertIcon />
       <AlertDescription>{{ copy.scenes.unavailable }}</AlertDescription>
+      <Button variant="outline" size="sm" @click="emit('openWallpaper')">{{ copy.wallpaper.title }}</Button>
     </Alert>
 
     <FieldSet v-for="group in sceneGroups" :key="group.id">
