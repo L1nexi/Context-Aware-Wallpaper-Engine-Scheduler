@@ -13,9 +13,9 @@ LOCATION_REQUEST_TIMEOUT_SECONDS = 8.0
 
 @dataclass(frozen=True)
 class DetectedLocation:
-    name: str
     latitude: float
     longitude: float
+    city: str | None = None
 
 
 class LocationDetectionUnavailable(RuntimeError):
@@ -28,7 +28,7 @@ class LocationDetectionUnavailable(RuntimeError):
 
 
 def detect_city_location() -> DetectedLocation:
-    """Detect an editable city-level location from the machine's public IP.
+    """Estimate editable city-level coordinates from the machine's public IP.
 
     Raises:
         LocationDetectionUnavailable: If the provider cannot be reached or
@@ -57,11 +57,15 @@ def detect_city_location() -> DetectedLocation:
 
     latitude = _finite_coordinate(payload.get("latitude"), minimum=-90, maximum=90)
     longitude = _finite_coordinate(payload.get("longitude"), minimum=-180, maximum=180)
-    name = _location_name(payload)
-    if latitude is None or longitude is None or not name:
+    if latitude is None or longitude is None:
         raise LocationDetectionUnavailable("location provider returned incomplete data", reason="invalid_response")
 
-    return DetectedLocation(name=name, latitude=latitude, longitude=longitude)
+    city = payload.get("city")
+    return DetectedLocation(
+        latitude=latitude,
+        longitude=longitude,
+        city=city.strip() if isinstance(city, str) and city.strip() else None,
+    )
 
 
 def _finite_coordinate(value: object, *, minimum: float, maximum: float) -> float | None:
@@ -71,18 +75,3 @@ def _finite_coordinate(value: object, *, minimum: float, maximum: float) -> floa
     if not math.isfinite(coordinate) or not minimum <= coordinate <= maximum:
         return None
     return coordinate
-
-
-def _location_name(payload: dict[object, object]) -> str:
-    values = [payload.get("city"), payload.get("region"), payload.get("country_name")]
-    parts: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        if not isinstance(value, str):
-            continue
-        part = value.strip()
-        normalized = part.casefold()
-        if part and normalized not in seen:
-            parts.append(part)
-            seen.add(normalized)
-    return ", ".join(parts)

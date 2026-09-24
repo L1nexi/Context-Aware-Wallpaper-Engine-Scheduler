@@ -50,8 +50,9 @@ test("首次设置允许自由选择分类，并在检查页指出未完成设�
   const navigation = page.getByRole("navigation", { name: "设置项" })
   await expect(navigation).toBeVisible()
   await expect(page.getByText("1 / 7")).toHaveCount(0)
-  await navigation.getByRole("button", { name: /当前城市及经纬度/ }).click()
-  await expect(page.getByRole("textbox", { name: "城市名称" })).toBeVisible()
+  await navigation.getByRole("button", { name: /天气位置/ }).click()
+  await expect(page.getByRole("spinbutton", { name: "纬度" })).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "城市名称" })).toHaveCount(0)
   await navigation.getByRole("button", { name: /Wallpaper Engine/ }).click()
   await expect(page.getByRole("table", { name: "播放列表及对应壁纸数量" })).toBeVisible()
   await expect(page.getByText("Wallpaper Engine 中的播放列表名称")).toBeVisible()
@@ -61,8 +62,7 @@ test("首次设置允许自由选择分类，并在检查页指出未完成设�
 
   await navigation.getByRole("button", { name: /天气服务/ }).click()
   await page.getByRole("textbox", { name: "OpenWeatherMap API Key" }).fill("test-key")
-  await navigation.getByRole("button", { name: /当前城市及经纬度/ }).click()
-  await page.getByRole("textbox", { name: "城市名称" }).fill("上海")
+  await navigation.getByRole("button", { name: /天气位置/ }).click()
   await page.getByRole("spinbutton", { name: "纬度" }).fill("31.2304")
   await page.getByRole("spinbutton", { name: "经度" }).fill("121.4737")
   await navigation.getByRole("button", { name: /场景绑定/ }).click()
@@ -133,17 +133,45 @@ test("天气页测试当前草稿 Key 后显示成功", async ({ page }) => {
   await expect(page.getByText("API Key 联网测试通过。")).toBeVisible()
 })
 
-test("自动定位失败说明原因，仍可手填地点", async ({ page }) => {
+test("经纬度估算失败说明原因，仍可手填坐标", async ({ page }) => {
   await mockSetupApi(page, true)
   await page.route("**/api/location-estimates", async (route) => {
     await route.fulfill({ status: 503, json: { error: "location_detection_unavailable", reason: "proxy_error" } })
   })
   await page.goto("/?locale=zh")
-  await page.getByRole("button", { name: /当前城市及经纬度/ }).click()
-  await page.getByRole("button", { name: "自动定位城市" }).click()
+  await page.getByRole("button", { name: /天气位置/ }).click()
+  await page.getByRole("button", { name: "估算经纬度" }).click()
   await expect(page.getByText(/代理连接失败/)).toBeVisible()
-  await page.getByRole("textbox", { name: "城市名称" }).fill("北京")
-  await expect(page.getByRole("textbox", { name: "城市名称" })).toHaveValue("北京")
+  await page.getByRole("spinbutton", { name: "纬度" }).fill("39.9042")
+  await expect(page.getByRole("spinbutton", { name: "纬度" })).toHaveValue("39.9042")
+})
+
+test("经纬度估算不需要城市名称", async ({ page }) => {
+  await mockSetupApi(page, true)
+  await page.route("**/api/location-estimates", async (route) => {
+    await route.fulfill({ json: { location: { latitude: 47.498253, longitude: 19.03978 } } })
+  })
+  await page.goto("/?locale=zh")
+  await page.getByRole("button", { name: /天气位置/ }).click()
+  await page.getByRole("button", { name: "估算经纬度" }).click()
+  await expect(page.getByRole("spinbutton", { name: "纬度" })).toHaveValue("47.498253")
+  await expect(page.getByRole("spinbutton", { name: "经度" })).toHaveValue("19.03978")
+  await expect(page.getByRole("textbox", { name: "城市名称" })).toHaveCount(0)
+  await page.getByRole("button", { name: "查看配置草稿" }).last().click()
+  await expect(page.getByText("纬度 47.498253，经度 19.03978")).toBeVisible()
+})
+
+test("经纬度估算显示 IP 返回的城市，手动修改后清除提示", async ({ page }) => {
+  await mockSetupApi(page, true)
+  await page.route("**/api/location-estimates", async (route) => {
+    await route.fulfill({ json: { location: { city: "Budapest", latitude: 47.498253, longitude: 19.03978 } } })
+  })
+  await page.goto("/?locale=zh")
+  await page.getByRole("button", { name: /天气位置/ }).click()
+  await page.getByRole("button", { name: "估算经纬度" }).click()
+  await expect(page.getByText("城市：Budapest，已填入预估经纬度。")).toBeVisible()
+  await page.getByRole("spinbutton", { name: "纬度" }).fill("47.5")
+  await expect(page.getByText("城市：Budapest，已填入预估经纬度。")).toHaveCount(0)
 })
 
 test("保存成功提示出现在窗口顶部", async ({ page }) => {
@@ -182,7 +210,7 @@ test("检查页显示路径、测试状态、坐标及两类 Activity 规则数"
   await expect(page.getByText(configuredProfile.wallpaper_engine_path)).toBeVisible()
   await expect(page.getByText("天气服务可用性")).toBeVisible()
   await expect(page.getByText("尚未测试")).toBeVisible()
-  await expect(page.getByText(/上海.*31\.2304.*121\.4737/)).toBeVisible()
+  await expect(page.getByText("纬度 31.2304，经度 121.4737")).toBeVisible()
   await expect(page.getByText("窗口名规则 2 条，进程名规则 2 条")).toBeVisible()
 
   await page.getByRole("button", { name: "测试连接" }).click()

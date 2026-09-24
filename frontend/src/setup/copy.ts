@@ -16,7 +16,7 @@ const zh = {
   steps: {
     wallpaper: { title: "Wallpaper Engine" },
     weather: { title: "天气服务" },
-    location: { title: "当前城市及经纬度" },
+    location: { title: "天气位置" },
     scenes: { title: "场景绑定" },
     scheduling: { title: "调度风格" },
     activity: { title: "活动进程检测" },
@@ -64,7 +64,7 @@ const zh = {
     detect: "自动检测",
     scan: "扫描播放列表",
     scanning: "正在扫描",
-    found: "有效文件",
+    found: "文件路径有效",
     foundDescription: (count: number) => `找到 ${count} 个可用播放列表。`,
     scanResultsLabel: "播放列表及对应壁纸数量",
     playlistName: "Wallpaper Engine 中的播放列表名称",
@@ -115,19 +115,18 @@ const zh = {
     validationOnSubmit: "",
   },
   location: {
-    title: "设置当前城市及经纬度",
+    title: "设置经纬度",
     setupDescription:
-      "WEScheduler 利用经纬度信息获取更准确的天气以及日出和日落信息。城市及经纬度信息仅保存于本地。",
+      "天气和日出日落只依据经纬度计算，无需填写城市名称。坐标仅保存在本机。",
     settingsDescription:
-      "WEScheduler 利用经纬度信息获取更准确的天气以及日出和日落信息。城市及经纬度信息仅保存于本地。",
-    detect: "自动定位城市",
-    detecting: "正在定位",
-    detectHint: "尝试使用 ipapi.co 查询公网 IP 对应的城市级位置。",
-    detected: "已填入检测到的城市位置。",
+      "天气和日出日落只依据经纬度计算，无需填写城市名称。坐标仅保存在本机。",
+    detect: "估算经纬度",
+    detecting: "正在估算",
+    detectHint: "根据公网 IP 估算城市级经纬度，结果可手动修正。",
+    detected: (city: string | null) =>
+      city ? `城市：${city}，已填入预估经纬度。` : "已填入预估经纬度，请核对。",
     detectionUnavailable:
-      "无法连接到 ipapi.co 服务。请重试，或手动填写城市和经纬度。",
-    nameLabel: "城市名称",
-    namePlaceholder: "城市名",
+      "无法连接到 ipapi.co。请重试或手动填写经纬度。",
     latitudeLabel: "纬度",
     longitudeLabel: "经度",
     latitudePlaceholder: "-90 到 90",
@@ -144,7 +143,7 @@ const zh = {
     playlist: "播放列表",
     choosePlaylist: "选择播放列表",
     playlistOption: (name: string, count: number) =>
-      `列表含 ${name}（${count} 张壁纸）`,
+      `${name}（含 ${count} 张壁纸）`,
     bindingRequired: "请为此场景选择播放列表。",
     unavailablePlaylist: "已选播放列表不在扫描结果中，请重新选择。",
     required: "至少启用并绑定一个场景。",
@@ -190,7 +189,7 @@ const zh = {
     missingDescription: "保存配置前需完成以下配置项。",
     wallpaper: "Wallpaper Engine 路径",
     weather: "天气服务可用性",
-    location: "当前城市及经纬度",
+    location: "经纬度",
     scenes: "已启用场景",
     response: "响应风格",
     disturbance: "防打扰程度",
@@ -202,8 +201,8 @@ const zh = {
     sceneCount: (count: number) => `${count} 个场景`,
     activityCount: (windows: number, processes: number) =>
       `窗口名规则 ${windows} 条，进程名规则 ${processes} 条`,
-    coordinates: (name: string, latitude: number, longitude: number) =>
-      `${name}（纬度 ${latitude}，经度 ${longitude}）`,
+    coordinates: (latitude: number, longitude: number) =>
+      `纬度 ${latitude}，经度 ${longitude}`,
     create: "完成设置",
     creating: "正在创建",
     save: "保存并应用",
@@ -386,21 +385,19 @@ const en: typeof zh = {
       "This test checks the API key without saving your draft. Setup and weather changes also validate the key and location before saving.",
   },
   location: {
-    title: "Set your location",
+    title: "Set coordinates",
     setupDescription:
-      "Estimate a city from your public IP, or enter the location directly. The result is not updated automatically and remains editable.",
+      "Weather, sunrise, and sunset use only latitude and longitude. No city name is needed. Coordinates stay on this device.",
     settingsDescription:
-      "Location is used only for weather requests. Changes are validated before saving.",
-    detect: "Detect my city",
-    detecting: "Detecting",
+      "Weather, sunrise, and sunset use only latitude and longitude. No city name is needed. Coordinates stay on this device.",
+    detect: "Estimate coordinates",
+    detecting: "Estimating",
     detectHint:
-      "Only when clicked, ipapi.co estimates a city-level location from your public IP. The IP is not saved.",
-    detected:
-      "The detected city location was filled in. Confirm that it is accurate.",
+      "Estimate city-level coordinates from your public IP. You can correct the result manually.",
+    detected: (city: string | null) =>
+      city ? `City: ${city}. Estimated coordinates filled in.` : "Estimated coordinates filled in. Check that they are accurate.",
     detectionUnavailable:
-      "You can enter the city and coordinates manually, or try again after checking the issue.",
-    nameLabel: "Location name",
-    namePlaceholder: "For example: Shanghai",
+      "Enter latitude and longitude manually, or try again after checking the issue.",
     latitudeLabel: "Latitude",
     longitudeLabel: "Longitude",
     latitudePlaceholder: "-90 to 90",
@@ -487,8 +484,8 @@ const en: typeof zh = {
     sceneCount: (count: number) => `${count} Scenes`,
     activityCount: (windows: number, processes: number) =>
       `${windows} window rules, ${processes} process names`,
-    coordinates: (name: string, latitude: number, longitude: number) =>
-      `${name} (latitude ${latitude}, longitude ${longitude})`,
+    coordinates: (latitude: number, longitude: number) =>
+      `Latitude ${latitude}, longitude ${longitude}`,
     create: "Finish setup",
     creating: "Creating",
     save: "Save and apply",

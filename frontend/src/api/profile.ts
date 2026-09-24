@@ -20,7 +20,7 @@ export type ResponseStyle =
   | "current"
 
 export interface WeatherLocationProfile {
-  name: string
+  name?: string
   latitude: number
   longitude: number
 }
@@ -65,9 +65,9 @@ export interface PlaylistScanResult {
 }
 
 export interface DetectedLocation {
-  name: string
   latitude: number
   longitude: number
+  city?: string
 }
 
 export interface ValidationIssue {

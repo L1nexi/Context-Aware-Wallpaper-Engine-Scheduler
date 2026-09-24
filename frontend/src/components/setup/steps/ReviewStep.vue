@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FlaskConicalIcon, TriangleAlertIcon } from "@lucide/vue"
+import { GaugeIcon, TriangleAlertIcon } from "@lucide/vue"
 import { computed } from "vue"
 
 import type { Locale } from "@/api/profile"
@@ -30,9 +30,8 @@ const copy = computed(() => COPY[props.locale])
 const preset = computed(() => detectDisturbancePreset(props.draft))
 const locationSummary = computed(() => {
   const location = props.draft.weather.location
-  if (!location.name.trim()) return copy.value.common.notSet
-  if (location.latitude === null || location.longitude === null) return location.name
-  return copy.value.review.coordinates(location.name, location.latitude, location.longitude)
+  if (location.latitude === null || location.longitude === null) return copy.value.common.notSet
+  return copy.value.review.coordinates(location.latitude, location.longitude)
 })
 const weatherSummary = computed(() => {
   if (props.weatherStatus === "success") return copy.value.review.weatherPassed
@@ -71,7 +70,7 @@ const rows = computed(() => [
             </div>
             <Button size="sm" variant="outline" :disabled="validatingWeather || !draft.weather.api_key.trim()" @click="emit('validateWeather')">
               <Spinner v-if="validatingWeather" data-icon="inline-start" />
-              <FlaskConicalIcon v-else data-icon="inline-start" />
+              <GaugeIcon v-else data-icon="inline-start" />
               {{ validatingWeather ? copy.weather.validating : copy.weather.validate }}
             </Button>
           </div>

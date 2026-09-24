@@ -74,6 +74,7 @@ const submitting = ref(false)
 const locating = ref(false)
 const locationDetectionStatus = ref<"idle" | "success" | "error">("idle")
 const locationDetectionError = ref("")
+const locationDetectionCity = ref<string | null>(null)
 const validatingWeather = ref(false)
 const weatherValidationStatus = ref<"idle" | "success" | "error">("idle")
 const weatherValidationError = ref("")
@@ -171,6 +172,7 @@ function updateLocation(value: ProfileDraft["weather"]["location"]): void {
   draft.weather.location = value
   locationDetectionStatus.value = "idle"
   locationDetectionError.value = ""
+  locationDetectionCity.value = null
   clearStepFeedback("location")
 }
 
@@ -350,9 +352,11 @@ async function detectCity(): Promise<void> {
   locating.value = true
   locationDetectionStatus.value = "idle"
   locationDetectionError.value = ""
+  locationDetectionCity.value = null
   try {
     const detected = await detectLocation()
-    updateLocation(detected)
+    updateLocation({ latitude: detected.latitude, longitude: detected.longitude })
+    locationDetectionCity.value = detected.city ?? null
     locationDetectionStatus.value = "success"
   } catch (error) {
     locationDetectionStatus.value = "error"
@@ -535,6 +539,7 @@ async function submitProfile(allowUnverifiedWeather = false): Promise<void> {
             :locating="locating"
             :detection-status="locationDetectionStatus"
             :detection-error="locationDetectionError"
+            :detection-city="locationDetectionCity"
             :attempted="Boolean(stepError)"
             :errors="issuesByStep.location"
             @update:location="updateLocation"
@@ -593,7 +598,7 @@ async function submitProfile(allowUnverifiedWeather = false): Promise<void> {
           <Button v-if="activeStep === 'review'" variant="outline" :disabled="submitting" @click="navigateTo(previousSectionIndex)">{{ copy.nav.backToSettings }}</Button>
           <Button v-else variant="ghost" :disabled="submitting" @click="requestClose">{{ mode === 'setup' ? copy.common.cancel : copy.common.close }}</Button>
 
-          <Button v-if="activeStep !== 'review'" variant="outline" :disabled="submitting" @click="navigateToStep('review')">
+          <Button v-if="activeStep !== 'review'" :disabled="submitting" @click="navigateToStep('review')">
             {{ mode === 'setup' ? copy.nav.reviewSetup : copy.nav.reviewSettings }}
             <ChevronRightIcon data-icon="inline-end" />
           </Button>

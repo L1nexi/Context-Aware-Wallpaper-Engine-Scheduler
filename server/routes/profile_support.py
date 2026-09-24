@@ -41,13 +41,13 @@ def register_profile_support_routes(app: bottle.Bottle) -> None:
             return payload
         logger.debug("Location estimate succeeded")
         bottle.response.status = 201
-        return {
-            "location": {
-                "name": location.name,
-                "latitude": location.latitude,
-                "longitude": location.longitude,
-            }
+        location_payload: dict[str, object] = {
+            "latitude": location.latitude,
+            "longitude": location.longitude,
         }
+        if location.city is not None:
+            location_payload["city"] = location.city
+        return {"location": location_payload}
 
     @app.post("/api/wallpaper-engine/playlist-scans")
     def api_scan_wallpaper_engine_playlists():

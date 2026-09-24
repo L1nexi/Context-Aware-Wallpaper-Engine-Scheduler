@@ -37,7 +37,6 @@ export function evaluateSteps(
 ): StepEvaluation {
   const location = draft.weather.location
   const locationValid =
-    location.name.trim().length > 0 &&
     location.latitude !== null &&
     Number.isFinite(location.latitude) &&
     location.latitude >= -90 &&

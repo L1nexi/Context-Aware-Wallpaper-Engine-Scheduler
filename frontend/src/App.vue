@@ -73,5 +73,5 @@ onMounted(loadProfile)
     </Card>
   </main>
 
-  <Toaster position="top-center" rich-colors />
+  <Toaster position="top-center" />
 </template>

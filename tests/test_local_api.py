@@ -384,7 +384,7 @@ def test_api_setup_reports_unreadable_wallpaper_engine_config(tmp_path: Path, ti
     assert body == {"error": "wallpaper_engine_config_not_found"}
 
 
-def test_api_setup_detects_city_location_without_exposing_ip(app, monkeypatch):
+def test_api_setup_estimates_coordinates_and_returns_city_without_exposing_ip(app, monkeypatch):
     class Response:
         status_code = 200
 
@@ -392,9 +392,7 @@ def test_api_setup_detects_city_location_without_exposing_ip(app, monkeypatch):
         def json():
             return {
                 "ip": "203.0.113.10",
-                "city": "Shanghai",
-                "region": "Shanghai",
-                "country_name": "China",
+                "city": " Shanghai ",
                 "latitude": 31.2304,
                 "longitude": 121.4737,
             }
@@ -406,7 +404,7 @@ def test_api_setup_detects_city_location_without_exposing_ip(app, monkeypatch):
     assert "201" in status
     assert body == {
         "location": {
-            "name": "Shanghai, China",
+            "city": "Shanghai",
             "latitude": 31.2304,
             "longitude": 121.4737,
         }
@@ -486,15 +484,17 @@ def test_api_create_profile_persists_first_profile(tmp_path: Path, tick_history)
     manager = ProfileManager(str(config_dir))
     app = build_api_app(tick_history, manager)
     draft = _profile_payload(executable)
+    draft["weather"]["location"].pop("name")
+    expected = Profile.model_validate(draft).model_dump(mode="json")
 
     status, body = wsgi_post(app, "/api/profile", draft)
 
     assert "201" in status
-    assert body == {"status": "created", "profile": draft}
+    assert body == {"status": "created", "profile": expected}
 
     profile_status, profile_body = wsgi_get(app, "/api/profile")
     assert "200" in profile_status
-    assert profile_body == {"profile": draft}
+    assert profile_body == {"profile": expected}
 
 
 def test_api_create_profile_leaves_profile_absent_when_weather_key_is_rejected(

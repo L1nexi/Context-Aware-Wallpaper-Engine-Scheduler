@@ -8,7 +8,6 @@ export interface ProfileDraft {
   weather: {
     api_key: string
     location: {
-      name: string
       latitude: number | null
       longitude: number | null
     }
@@ -102,7 +101,10 @@ export function createProfileDraft(profile: Profile | null, locale: Locale): Pro
       language: profile.language,
       weather: {
         api_key: profile.weather.api_key,
-        location: { ...profile.weather.location },
+        location: {
+          latitude: profile.weather.location.latitude,
+          longitude: profile.weather.location.longitude,
+        },
       },
       scenes: { ...profile.scenes },
       matching: { ...profile.matching },
@@ -124,7 +126,6 @@ export function createProfileDraft(profile: Profile | null, locale: Locale): Pro
     weather: {
       api_key: "",
       location: {
-        name: "",
         latitude: null,
         longitude: null,
       },
@@ -164,7 +165,6 @@ export function buildProfile(draft: ProfileDraft): Profile {
     weather: {
       api_key: draft.weather.api_key,
       location: {
-        name: draft.weather.location.name,
         latitude,
         longitude,
       },

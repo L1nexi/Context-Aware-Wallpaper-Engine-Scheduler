@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle2Icon, CloudSunIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, FlaskConicalIcon, TriangleAlertIcon } from "@lucide/vue"
+import { CheckCircle2Icon, CloudSunIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, GaugeIcon, TriangleAlertIcon } from "@lucide/vue"
 import { computed, ref } from "vue"
 
 import type { Locale } from "@/api/profile"
@@ -60,7 +60,7 @@ const showApiKey = ref(false)
     <div class="flex flex-wrap gap-2">
       <Button :disabled="validating || !apiKey.trim()" @click="emit('validate')">
         <Spinner v-if="validating" data-icon="inline-start" />
-        <FlaskConicalIcon v-else data-icon="inline-start" />
+        <GaugeIcon v-else data-icon="inline-start" />
         {{ validating ? copy.weather.validating : copy.weather.validate }}
       </Button>
       <Button variant="outline" @click="emit('openKeyPage')">

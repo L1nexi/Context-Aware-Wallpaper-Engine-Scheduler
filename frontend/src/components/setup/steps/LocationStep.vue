@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LocateFixedIcon, MapPinIcon, TriangleAlertIcon } from "@lucide/vue"
+import { MapPinIcon, MapPinSearchIcon, TriangleAlertIcon } from "@lucide/vue"
 import { computed } from "vue"
 
 import type { Locale } from "@/api/profile"
@@ -20,6 +20,7 @@ const props = defineProps<{
   locating: boolean
   detectionStatus: "idle" | "success" | "error"
   detectionError: string
+  detectionCity: string | null
   attempted: boolean
   errors: Record<string, string[]>
 }>()
@@ -57,7 +58,7 @@ function setCoordinate(field: Coordinate, value: string | number): void {
     <div class="flex flex-col items-start gap-2">
       <Button variant="outline" :disabled="locating" @click="emit('detect')">
         <Spinner v-if="locating" data-icon="inline-start" />
-        <LocateFixedIcon v-else data-icon="inline-start" />
+        <MapPinSearchIcon v-else data-icon="inline-start" />
         {{ locating ? copy.location.detecting : copy.location.detect }}
       </Button>
       <p class="text-sm text-muted-foreground">{{ copy.location.detectHint }}</p>
@@ -65,7 +66,7 @@ function setCoordinate(field: Coordinate, value: string | number): void {
 
     <Alert v-if="detectionStatus === 'success'">
       <MapPinIcon />
-      <AlertDescription>{{ copy.location.detected }}</AlertDescription>
+      <AlertDescription>{{ copy.location.detected(detectionCity) }}</AlertDescription>
     </Alert>
     <Alert v-else-if="detectionStatus === 'error'" variant="destructive">
       <TriangleAlertIcon />
@@ -73,18 +74,6 @@ function setCoordinate(field: Coordinate, value: string | number): void {
     </Alert>
 
     <FieldGroup>
-      <Field :data-invalid="(attempted && !location.name.trim()) || messages('weather.location.name').length > 0">
-        <FieldLabel for="location-name">{{ copy.location.nameLabel }}</FieldLabel>
-        <Input
-          id="location-name"
-          :model-value="location.name"
-          :placeholder="copy.location.namePlaceholder"
-          :aria-invalid="(attempted && !location.name.trim()) || messages('weather.location.name').length > 0"
-          @update:model-value="(value: string | number) => emit('update:location', { ...location, name: String(value) })"
-        />
-        <FieldError v-if="messages('weather.location.name').length" :errors="messages('weather.location.name')" />
-      </Field>
-
       <div class="grid gap-5 sm:grid-cols-2">
         <Field :data-invalid="(attempted && latitudeInvalid) || messages('weather.location', 'weather.location.latitude').length > 0">
           <FieldLabel for="latitude">{{ copy.location.latitudeLabel }}</FieldLabel>
