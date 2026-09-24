@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "playwright test",
     "build": "npm run type-check && npm run build-only",
     "build-only": "vite build",
@@ -30,9 +31,12 @@
     "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.4",
     "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.9.1",
+    "happy-dom": "^20.14.5",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
+    "vitest": "^4.1.11",
     "vue-tsc": "^3.3.11"
   }
 }

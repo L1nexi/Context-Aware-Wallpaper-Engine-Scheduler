@@ -7,6 +7,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Profile 设置工作区**：新增统一的首次启动与运行时设置界面，引导用户连接 Wallpaper Engine、配置天气与地点、关联内置 Scene、选择响应风格和打扰档位，并设置 Activity 检测规则。
+- **Profile 本地资源接口**：新增 Profile 创建、读取与完整替换接口，以及固定 Scene 目录、Wallpaper Engine Playlist 扫描和一次性城市估算能力。
+- **Tick History 导出**：可从托盘导出近期调度记录为经过敏感字段裁剪的 JSON，并直接打开导出文件。
+
+### Changed
+
+- **正式配置契约切换为 Profile**：用户只表达 Scene 关联、响应风格和打扰时间等产品意图；应用通过 `ProfileCompiler` 生成完整运行时配置。
+- **安全应用运行时设置**：Profile 修改由调度线程在两个 Tick 之间串行应用；编译、运行时准备或持久化失败时保留现有 Profile、运行时和前端草稿。
+- **本地服务边界收敛**：Bottle 服务迁入 `server/`，OpenWeatherMap 与公网 IP 地点估算迁入独立集成模块，首次创建和运行时设置复用同一套长期资源接口。
+- **设置窗口生命周期**：托盘设置入口复用活动窗口，并在窗口退出后重新创建，避免重复打开多个设置进程。
+
+### Removed
+
+- **旧六 YAML 配置路径**：移除旧配置后端、配置 CLI、样例配置和发布入口，不再要求用户手工编辑内部调度配置。
+- **旧 Diagnostics 产品面**：移除持续轮询的 Diagnostics 页面和旧前端工作区，近期判断排错统一使用 Tick History 导出。
+
 ## [0.8.3] - 2026-07-26
 
 **新的调度流水线范式**

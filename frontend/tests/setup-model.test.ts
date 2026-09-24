@@ -1,5 +1,4 @@
-import assert from "node:assert/strict"
-import test from "node:test"
+import { expect, test } from "vitest"
 
 import {
   isNonNegativeInteger,
@@ -9,32 +8,32 @@ import {
 import { stepForIssue } from "../src/setup/flow.ts"
 
 test("number input parsing preserves valid and invalid numeric edits", () => {
-  assert.equal(parseNumberInput("42"), 42)
-  assert.equal(parseNumberInput("1.5"), 1.5)
-  assert.equal(parseNumberInput("-1"), -1)
-  assert.equal(parseNumberInput(""), null)
+  expect(parseNumberInput("42")).toBe(42)
+  expect(parseNumberInput("1.5")).toBe(1.5)
+  expect(parseNumberInput("-1")).toBe(-1)
+  expect(parseNumberInput("")).toBeNull()
 })
 
 test("disturbance values must be non-negative integers", () => {
-  assert.equal(isNonNegativeInteger(0), true)
-  assert.equal(isNonNegativeInteger(42), true)
-  assert.equal(isNonNegativeInteger(1.5), false)
-  assert.equal(isNonNegativeInteger(-1), false)
-  assert.equal(isNonNegativeInteger(null), false)
+  expect(isNonNegativeInteger(0)).toBe(true)
+  expect(isNonNegativeInteger(42)).toBe(true)
+  expect(isNonNegativeInteger(1.5)).toBe(false)
+  expect(isNonNegativeInteger(-1)).toBe(false)
+  expect(isNonNegativeInteger(null)).toBe(false)
 })
 
 test("server validation paths map to setup fields", () => {
-  assert.equal(validationIssueField(["weather", "api_key"]), "weather.api_key")
-  assert.equal(validationIssueField(["weather", "location", "latitude"]), "weather.location.latitude")
-  assert.equal(validationIssueField(["activity", "work_processes", 0]), "activity")
-  assert.equal(validationIssueField(["scenes", "day_work"]), "scenes")
+  expect(validationIssueField(["weather", "api_key"])).toBe("weather.api_key")
+  expect(validationIssueField(["weather", "location", "latitude"])).toBe("weather.location.latitude")
+  expect(validationIssueField(["activity", "work_processes", 0])).toBe("activity")
+  expect(validationIssueField(["scenes", "day_work"])).toBe("scenes")
 })
 
 test("server validation paths map to the owning setup step", () => {
-  assert.equal(stepForIssue(["wallpaper_engine_path"]), "wallpaper")
-  assert.equal(stepForIssue(["weather", "api_key"]), "weather")
-  assert.equal(stepForIssue(["weather", "location"]), "location")
-  assert.equal(stepForIssue(["scenes"]), "scenes")
-  assert.equal(stepForIssue(["disturbance", "startup_grace_seconds"]), "scheduling")
-  assert.equal(stepForIssue(["activity"]), "activity")
+  expect(stepForIssue(["wallpaper_engine_path"])).toBe("wallpaper")
+  expect(stepForIssue(["weather", "api_key"])).toBe("weather")
+  expect(stepForIssue(["weather", "location"])).toBe("location")
+  expect(stepForIssue(["scenes"])).toBe("scenes")
+  expect(stepForIssue(["disturbance", "startup_grace_seconds"])).toBe("scheduling")
+  expect(stepForIssue(["activity"])).toBe("activity")
 })
