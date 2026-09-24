@@ -276,7 +276,7 @@ test("四个防打扰时间项通过问号说明，活动规则保留中立活�
   }
 
   await navigation.getByRole("button", { name: "活动进程检测" }).click()
-  await expect(page.getByText("休闲指有意进行的娱乐活动。对于不具明确指向性活动，不用进行场景规则配置。")).toBeVisible()
+  await expect(page.getByText("休闲指有意进行的娱乐活动。对于不具明确指向性活动，无需进行场景规则配置。")).toBeVisible()
 })
 
 test("已验证的当前 API Key 可直接保存，后续网络故障不抹去通过记录", async ({ page }) => {
