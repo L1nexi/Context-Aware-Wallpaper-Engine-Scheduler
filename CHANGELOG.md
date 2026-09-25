@@ -7,11 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-25
+
+从 `0.8.x` 升级时，旧六 YAML 配置不会自动迁移；首次运行需在设置窗口重新建立 Profile。升级前请保留旧配置文件备用。
+
 ### Added
 
 - **Profile 设置工作区**：新增统一的首次启动与运行时设置界面，引导用户连接 Wallpaper Engine、配置天气与地点、关联内置 Scene、选择响应风格和打扰档位，并设置 Activity 检测规则。
 - **Profile 本地资源接口**：新增 Profile 创建、读取与完整替换接口，以及固定 Scene 目录、Wallpaper Engine Playlist 扫描和一次性城市估算能力。
 - **Tick History 导出**：可从托盘导出近期调度记录为经过敏感字段裁剪的 JSON，并直接打开导出文件。
+- **设置页外观**：提供深色、浅色和跟随系统的黑白主题，以及中英文界面切换。
 
 ### Changed
 
@@ -19,6 +24,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **安全应用运行时设置**：Profile 修改由调度线程在两个 Tick 之间串行应用；编译、运行时准备或持久化失败时保留现有 Profile、运行时和前端草稿。
 - **本地服务边界收敛**：Bottle 服务迁入 `server/`，OpenWeatherMap 与公网 IP 地点估算迁入独立集成模块，首次创建和运行时设置复用同一套长期资源接口。
 - **设置窗口生命周期**：托盘设置入口复用活动窗口，并在窗口退出后重新创建，避免重复打开多个设置进程。
+- **天气与地点设置**：天气密钥可手动测试；短时连接失败时，保存流程允许用户确认后继续。公网 IP 地点估算仅填入经纬度，并显示估算城市供核对。
 
 ### Removed
 
@@ -426,7 +432,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-[Unreleased]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/L1nexi/Wallpaper-Engine-Scheduler/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/L1nexi/Wallpaper-Engine-Scheduler/compare/v0.8.3...v0.9.0
 [0.8.3]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.8.0...v0.8.2
 [0.8.0]: https://github.com/L1nexi/Context-Aware-Wallpaper-Engine-Scheduler/compare/v0.7.2...v0.8.0

@@ -1,77 +1,34 @@
 # Context Aware WE Scheduler
 
 > 具备上下文感知与防打扰能力的 Wallpaper Engine 本地调度器。
-> A Scheduler that maintains your flow.
 
-WEScheduler 根据时段、季节、天气和当前活动判断适合的预设场景，并在不打断用户心流的时机控制 Wallpaper Engine。
+你是否有着上百张壁纸收藏，却发现 Wallpaper Engine 的内置调度策略难堪大用？一方面，定时切换、日内时段切换的切换频率偏高，且时间一到即切换，易导致系统卡顿。另一方面，按星期切换频率则偏低，无法充分利用壁纸库。
 
-## 产品模型
+看着窗外滴落着雨滴，或是感受冬日暖意之时，你是否希望能看到与当下氛围相契合的壁纸？
 
-- 应用提供一组固定 Scene，例如日间工作、夜间休闲、四季、黄昏和雨天。
-- 用户只负责启用需要的 Scene，并为它绑定一个 Wallpaper Engine Playlist。
-- 多个 Scene 可以绑定同一个 Playlist；没有绑定的 Scene 不参与调度。
-- Scene 的标签、权重、fallback、Policy 和内部阈值由产品维护，不作为用户配置暴露。
-- 调度器完成语义匹配和控制决策后，才在执行边界把 Scene 集合降级为具体 Playlist。
+你是否希望在工作时看见安静深邃，而在闲暇摸鱼之时看到华丽绚烂？
 
-## 核心能力
+本项目的宗旨便是弥补 Wallpaper Engine 原生调度能力的对上述场景支持的不足，尝试提供一个能读懂时间、时令、天气以及你的活动，并可以聪明地处理调度时机的 Wallpaper Engine 调度器。
 
-- 感知活动窗口、空闲时间、CPU、全屏状态、时段、季节和天气。
-- 通过预设 Scene 表达产品语义，不要求用户理解标签向量。
-- 在启动预热、用户活跃、高负载或全屏时延后切换。
-- 使用语义连续性降低相近上下文之间的无谓切换。
-- 通过 Tick History 导出近期调度事实，用于定位匹配和执行问题。
+## 核心特性
 
-## 当前开发状态
+- **感知当下情境**：结合日内时段、季节、天气和当前活动，从你启用的场景中选择合适的播放列表。
+- **减少切换打扰**：在刚启动、用户仍在操作、全屏或电脑负载较高时延后切换；等待时长和轮播间隔可以在设置中调整。
+- **沿用自己的壁纸库**：在 Wallpaper Engine 中整理播放列表，再将需要的日常、季节和天气场景与它们关联。不同场景可以共用同一个播放列表。
+- **让变化更平稳**：相近情境间尽量避免无谓的往返切换；场景保持不变时，也可以在对应播放列表内轮播壁纸。
+- **随时手动接管**：通过系统托盘暂停、恢复、立即应用当前匹配，或重新打开设置。
 
-项目处于 `0.x` 产品化迁移阶段。
+## 快速开始
 
-- 正式持久化契约是 `config/profile.json`。
-- 旧六 YAML 配置、配置 CLI 和用户自定义 Playlist 标签模型已经退出后端。
-- `frontend/` 中的界面已覆盖首次创建和运行时设置，仍在产品化验收阶段。
-- 首次启动宿主已能在缺少 `profile.json` 时打开 setup，并在创建成功后启动调度器。
-- 本地 HTTP 能力位于 `server/`；同一 Profile 使用 `GET`、`POST`、`PUT /api/profile` 读取、首次创建和完整替换。
-- 旧 Diagnostics 页面和工作区已经删除，排错入口是托盘中的 Tick History 导出。
+1. 在 Wallpaper Engine 中准备至少一个包含壁纸的播放列表。建议播放列表名称优先使用英文字母和数字，以减少命令行调用时的兼容问题。
+2. 准备 OpenWeatherMap API Key。设置窗口会引导你获取并测试密钥；天气及日出日落判断还需要所在地的经纬度。
+3. 将发布包解压到可写入的目录，运行 `WEScheduler.exe`。首次启动时会打开设置窗口。连接 Wallpaper Engine、扫描播放列表，填写天气和地点信息，再为想使用的场景选择播放列表。
+4. 在“查看配置草稿”中检查设置并保存。之后调度器会在系统托盘运行。
 
-## 开发运行
+## 场景与日常使用
 
-项目仅支持 Windows，使用仓库根目录的 `.venv/`。
+设置窗口提供日间与夜间的工作、休闲场景，季节，黄昏以及雨天场景。只需启用想用的场景并绑定播放列表。活动进程规则可帮助调度器识别明确的工作或休闲活动，无需把所有活动都归入其中。
 
-```powershell
-pip install -r requirements.txt
-python main.py
-.\scripts\test.ps1 -q
-```
+在托盘菜单中可以查看当前活跃场景与当前匹配场景，按预设时长或自定义时长暂停调度，随时恢复，或立即应用当前匹配。托盘也提供设置、近期调度记录导出、日志和退出入口。
 
-设置前端联调：
-
-```powershell
-python main.py --api-port 38417
-cd frontend
-npm run dev
-```
-
-前端检查可在 `frontend/` 运行 `npm test`、`npm run type-check` 和 `npm run build-only`。设置页浏览器验收测试使用本机 Microsoft Edge，运行 `npm run test:e2e`；测试会启动独立的 Vite 服务，并在浏览器边界替代本地 API 响应，不会读取或修改真实 `config/profile.json`。
-
-后端格式化与检查：
-
-```powershell
-.\.venv\Scripts\python.exe -m ruff check . --fix
-.\.venv\Scripts\python.exe -m ruff format .
-```
-
-排查本地服务或天气故障时，可在当前 PowerShell 会话临时开启 DEBUG 日志；默认级别为 INFO，关键失败仍会写入 WARNING。日志文件位于 `logs/scheduler.log`，分享前应检查并去除敏感内容。
-
-```powershell
-$env:WESCHEDULER_LOG_LEVEL = 'DEBUG'
-.\.venv\Scripts\python.exe main.py
-Remove-Item Env:WESCHEDULER_LOG_LEVEL
-```
-
-## 配置与数据
-
-- `config/profile.json`：唯一正式用户配置。
-- `data/state.json`：Scheduler 跨进程状态。
-- `data/events-YYYY-MM.jsonl`：稀疏运行事件。
-- `data/tick-history/`：用户显式导出的近期调度记录。
-
-不要手工构造内部 `SchedulerConfig`；Profile 的加载、编译、持久化和运行时应用统一由 `ProfileManager` 管理。
+当前仅支持 Windows。版本变化见 [更新记录](CHANGELOG.md)。
